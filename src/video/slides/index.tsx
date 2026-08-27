@@ -7,7 +7,6 @@ import {
   NemesisSlide,
   OutroSlide,
   TopCoPlayerSlide,
-  TopFiveSlide,
   TopGameSlide,
   TopLocationSlide,
   TotalPlaysSlide,
@@ -26,6 +25,7 @@ import {
   TimePlayedSlide,
   WorstGameSlide,
 } from './OptionalSlides';
+import { TopFiveSlide } from './TopFive';
 
 /**
  * The slide registry.
@@ -100,4 +100,5 @@ export const SlideShell: React.FC<{ durationInFrames: number; children: React.Re
 
 export * from './Slides';
 export * from './OptionalSlides';
+export * from './TopFive';
 export * from './layout';

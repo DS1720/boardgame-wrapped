@@ -12,7 +12,7 @@ import {
   trackVolume,
   type Track,
 } from '../audio';
-import { DEFAULT_CUT, planTimeline, SLIDE_BARS } from '@/video/timeline';
+import { DEFAULT_CUT, planTimeline, slideBars, SLIDE_BARS } from '@/video/timeline';
 import type { Stat, WrappedStats } from '@/stats/types';
 
 const track = (over: Partial<Track> = {}): Track => ({
@@ -235,7 +235,9 @@ describe('the video against the grid', () => {
       // Each cut sits within half a frame of the true bar line, and the error
       // never accumulates from slide to slide.
       expect(Math.abs(slide.from - bars * perBar)).toBeLessThanOrEqual(0.5);
-      bars += SLIDE_BARS[slide.id];
+      // `slideBars`, not the raw table: a slide with a lead-in gets an extra
+      // bar, and the cut positions follow that.
+      bars += slideBars(slide.id);
     }
   });
 

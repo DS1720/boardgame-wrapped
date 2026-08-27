@@ -144,6 +144,37 @@ export const insertSlide = (order: SlideId[], id: SlideId): SlideId[] => {
 };
 
 /**
+ * Frames a lead-in line holds before its slide starts arriving.
+ *
+ * Comfortably inside one bar at any sensible tempo, which is what the extra bar
+ * below pays for.
+ */
+export const LEAD_IN_FRAMES = 46;
+
+/** An extra bar for any slide that has a line to deliver first. */
+export const LEAD_IN_BARS = 1;
+
+/**
+ * Which slides open with a line, and what it says.
+ *
+ * Deliberately not every slide. A setup before each one would be a narrator,
+ * and the video would stop being about the numbers. These are the slides where
+ * a beat of anticipation actually pays — a name, a rate, a verdict — and each
+ * line trails off because the next beat delivers the thing.
+ */
+export const LEAD_INS: Partial<Record<TimelineSlideId, string>> = {
+  topGame: 'One game more than any other…',
+  topFive: 'The five that defined the year…',
+  bestGame: 'You were particularly good at one of them…',
+  worstGame: 'And then there was this one…',
+  nemesis: 'Someone had your number…',
+  gamesLearned: 'You did not just replay old favourites…',
+  highestScore: 'Your best night at the table…',
+};
+
+export const leadInFor = (id: TimelineSlideId): string | null => LEAD_INS[id] ?? null;
+
+/**
  * How long each slide runs, in **whole bars**.
  *
  * Whole numbers only. A slide lasting 1.5 bars puts the next cut on a half-bar,
@@ -157,7 +188,9 @@ export const SLIDE_BARS: Record<TimelineSlideId, number> = {
   totalPlays: 2,
   timePlayed: 2,
   topGame: 4,
-  topFive: 2,
+  // Long enough to count down from five, one at a time, and still hold the
+  // finished list for a moment.
+  topFive: 3,
   winRate: 2,
   topCoPlayer: 2,
   nemesis: 2,
@@ -204,7 +237,14 @@ export interface PlanOptions {
 /** A composition still needs a positive duration when there is nothing to show. */
 export const EMPTY_DURATION_FRAMES = VIDEO.fps * 2;
 
-export const slideBars = (id: TimelineSlideId): number => SLIDE_BARS[id] ?? 2;
+/**
+ * A slide's length, including the bar its lead-in needs.
+ *
+ * Added here rather than baked into `SLIDE_BARS` so the two stay separable: the
+ * table says how long the content wants, this says what it actually gets.
+ */
+export const slideBars = (id: TimelineSlideId): number =>
+  (SLIDE_BARS[id] ?? 2) + (leadInFor(id) ? LEAD_IN_BARS : 0);
 
 export const slideFrames = (id: TimelineSlideId, bpm = DEFAULT_BPM, fps: number = VIDEO.fps): number =>
   Math.round(slideBars(id) * framesPerBar(bpm, fps));

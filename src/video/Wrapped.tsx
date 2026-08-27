@@ -1,4 +1,4 @@
-import { AbsoluteFill, Series } from 'remotion';
+import { AbsoluteFill, Sequence, Series } from 'remotion';
 import type { Track } from '@/shared/audio';
 import type { WrappedStats } from '@/stats/types';
 import { FontLoader, ThemeProvider, useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
@@ -9,9 +9,18 @@ import { VIDEO } from './config';
 import { SignatureBackdrop } from './signature';
 import { SLIDE_COMPONENTS, SlideShell } from './slides';
 import { Soundtrack } from './Soundtrack';
+import { Ambient } from './Ambient';
+import { LeadIn } from './slides/LeadIn';
 import { Texture, Vignette } from './Texture';
 import { boxArtFor, useBoxArtManifest } from './useBoxArt';
-import { DEFAULT_BPM, planTimeline, type Timeline, type TimelineSlideId } from './timeline';
+import {
+  DEFAULT_BPM,
+  LEAD_IN_FRAMES,
+  leadInFor,
+  planTimeline,
+  type Timeline,
+  type TimelineSlideId,
+} from './timeline';
 
 export interface WrappedProps {
   stats?: WrappedStats | null;
@@ -45,6 +54,9 @@ const Stage: React.FC<{ stats: WrappedStats; timeline: Timeline; track: Track | 
 
   return (
     <AbsoluteFill style={{ backgroundColor: theme.color.bg }}>
+      {/* Above the Series, so it runs on the video's absolute frame and drifts
+          straight through every cut rather than restarting at each one. */}
+      <Ambient color={theme.color} />
       <Texture texture={theme.texture} color={theme.color} />
       <SignatureBackdrop />
       <Vignette color={theme.color} />
@@ -54,13 +66,27 @@ const Stage: React.FC<{ stats: WrappedStats; timeline: Timeline; track: Track | 
         {timeline.slides.map((slide) => {
           const Component = SLIDE_COMPONENTS[slide.id];
           if (!Component) return null;
+          const lead = leadInFor(slide.id);
+
           return (
             <Series.Sequence
               key={`${slide.id}-${slide.from}`}
               durationInFrames={slide.durationInFrames}
             >
               <SlideShell durationInFrames={slide.durationInFrames}>
-                <Component stat={slide.stat} stats={stats} />
+                {lead ? (
+                  <>
+                    <LeadIn text={lead} />
+                    {/* Offsetting with a Sequence rather than passing a delay
+                        means the slide's own frame still starts at zero, so
+                        every BEAT inside it keeps working unchanged. */}
+                    <Sequence from={LEAD_IN_FRAMES} layout="none">
+                      <Component stat={slide.stat} stats={stats} />
+                    </Sequence>
+                  </>
+                ) : (
+                  <Component stat={slide.stat} stats={stats} />
+                )}
               </SlideShell>
             </Series.Sequence>
           );

@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Stat, WrappedStats } from '@/stats/types';
 import { VIDEO } from '../config';
+import { framesPerBar } from '@/shared/audio';
 import {
   DEFAULT_BPM,
   DEFAULT_CUT,
   EMPTY_DURATION_FRAMES,
+  LEAD_IN_BARS,
+  LEAD_IN_FRAMES,
+  leadInFor,
   planTimeline,
+  slideBars,
   slideFrames,
   SLIDE_BARS,
   topFiveOf,
@@ -178,16 +183,45 @@ describe('slide lengths', () => {
   });
 
   it('give the outro the longest hold, because it is the screenshot', () => {
+    // Compared against content length, not total: a slide with a lead-in is
+    // longer overall but does not hold its content for longer.
     const outro = SLIDE_BARS.outro;
     for (const id of DEFAULT_CUT.filter((s) => s !== 'outro')) {
       expect(outro).toBeGreaterThanOrEqual(SLIDE_BARS[id]);
     }
   });
 
+  it('only charges the extra bar to slides that actually have a line', () => {
+    const withLine = DEFAULT_CUT.filter((id) => leadInFor(id) !== null);
+    expect(withLine.length).toBeGreaterThan(0);
+    // Not every slide: a setup before each one would be a narrator.
+    expect(withLine.length).toBeLessThan(DEFAULT_CUT.length / 2);
+  });
+
   it('produces a video of a sane length for a full year', () => {
+    // Grew from 56s when the lead-in lines and the top-five countdown landed:
+    // seven slides can now open with a line, and each of those costs a bar.
     const seconds = planTimeline(statsWith(ALL_CORE)).durationInFrames / VIDEO.fps;
     expect(seconds).toBeGreaterThan(20);
-    expect(seconds).toBeLessThan(60);
+    expect(seconds).toBeLessThan(80);
+  });
+
+  it('charges a slide with a lead-in exactly one extra bar', () => {
+    // topGame opens with a line; topLocation does not.
+    expect(slideBars('topGame')).toBe(SLIDE_BARS.topGame + LEAD_IN_BARS);
+    expect(slideBars('topLocation')).toBe(SLIDE_BARS.topLocation);
+  });
+
+  it('keeps every slide a whole number of bars, lead-ins included', () => {
+    for (const id of DEFAULT_CUT) {
+      expect(slideBars(id) % 1).toBe(0);
+    }
+  });
+
+  it('leaves room for the line inside the bar it charges for', () => {
+    // A lead-in that outlasted the bar it was given would eat into the content
+    // it is introducing.
+    expect(LEAD_IN_FRAMES).toBeLessThan(framesPerBar(DEFAULT_BPM, VIDEO.fps));
   });
 });
 

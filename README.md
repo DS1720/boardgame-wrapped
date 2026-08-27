@@ -27,7 +27,8 @@ Steps 1–9 of `boardgame-wrapped-plan.md` are implemented and tested:
 | 11 Batch | Every player in one go, a theme each, skip-on-error |
 | 12 Polish | Vignette, per-player superlative, and a square still to share |
 
-**All twelve steps are done.** 338 tests pass (`npm test`).
+**All twelve steps are done**, plus a motion pass on top. 342 tests pass
+(`npm test`).
 
 ## Setup
 
@@ -35,7 +36,7 @@ Steps 1–9 of `boardgame-wrapped-plan.md` are implemented and tested:
 npm install
 npm run dev        # UI at http://localhost:5173
 npm run server     # render service at http://localhost:4000
-npm test           # 338 tests
+npm test           # 342 tests
 ```
 
 The dev server proxies `/api` to the render service, so run both if you want to
@@ -274,6 +275,23 @@ top tenth of players clear them — a line everyone gets is a caption, not a
 superlative, so most players simply do not get one.
 
 Dark themes get a vignette; every theme gets its paper or grain at 3–4%.
+
+## Movement
+
+The background never stops. Three soft colour fields drift across the frame on
+different cycles, running on the video's own clock rather than each slide's — so
+the motion carries straight through the cuts instead of restarting at every one.
+The top game's cover floats gently while it is on screen.
+
+Some slides open with a line before the number arrives: *"One game more than any
+other…"*, *"Someone had your number…"*, *"You did not just replay old
+favourites…"*. Only seven of them — a setup before every slide would be a
+narrator.
+
+The top five is a **countdown**. Five appears first, then four, then three, and
+the list fills upward until first place lands last, larger and on its own plate.
+
+A full year now runs about 66 seconds.
 
 ## Done
 

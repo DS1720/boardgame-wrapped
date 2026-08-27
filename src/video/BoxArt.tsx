@@ -1,4 +1,4 @@
-import { Img, staticFile } from 'remotion';
+import { Img, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { boxArtSrc, fallbackHue, type BoxArtEntry } from '@/shared/boxart';
 import { useFont, useTheme } from '@/theme/ThemeContext';
 import type { ThemeColor } from '@/theme/types';
@@ -175,6 +175,13 @@ export const BoxArt: React.FC<BoxArtProps> = ({ entry, name, width, height, colo
 export interface BoxArtHeroProps extends BoxArtProps {
   /** Fills the frame behind the cover with a blurred, darkened copy of it. */
   backdrop?: boolean;
+  /**
+   * Float the cover slowly for as long as it is on screen.
+   *
+   * The hero is the largest thing in the frame and it holds for four bars; sat
+   * perfectly still it makes the whole video look paused between counts.
+   */
+  drift?: boolean;
 }
 
 /**
@@ -192,9 +199,19 @@ export const BoxArtHero: React.FC<BoxArtHeroProps> = ({
   colors,
   fontFamily,
   backdrop = true,
+  drift = true,
 }) => {
   const theme = useTheme();
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
   const src = boxArtSrc(entry);
+
+  // Slow enough that it is felt rather than watched: a full cycle takes about
+  // nine seconds, longer than the slide itself, so it never visibly repeats.
+  const t = (frame / fps) * 0.7;
+  const float = drift ? Math.sin(t) * 10 : 0;
+  const sway = drift ? Math.cos(t * 0.73) * 6 : 0;
+  const breathe = drift ? 1 + Math.sin(t * 0.51) * 0.012 : 1;
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -242,7 +259,12 @@ export const BoxArtHero: React.FC<BoxArtHeroProps> = ({
           justifyContent: 'center',
         }}
       >
-        <div style={{ filter: 'drop-shadow(0 24px 48px rgb(0 0 0 / 0.45))' }}>
+        <div
+          style={{
+            filter: 'drop-shadow(0 24px 48px rgb(0 0 0 / 0.45))',
+            transform: `translate(${sway}px, ${float}px) scale(${breathe})`,
+          }}
+        >
           <BoxArt
             entry={entry}
             name={name}

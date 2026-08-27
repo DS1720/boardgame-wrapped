@@ -7,6 +7,7 @@ import { FontLoader, ThemeProvider, useFont, useTheme, useTypeScale } from '@/th
 import { themeFromBoxArt } from '@/theme/generate';
 import { DEFAULT_THEME } from '@/theme/starters';
 import type { Theme } from '@/theme/types';
+import { Ambient } from './Ambient';
 import { BoxArt } from './BoxArt';
 import { VIDEO } from './config';
 import { Texture, Vignette } from './Texture';
@@ -47,6 +48,9 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: theme.color.bg }}>
+      {/* The square gets one still frame of the same drift, so it belongs to
+          the video it is rendered beside rather than looking like a flat card. */}
+      <Ambient color={theme.color} />
       <Texture texture={theme.texture} color={theme.color} />
       <Vignette color={theme.color} />
 

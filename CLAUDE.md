@@ -23,7 +23,7 @@ or every command below except the `npx tsx` one will fail.
 npm install
 npm run dev          # UI on http://localhost:5173
 npm run server       # render service on http://localhost:4000 (stub until step 10)
-npm test             # vitest, 338 tests
+npm test             # vitest, 342 tests
 npm run typecheck    # tsc --noEmit
 npm run video:studio # Remotion Studio
 npm run video:render # renders out/test.mp4
@@ -452,6 +452,47 @@ Measured on the real export: 5 players, 4 rendered and 1 skipped, 27.7 MB in
   composition, rendered beside every MP4 as `<same-name>.png`. A failure there
   never fails the video.
 - **`--dry-run`** was already `scripts/dry-run.ts`, from step 4.
+
+### Motion
+
+Three things keep the frame alive, added after step 12:
+
+- **[Ambient.tsx](src/video/Ambient.tsx)** — three colour fields drifting on
+  their own periods (23s, 31s, 41s), mounted **above the `<Series>`** so it runs
+  on the video's absolute frame and drifts straight through every cut. A
+  background that restarted per slide would draw attention to the cuts instead
+  of covering them.
+- **Hero drift** — `BoxArtHero` floats on a nine-second cycle, longer than the
+  slide, so it never visibly repeats.
+- **The top-five countdown** ([slides/TopFive.tsx](src/video/slides/TopFive.tsx))
+  reveals five to one, filling upward, with first place landing last on a plate.
+  Rows hold their final positions from the start and are simply invisible until
+  their turn; laying them out as they arrive would shove every row already on
+  screen.
+
+**This costs bitrate.** Constant motion means no two frames are alike, so
+inter-frame compression has far less to work with: the same video went from
+9.5 MB to 15.3 MB. Still well inside the plan's budget, but worth knowing before
+adding more.
+
+### Lead-in lines
+
+`LEAD_INS` in [timeline.ts](src/video/timeline.ts) maps a slide to the line that
+introduces it. Seven slides have one; the rest simply start.
+
+The copy lives in the pure timeline layer, not in the component, because
+**slide lengths depend on it**: `slideBars()` adds `LEAD_IN_BARS` to any slide
+with a line, so the content keeps its full time and everything stays a whole
+number of bars. `LEAD_IN_FRAMES` (46) is deliberately less than one bar at any
+sensible tempo, and a test asserts it.
+
+The line and its slide share one `Series.Sequence`. The content is offset with a
+nested `<Sequence from={LEAD_IN_FRAMES}>` rather than a delay prop, so the
+slide's own frame still starts at zero and every `BEAT` inside it works
+unchanged. A lead-in is never a slide of its own — turning a slide off can then
+never strand its introduction.
+
+The default cut is now **33 bars, about 66 seconds** (was 56).
 
 ### The mirror test found a bug, not an effect
 
