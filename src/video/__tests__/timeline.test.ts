@@ -1,0 +1,203 @@
+import { describe, expect, it } from 'vitest';
+import type { Stat, WrappedStats } from '@/stats/types';
+import { VIDEO } from '../config';
+import {
+  DEFAULT_BPM,
+  DEFAULT_CUT,
+  EMPTY_DURATION_FRAMES,
+  planTimeline,
+  slideFrames,
+  SLIDE_BARS,
+  topFiveOf,
+} from '../timeline';
+import { SLIDE_COMPONENTS } from '../slides';
+
+const game = (gameId: number, name: string) => ({ gameId, name, boxArt: null, bggId: gameId });
+
+const ALL_CORE: Stat[] = [
+  { id: 'totalPlays', core: true, plays: 233, nights: 73, distinctGames: 71 },
+  {
+    id: 'timePlayed',
+    core: true,
+    minutes: 6852,
+    playsCounted: 229,
+    playsMissing: 4,
+    topGame: { ...game(99, 'Terraforming Mars'), minutes: 480, plays: 4 },
+  },
+  { id: 'topGame', core: true, game: game(77, 'Faraway'), plays: 21 },
+  {
+    id: 'topFive',
+    core: true,
+    games: [
+      { ...game(77, 'Faraway'), plays: 21 },
+      { ...game(78, 'Phantom Ink'), plays: 15 },
+      { ...game(23, 'Bluff'), plays: 10 },
+      { ...game(63, 'Castle Combo'), plays: 10 },
+      { ...game(40, 'Hitster'), plays: 9 },
+    ],
+  },
+  { id: 'winRate', core: true, wins: 61, losses: 161, ratio: 61 / 222, coopOnly: false },
+  { id: 'topCoPlayer', core: true, name: 'Dario', playerId: 1, shared: 180, others: [] },
+  { id: 'nemesis', core: true, name: 'Markus', playerId: 2, lossesTo: 14, headToHead: 30, lossRate: 14 / 30 },
+  { id: 'gamesLearned', core: true, count: 34, games: [game(1, 'A'), game(2, 'B')] },
+  { id: 'topLocation', core: true, name: 'Home', nights: 40 },
+];
+
+const statsWith = (stats: Stat[]): WrappedStats => ({
+  playerId: 4,
+  playerName: 'Tina',
+  rangeLabel: '2026',
+  rangeFrom: '2026-01-01',
+  rangeTo: '2026-12-31',
+  stats,
+  thin: false,
+});
+
+describe('the default cut', () => {
+  it("is the plan's cut, in order, plus the estimated play time", () => {
+    expect(DEFAULT_CUT).toEqual([
+      'intro',
+      'totalPlays',
+      // Sits beside the play count: the same question answered in hours.
+      'timePlayed',
+      'topGame',
+      'topFive',
+      'winRate',
+      'topCoPlayer',
+      'nemesis',
+      'gamesLearned',
+      'topLocation',
+      'outro',
+    ]);
+  });
+
+  it('has a component for every slide in the cut', () => {
+    // A slide that can be planned but not drawn would render an empty frame.
+    for (const id of DEFAULT_CUT) {
+      expect(SLIDE_COMPONENTS[id]).toBeTypeOf('function');
+    }
+  });
+
+  it('gives every slide in the cut a length', () => {
+    for (const id of DEFAULT_CUT) {
+      expect(SLIDE_BARS[id]).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('planTimeline', () => {
+  it('lays the full cut end to end', () => {
+    const { slides } = planTimeline(statsWith(ALL_CORE));
+    expect(slides.map((s) => s.id)).toEqual(DEFAULT_CUT);
+  });
+
+  // Step 7, test case 5.
+  it('has a duration exactly equal to the sum of its slides', () => {
+    const { slides, durationInFrames } = planTimeline(statsWith(ALL_CORE));
+    const sum = slides.reduce((total, slide) => total + slide.durationInFrames, 0);
+    expect(durationInFrames).toBe(sum);
+  });
+
+  // Step 7, test case 2.
+  it('drops a missing stat and leaves no gap', () => {
+    const withoutNemesis = ALL_CORE.filter((s) => s.id !== 'nemesis');
+    const { slides, durationInFrames } = planTimeline(statsWith(withoutNemesis));
+
+    expect(slides.map((s) => s.id)).not.toContain('nemesis');
+    expect(slides).toHaveLength(DEFAULT_CUT.length - 1);
+
+    // Every slide starts exactly where the previous one ended.
+    let expectedFrom = 0;
+    for (const slide of slides) {
+      expect(slide.from).toBe(expectedFrom);
+      expectedFrom += slide.durationInFrames;
+    }
+    expect(durationInFrames).toBe(expectedFrom);
+  });
+
+  it('stays contiguous however many stats are missing', () => {
+    for (let keep = 0; keep <= ALL_CORE.length; keep += 1) {
+      const { slides, durationInFrames } = planTimeline(statsWith(ALL_CORE.slice(0, keep)));
+      let cursor = 0;
+      for (const slide of slides) {
+        expect(slide.from).toBe(cursor);
+        cursor += slide.durationInFrames;
+      }
+      expect(durationInFrames).toBe(cursor);
+      // The bookends always survive.
+      expect(slides[0].id).toBe('intro');
+      expect(slides.at(-1)?.id).toBe('outro');
+    }
+  });
+
+  it('keeps the bookends even for a player with no stats at all', () => {
+    const { slides } = planTimeline(statsWith([]));
+    expect(slides.map((s) => s.id)).toEqual(['intro', 'outro']);
+  });
+
+  it('ignores optional stats that are not in the cut', () => {
+    const withOptional: Stat[] = [
+      ...ALL_CORE,
+      { id: 'longestWinStreak', core: false, length: 7 },
+      { id: 'busiestDay', core: false, day: '2026-03-14', plays: 9 },
+    ];
+    // The engine emits 18 modules; the default video is 11 slides.
+    expect(planTimeline(statsWith(withOptional)).slides).toHaveLength(DEFAULT_CUT.length);
+  });
+
+  it('can be given a different cut', () => {
+    const { slides } = planTimeline(statsWith(ALL_CORE), { cut: ['intro', 'winRate', 'outro'] });
+    expect(slides.map((s) => s.id)).toEqual(['intro', 'winRate', 'outro']);
+  });
+
+  it('returns a usable duration with no stats to plan', () => {
+    const empty = planTimeline(null);
+    expect(empty.slides).toEqual([]);
+    // A composition with zero frames cannot be rendered at all.
+    expect(empty.durationInFrames).toBe(EMPTY_DURATION_FRAMES);
+    expect(empty.durationInFrames).toBeGreaterThan(0);
+  });
+
+  it('never returns a zero-length video', () => {
+    expect(planTimeline(statsWith([])).durationInFrames).toBeGreaterThan(0);
+  });
+});
+
+describe('slide lengths', () => {
+  it('are whole bars at the default tempo, so step 8 can land on the beat', () => {
+    for (const id of DEFAULT_CUT) {
+      const frames = slideFrames(id, DEFAULT_BPM);
+      expect(Number.isInteger(frames)).toBe(true);
+      expect(frames).toBeGreaterThan(0);
+    }
+  });
+
+  it('scale with tempo', () => {
+    // Twice the tempo, half the wall-clock length for the same number of bars.
+    expect(slideFrames('intro', 240)).toBe(slideFrames('intro', 120) / 2);
+  });
+
+  it('give the outro the longest hold, because it is the screenshot', () => {
+    const outro = SLIDE_BARS.outro;
+    for (const id of DEFAULT_CUT.filter((s) => s !== 'outro')) {
+      expect(outro).toBeGreaterThanOrEqual(SLIDE_BARS[id]);
+    }
+  });
+
+  it('produces a video of a sane length for a full year', () => {
+    const seconds = planTimeline(statsWith(ALL_CORE)).durationInFrames / VIDEO.fps;
+    expect(seconds).toBeGreaterThan(20);
+    expect(seconds).toBeLessThan(60);
+  });
+});
+
+describe('topFiveOf', () => {
+  it('finds the games for the outro grid', () => {
+    expect(topFiveOf(statsWith(ALL_CORE))).toHaveLength(5);
+  });
+
+  it('is empty rather than undefined when there is no top five', () => {
+    expect(topFiveOf(statsWith([]))).toEqual([]);
+    expect(topFiveOf(null)).toEqual([]);
+  });
+});

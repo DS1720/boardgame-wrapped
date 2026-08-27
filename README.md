@@ -10,15 +10,22 @@ deliberately no landscape composition.
 
 ## What is in this scaffold
 
-Steps 1–4 of `boardgame-wrapped-plan.md` are implemented and tested:
+Steps 1–9 of `boardgame-wrapped-plan.md` are implemented and tested:
 
 | Step | Status |
 |---|---|
 | 1 Scaffold | Vite + React + Remotion + Express, mobile composition registered |
 | 2 Ingest | Validate, normalize, cache to IndexedDB |
 | 3 Selection | Player picker, presets and custom date ranges |
-| 4 Stats engine | 17 modules, 29 passing tests |
-| 5–12 | Not started — see the plan |
+| 4 Stats engine | 17 modules, pure and fully tested |
+| 5 Box art | 228 covers on disk, dominant colors extracted, renders offline |
+| 6 Themes | 3 starters, custom, constrained random, box-art mode; fonts mirrored locally |
+| 7 Slides | Ten slides, motion primitives, all three signatures — a real video |
+| 8 Audio | Upload your own music, beat detection, crop, loop — cuts land on the beat |
+| 9 Preview UI | One screen: controls left, live video right; all 19 slides selectable |
+| 10–12 | Not started — see the plan |
+
+287 tests pass (`npm test`).
 
 ## Setup
 
@@ -26,8 +33,11 @@ Steps 1–4 of `boardgame-wrapped-plan.md` are implemented and tested:
 npm install
 npm run dev        # UI at http://localhost:5173
 npm run server     # render service at http://localhost:4000
-npm test           # 29 tests
+npm test           # 287 tests
 ```
+
+The dev server proxies `/api` to the render service, so run both if you want to
+download box art from the UI.
 
 Drop your export on the page. It parses in the browser and is cached, so a
 reload does not mean re-uploading.
@@ -35,9 +45,12 @@ reload does not mean re-uploading.
 ## Checking the numbers before you trust them
 
 ```bash
-npx tsx scripts/dry-run.ts path/to/BGStatsExport.json Tina 2026
-npx tsx scripts/dry-run.ts path/to/BGStatsExport.json Tina 2025-05-01:2025-06-30
+npx tsx scripts/dry-run.ts data/BGStatsExport-260826181645.json Tina 2026
+npx tsx scripts/dry-run.ts data/BGStatsExport-260826181645.json Tina 2025-05-01:2025-06-30
 ```
+
+The first argument is a path. Exports hold personal play data and live in
+`data/`, which is gitignored.
 
 Prints the full stats JSON without rendering. Verified against the real export:
 Tina in 2026 gives 233 plays, 73 nights, 71 distinct games, Faraway 21×,
@@ -61,7 +74,9 @@ is not a streak.
 
 ## Known limits of BG Stats data
 
-- `durationMin` is 0 on every play — no "hours played" stat is possible
+- `durationMin` is 0 on every play, so a *measured* "hours played" is impossible
+- ...but 225 of 229 games carry BGG's play-time range, covering 98.9% of plays,
+  which is what the estimated time-at-the-table stat is built from
 - `rank` is unused; only the `winner` boolean is reliable
 - Scores exist on roughly a third of entries
 - Play tags and play ratings are unused
@@ -76,7 +91,145 @@ is not a streak.
 4. Add a case to `describe()` in `StatsInspector.tsx`
 5. Write the test before you trust the number
 
+## Box art
+
+Every cover is downloaded once and kept in `public/boxart/`, alongside a
+`manifest.json` that records, per game, the stored filename, the source URL, the
+six Vibrant swatches, and the dominant color with its hue. Slides read the
+manifest; nothing fetches an image at render time.
+
+```bash
+npx tsx scripts/prefetch-boxart.ts data/BGStatsExport-260826181645.json
+```
+
+Or press **Download box art** in the UI with the render service running. Either
+way it is safe to re-run and safe to interrupt: covers already on disk are
+skipped, and a killed run leaves `.part` files that the next run sweeps, never a
+truncated image that would pass as complete.
+
+On the real export: 229 games, 228 covers (110 MB) in about 46 seconds, one game
+(`✂️ 🪨 📜`) with no art. A second run downloads nothing and finishes in under a
+second. Pass `--force` to re-fetch everything after art changes upstream.
+
+Games without a cover get a **fallback tile**: the name typeset on a ground whose
+hue is derived from the name itself, at the same radius and crop as a real box.
+Deterministic, so it looks the same in the preview and in a CLI render.
+
+## Themes
+
+Themes are data: six colors, three fonts, four type sizes, a motion profile, a
+texture and a signature. No slide component contains a literal color or font.
+
+Four ways to get one:
+
+- **Starter** — Punchboard (unpunched cardboard), Scorepad (paper score sheet),
+  Table Light (felt and lamp glow).
+- **Custom** — edit any token in the picker. Persisted, so a reload keeps it.
+- **Random** — constrained, never raw hex. One hue outside the muddy 45°–65°
+  band, the whole palette derived from it, a font trio from the curated list.
+- **Box art** — the accent is taken from the dominant color of that slide's own
+  cover, with the rest of the palette derived to match.
+
+Every generated palette is checked against WCAG contrast and corrected if it
+falls short — ink at 7:1 on the ground, accent at 4.5:1. The plan's raw formula
+misses that floor for most of the hue wheel, so each derived color is nudged the
+minimum distance needed while keeping its hue.
+
+### Fonts are mirrored, not fetched
+
+```bash
+npm run prefetch:fonts
+```
+
+Twelve families, 32 faces, 1.3 MB, into `public/fonts/`. Renders and the preview
+both read them from local disk, so a render still needs no network and the
+Player and the CLI produce identical typography. Do not swap this for
+`@remotion/google-fonts` — it hits the CDN at render time.
+
+## The video
+
+Ten slides: Intro → Total plays → Top game → Top five → Win rate → Top co-player
+→ Nemesis → Games learned → Top location → Outro. A full year comes out at about
+33 seconds.
+
+```bash
+npx remotion render src/video/index.ts Wrapped out/wrapped.mp4 --props=props.json
+```
+
+Everything moves through three primitives — `<Reveal>`, `<CountUp>`,
+`<Stagger>` — and all three take their spring from `theme.motion`, so the same
+slide feels stamped under Punchboard and settles under Table Light. There is
+exactly **one transition**, reused on every slide; the ground, texture and
+signature never move between cuts.
+
+Each theme's signature is drawn on every slide: Punchboard's stats punch out of
+the board leaving a recess, Scorepad rules the page and draws counts as tally
+marks that stroke on, Table Light's warm pool drifts behind the subject.
+
+Slide lengths are declared in bars rather than frames, so step 8 can put a track
+under them and have the cuts land on the beat. The composition's duration is
+computed from the data: a player with no nemesis gets a shorter video, not a gap.
+
+The outro is the top-five grid, with names and counts, built to be screenshotted.
+
+## Music
+
+Drop in any audio file — mp3, wav, m4a, flac, ogg, opus — and the video is cut
+to it.
+
+1. **Upload.** The file is stored locally in `public/audio/`. Nothing is sent
+   anywhere.
+2. **The beat is detected.** Tempo and the position of the first downbeat, so
+   the video knows where the bars are. The detected BPM is shown and can be
+   corrected by hand; if the track has no clear pulse you get a warning rather
+   than a silently wrong answer.
+3. **Crop it.** Drag the handles over the waveform to pick the part you want.
+   Both handles snap to downbeats, which is what keeps the cuts on the beat.
+4. **Short tracks loop.** If your crop is shorter than the video it repeats as
+   many times as needed. The crop is trimmed to a whole number of bars first, so
+   the beat carries straight across the seam.
+
+The tempo drives everything: every slide lasts a whole number of bars, so a
+slower song makes a longer video and every cut lands on a downbeat. Measured on
+a real 124 BPM file, the worst slide cut sits 30 ms — under one frame — off the
+beat. The track fades in and out rather than cutting.
+
+You can also drop files straight into `public/audio/` and press **Scan**.
+Set the credit field for anything that needs attribution — the manifest records
+a licence and credit per track, and files adopted from the folder are marked
+"Unknown — set this before publishing" until you do.
+
+No music ships with this repo. The plan lists good free sources: Pixabay Music
+(no attribution), Uppbeat, and the YouTube Audio Library.
+
+## The control surface
+
+One screen. Controls on the left, the video on the right, playing the real
+composition — not a mock. Change anything and the preview follows within a
+second, no reload.
+
+Pick a range, pick a player, then choose the slides **and the order they play
+in** — each row moves up or down, and the intro and outro stay pinned to the
+ends. Everything you set is remembered: reload the page and you come back to the
+same player, range, arrangement and track. The default cut is
+the ten the plan specifies; nine more are computed for every player and sit
+there until you ask for them — best game, worst game, longest win streak,
+highest score, people played with, busiest day, night owl, first and last play,
+nights attended. A stat a player does not have enough data for is shown
+disabled rather than hidden, so "no nemesis slide" reads as a fact about their
+year rather than a missing feature.
+
+One of the slides estimates **how long you spent at the table** — BG Stats never
+records how long a play took, but nearly every game carries its play time from
+BoardGameGeek, so the video can add those up. It is labelled as an estimate
+wherever it appears, plays whose game has no stated length are counted rather
+than guessed at, and if too much of a year is unmeasurable the slide is left out
+rather than shown wrong. It also names the game you sank the most *hours* into,
+which is rarely the one you played most often.
+
+The default cut runs about 56 seconds. Every slide turned on runs about 92.
+
 ## Next
 
-Step 5 (box art prefetch) is the next one to build. It unblocks every visual
-slide, and once the images are on disk the whole pipeline runs offline.
+Step 10: rendering an MP4 from the UI. Today videos come out of the CLI only —
+`npx remotion render` — and the `/render` route is still a stub.

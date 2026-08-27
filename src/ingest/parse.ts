@@ -13,6 +13,25 @@ export class IngestError extends Error {}
 
 const REQUIRED_KEYS = ['plays', 'players', 'games', 'locations'] as const;
 
+/**
+ * The expected length of one play of a game, in minutes.
+ *
+ * The midpoint of BGG's stated range. Deliberately not weighted by player
+ * count: plenty of games do not get longer with more people, and inventing a
+ * scaling rule would make the number look more precise than it is.
+ *
+ * Returns null rather than a guess when the game has no stated time, so the
+ * stat can say how much of the year it actually measured.
+ */
+export const estimatedPlayMinutes = (game: RawGame | undefined): number | null => {
+  if (!game) return null;
+  const min = typeof game.minPlayTime === 'number' && game.minPlayTime > 0 ? game.minPlayTime : null;
+  const max = typeof game.maxPlayTime === 'number' && game.maxPlayTime > 0 ? game.maxPlayTime : null;
+
+  if (min !== null && max !== null) return (min + max) / 2;
+  return min ?? max;
+};
+
 const toScore = (raw: unknown): number | null => {
   if (raw === null || raw === undefined || raw === '') return null;
   const n = typeof raw === 'number' ? raw : Number(raw);
@@ -77,6 +96,7 @@ export const buildDataset = (input: unknown): Dataset => {
       gameId: play.gameRefId,
       // A game can be referenced before it exists in a partial export.
       gameName: game?.name?.trim() || 'Unknown game',
+      estimatedMinutes: estimatedPlayMinutes(game),
       cooperative: Boolean(game?.cooperative),
       boxArt: game?.urlImage ? game.urlImage : null,
       bggId: game?.bggId ?? 0,

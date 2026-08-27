@@ -24,12 +24,47 @@ body {
 }
 
 .shell {
-  max-width: 780px;
+  max-width: 1360px;
   margin: 0 auto;
-  padding: 48px 24px 96px;
+  padding: 40px 24px 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Before an export is loaded there is one thing to do, so the shell narrows
+   to the width of the invitation rather than framing an empty grid. */
+.shell-empty {
+  max-width: 680px;
+  padding-top: 96px;
+}
+
+/* Controls left, video right. The preview column is fixed so the video never
+   shrinks below a size you can judge it at; the controls take what is left.
+   At 1280px this is 820 + 24 + 380, which fits inside the 1312px content box
+   without horizontal scroll. */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+.controls {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .preview {
+    position: static !important;
+    max-width: 380px;
+  }
 }
 
 header h1 {
@@ -133,13 +168,19 @@ input[type='date'] {
   text-align: left;
 }
 .player:hover { background: var(--surface-lift); }
-.player.is-active { background: var(--accent); color: #14201b; font-weight: 600; }
+.player.is-active {
+  background: var(--surface-lift);
+  font-weight: 600;
+  /* A marker rather than a fill: the accent belongs to the video, and a solid
+     bar of it here shouts louder than the preview does. */
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 .count { color: var(--ink-muted); font-variant-numeric: tabular-nums; font-size: 13px; }
-.player.is-active .count { color: #14201b; }
+.player.is-active .count { color: var(--accent); }
 .count em { color: var(--warn); font-style: normal; font-size: 11px; text-transform: uppercase; }
 
 .stats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.stats li { display: grid; grid-template-columns: 180px 1fr; gap: 14px; align-items: baseline; }
+.stats li { display: grid; grid-template-columns: 190px 1fr; gap: 14px; align-items: baseline; }
 .stat-id { color: var(--ink-muted); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
 .stat-id em { color: var(--surface-lift); font-style: normal; }
 .stat-value { font-variant-numeric: tabular-nums; }
@@ -148,14 +189,44 @@ input[type='date'] {
 .warn { color: var(--accent); margin: 0 0 14px; }
 .empty { color: var(--ink-muted); margin: 0; }
 
+/* The base control. Without this every plain button renders as a raw browser
+   button, which reads as unfinished next to the panels around it. */
+button {
+  background: var(--surface-lift);
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 15px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* A text button, for the secondary action beside a real one. */
 .link {
   background: none;
   border: none;
   color: var(--accent);
   cursor: pointer;
   font: inherit;
+  font-size: 14px;
   text-decoration: underline;
   padding: 0;
+  border-radius: 0;
+}
+
+.link:hover:not(:disabled) {
+  border-color: transparent;
+  text-decoration: none;
 }
 
 button:focus-visible, .dropzone:focus-visible, input:focus-visible {
@@ -165,4 +236,571 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
 
 @media (max-width: 620px) {
   .stats li { grid-template-columns: 1fr; gap: 2px; }
+}
+
+/* Box art prefetch */
+.boxart-state {
+  margin: 0 0 12px;
+  color: var(--ink-muted);
+}
+
+.boxart-state strong {
+  color: var(--ink);
+}
+
+.boxart-progress {
+  margin: 0 0 12px;
+}
+
+.boxart-progress .bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-lift);
+  overflow: hidden;
+}
+
+.boxart-progress .bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 120ms linear;
+}
+
+.boxart-counts {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The game name changes several times a second; clipping it keeps the panel
+   from reflowing on every tick. */
+.boxart-current {
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.boxart-errors {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--warn);
+}
+
+.boxart-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Theme picker */
+.theme-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.theme-chip {
+  border: 1px solid var(--surface-lift);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.theme-chip.is-active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.theme-chip-name {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.theme-chip-swatches {
+  display: flex;
+  gap: 5px;
+}
+
+.theme-chip-swatches i {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+
+.theme-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.theme-preview {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.theme-detail {
+  flex: 1;
+  min-width: 0;
+}
+
+.theme-name {
+  margin: 0 0 12px;
+  font-size: 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.theme-mode {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.theme-ratios {
+  display: flex;
+  gap: 20px;
+  margin: 0 0 14px;
+}
+
+.theme-ratios dt {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.theme-ratios dd {
+  margin: 2px 0 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+}
+
+/* A ratio under the floor is a real problem, not a style choice. */
+.theme-ratios dd.is-low {
+  color: var(--warn);
+}
+
+.theme-fonts {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.theme-fonts label {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-fonts span {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.theme-fonts select {
+  background: var(--surface-lift);
+  color: var(--ink);
+  border: 1px solid var(--surface-lift);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+
+.theme-colors {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.theme-colors label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.theme-colors input[type='color'] {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--surface-lift);
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+}
+
+.theme-colors input[type='color']:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Soundtrack */
+.audio-tracks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.audio-chip {
+  border: 1px solid var(--surface-lift);
+  border-radius: var(--radius);
+  background: var(--surface-lift);
+  color: var(--ink);
+  padding: 9px 13px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+}
+
+.audio-chip.is-active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.audio-chip-name {
+  font-size: 14px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-chip-meta {
+  font-size: 11px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.audio-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.audio-detail {
+  border-top: 1px solid var(--surface-lift);
+  padding-top: 16px;
+}
+
+/* Waveform with crop handles */
+.audio-wave {
+  position: relative;
+  height: 84px;
+  background: var(--bg);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  touch-action: none;
+}
+
+.audio-wave-grid i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--surface-lift);
+}
+
+.audio-wave-peaks {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 1px;
+}
+
+.audio-wave-peaks i {
+  flex: 1;
+  min-width: 1px;
+  background: var(--ink-muted);
+  border-radius: 1px;
+}
+
+/* Everything outside the crop is dimmed rather than hidden, so the shape of
+   the whole track stays visible while dragging. */
+.audio-wave-mask {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgb(14 21 18 / 0.72);
+  pointer-events: none;
+}
+
+.audio-wave-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 11px;
+  margin-left: -5px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: var(--accent);
+  cursor: ew-resize;
+}
+
+.audio-facts {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.audio-facts label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.audio-facts input,
+.audio-credit input {
+  background: var(--surface-lift);
+  color: var(--ink);
+  border: 1px solid var(--surface-lift);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+
+.audio-facts input { width: 92px; font-variant-numeric: tabular-nums; }
+
+.audio-warn { font-size: 12px; color: var(--warn); }
+
+.audio-summary {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.audio-credit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.audio-credit input { flex: 1; }
+
+/* Preview column */
+.preview {
+  position: sticky;
+  /* Clears the header when the controls column scrolls past it. */
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preview-frame {
+  width: 100%;
+  aspect-ratio: 1080 / 1920;
+  background: #000;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--surface-lift);
+}
+
+.preview-meta {
+  padding: 0 2px;
+}
+
+.preview-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.preview-facts {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+/* Slide picker */
+.panel-note {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.slide-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px 16px;
+}
+
+.slide-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* A stat the player does not have is shown, not hidden: "no nemesis" is a
+   fact about their year, not a missing feature. */
+.slide-list li.is-unavailable label {
+  cursor: not-allowed;
+  color: var(--ink-muted);
+}
+
+.slide-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slide-tag {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 1px 4px;
+  flex-shrink: 0;
+}
+
+.slide-tag.is-muted {
+  color: var(--ink-muted);
+  border-color: var(--surface-lift);
+}
+
+.slide-actions {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+/* Slide order */
+.slide-order {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.slide-order li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: var(--surface-lift);
+  font-size: 14px;
+}
+
+/* The intro and outro are shown so the cut reads as a whole sequence, but
+   they are not movable and not removable. */
+.slide-order li.slide-fixed {
+  background: none;
+  color: var(--ink-muted);
+}
+
+.slide-order li.is-unavailable {
+  opacity: 0.5;
+}
+
+.slide-index {
+  width: 22px;
+  flex-shrink: 0;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  text-align: right;
+}
+
+.slide-order .slide-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.slide-move {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+button.icon {
+  padding: 2px 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink-muted);
+}
+
+button.icon:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+.slide-out-heading {
+  margin-bottom: 8px;
+}
+
+.slide-pool {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.slide-add {
+  padding: 5px 11px;
+  font-size: 13px;
+  background: none;
+  border: 1px dashed var(--surface-lift);
+  color: var(--ink-muted);
+}
+
+.slide-add:hover:not(:disabled) {
+  color: var(--ink);
+  border-style: solid;
+  border-color: var(--accent);
 }

@@ -34,3 +34,18 @@ export const slugify = (s: string): string =>
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .toLowerCase() || 'player';
+
+/**
+ * A duration in minutes, rendered for a caption.
+ *
+ * Hours once there is at least one, because "6,847 minutes" is a number nobody
+ * can picture.
+ */
+export const formatDuration = (minutes: number): string => {
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const hours = minutes / 60;
+  return hours < 10 ? `${hours.toFixed(1)} h` : `${formatNumber(Math.round(hours))} h`;
+};
+
+/** Days, to one decimal. Used to make a large number of hours imaginable. */
+export const formatDays = (minutes: number): string => (minutes / 60 / 24).toFixed(1);

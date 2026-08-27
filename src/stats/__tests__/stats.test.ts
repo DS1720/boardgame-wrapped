@@ -63,11 +63,41 @@ describe('core stats on a hand-checked fixture', () => {
 });
 
 describe('guard rails', () => {
-  it('requires three head-to-head plays before naming a nemesis', () => {
-    expect(pick(1, 'nemesis')!.name).toBe('Ben');
-    expect(pick(1, 'nemesis')!.lossesTo).toBe(2);
-    // Cid only faced Ana in one competitive play, so Cid is never the nemesis.
+  it('requires five head-to-head plays before naming a nemesis', () => {
+    // The fixture's rivalries are all shorter than five games, so nobody
+    // qualifies. The bar is higher than it was because the ranking is now a
+    // rate: two losses from two games is a 100% loss rate and means nothing.
+    expect(pick(1, 'nemesis')).toBeUndefined();
     expect(pick(3, 'nemesis')).toBeUndefined();
+  });
+
+  it('ranks a nemesis by loss rate, not by how often you play them', () => {
+    const raw = smallExport();
+    raw.games = [game(12, 'Duel')];
+    // Ana plays Ben eight times and loses three; she plays Cid six times and
+    // loses five. Ben is the more frequent opponent, Cid is the nemesis.
+    raw.plays = [
+      ...Array.from({ length: 3 }, (_, i) =>
+        play(`2026-02-0${i + 1} 20:00:00`, 12, [score(1), score(2, { winner: true })]),
+      ),
+      ...Array.from({ length: 5 }, (_, i) =>
+        play(`2026-03-0${i + 1} 20:00:00`, 12, [score(1, { winner: true }), score(2)]),
+      ),
+      ...Array.from({ length: 5 }, (_, i) =>
+        play(`2026-04-0${i + 1} 20:00:00`, 12, [score(1), score(3, { winner: true })]),
+      ),
+      play('2026-04-06 20:00:00', 12, [score(1, { winner: true }), score(3)]),
+    ];
+
+    const nem = buildWrappedStats(buildDataset(raw), 1, range2026, ALL).stats.find(
+      (x) => x.id === 'nemesis',
+    );
+    expect(nem?.id).toBe('nemesis');
+    if (nem?.id !== 'nemesis') return;
+    expect(nem.name).toBe('Cid');
+    expect(nem.lossesTo).toBe(5);
+    expect(nem.headToHead).toBe(6);
+    expect(nem.lossRate).toBeCloseTo(5 / 6);
   });
 
   it('does not divide by zero when every play is cooperative', () => {

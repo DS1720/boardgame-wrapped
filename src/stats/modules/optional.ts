@@ -1,4 +1,5 @@
-import { selfOf, type StatContext } from '../context';
+import type { NormalizedPlay } from '@/shared/types';
+import { rank, selfOf, type StatContext } from '../context';
 import type { Stat } from '../types';
 import { gameRefOf } from './core';
 
@@ -144,5 +145,87 @@ export const highestScore = (ctx: StatContext): Stat | null => {
     score: best.score,
     game: gameRefOf(best.play),
     day: best.play.day,
+  };
+};
+
+/**
+ * Estimated time at the table.
+ *
+ * BG Stats records `durationMin` as 0 on every single play, so how long a game
+ * actually took is simply not in the data. What *is* there is BGG's stated play
+ * time per game, and multiplying that out across a year gives a figure that is
+ * honest as an estimate and useless as a fact — so every surface that shows it
+ * says "about".
+ *
+ * Plays whose game has no stated time are counted separately rather than
+ * guessed at, and the slide only appears if most of the year could be measured.
+ */
+const MIN_COVERAGE = 0.6;
+
+export const timePlayed = (ctx: StatContext): Stat | null => {
+  if (ctx.playerPlays.length === 0) return null;
+
+  let minutes = 0;
+  let playsCounted = 0;
+  let playsMissing = 0;
+  const byGame = new Map<
+    number,
+    { minutes: number; plays: number; firstSeen: number; sample: NormalizedPlay }
+  >();
+
+  for (const play of ctx.playerPlays) {
+    if (play.estimatedMinutes === null) {
+      playsMissing += 1;
+      continue;
+    }
+    minutes += play.estimatedMinutes;
+    playsCounted += 1;
+
+    const acc = byGame.get(play.gameId) ?? {
+      minutes: 0,
+      plays: 0,
+      firstSeen: play.date.getTime(),
+      // Kept so the game reference (name, box art, bgg id) comes from a real
+      // play rather than being reassembled by hand.
+      sample: play,
+    };
+    acc.minutes += play.estimatedMinutes;
+    acc.plays += 1;
+    acc.firstSeen = Math.min(acc.firstSeen, play.date.getTime());
+    byGame.set(play.gameId, acc);
+  }
+
+  // An estimate built from a third of someone's plays is not an estimate of
+  // their year, it is an estimate of part of it presented as the whole.
+  if (playsCounted === 0 || playsCounted / ctx.playerPlays.length < MIN_COVERAGE) return null;
+
+  const ranked = rank(
+    [...byGame.entries()].map(([gameId, g]) => ({
+      key: gameId,
+      label: g.sample.gameName,
+      // Ranking is by minutes here, not plays: the point of this stat is where
+      // the time went, which is often not the game played most often.
+      count: g.minutes,
+      firstSeen: g.firstSeen,
+    })),
+  );
+
+  const top = ranked[0];
+  const topEntry = top ? byGame.get(top.key as number) : undefined;
+
+  return {
+    id: 'timePlayed',
+    core: true,
+    minutes: Math.round(minutes),
+    playsCounted,
+    playsMissing,
+    topGame:
+      top && topEntry
+        ? {
+            ...gameRefOf(topEntry.sample),
+            minutes: Math.round(topEntry.minutes),
+            plays: topEntry.plays,
+          }
+        : null,
   };
 };

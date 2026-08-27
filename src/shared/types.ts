@@ -17,6 +17,13 @@ export interface RawGame {
   urlImage: string;
   urlThumb: string;
   bggId: number;
+  /**
+   * BGG's stated play time in minutes. Absent on games never matched to BGG.
+   * These are the only duration figures in the export that mean anything —
+   * every play's own `durationMin` is 0.
+   */
+  minPlayTime?: number;
+  maxPlayTime?: number;
 }
 
 export interface RawLocation {
@@ -79,6 +86,14 @@ export interface NormalizedPlay {
   bggId: number;
   locationId: number | null;
   locationName: string | null;
+  /**
+   * Estimated length of this play in minutes, from the game's BGG play time.
+   * Null when the game has no stated time — roughly 1% of plays.
+   *
+   * This is an estimate and is never presented as anything else. BG Stats does
+   * not record how long a play actually took.
+   */
+  estimatedMinutes: number | null;
   participants: Participant[];
 }
 

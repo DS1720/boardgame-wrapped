@@ -1,5 +1,5 @@
 import type { WrappedStats } from '@/stats/types';
-import { formatNumber, formatPercent, formatDay } from '@/shared/format';
+import { formatDay, formatDays, formatDuration, formatNumber, formatPercent } from '@/shared/format';
 
 /**
  * Step 4 verification surface: shows what each module computed, in slide order,
@@ -10,6 +10,13 @@ const describe = (stat: WrappedStats['stats'][number]): string => {
   switch (stat.id) {
     case 'totalPlays':
       return `${formatNumber(stat.plays)} plays · ${stat.nights} nights · ${stat.distinctGames} games`;
+    case 'timePlayed':
+      return (
+        `~${formatDuration(stat.minutes)} (${formatDays(stat.minutes)} days), ` +
+        `estimated from ${formatNumber(stat.playsCounted)} plays` +
+        (stat.playsMissing > 0 ? ` · ${stat.playsMissing} with no known length` : '') +
+        (stat.topGame ? ` · most on ${stat.topGame.name}` : '')
+      );
     case 'topGame':
       return `${stat.game.name} — ${stat.plays}×`;
     case 'topFive':

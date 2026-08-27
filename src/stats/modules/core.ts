@@ -35,8 +35,17 @@ export const topGame = (ctx: StatContext): Stat | null => {
   return { id: 'topGame', core: true, game: gameRefOf(play), plays: top.count };
 };
 
+/**
+ * Despite the name, this collects **six** games.
+ *
+ * The Top Five slide renders five of them; the outro's 3x2 grid renders all
+ * six, so it fills without a gap in the bottom row. Computing them together
+ * keeps the two slides agreeing about the ranking.
+ */
+export const TOP_GAMES_COLLECTED = 6;
+
 export const topFive = (ctx: StatContext): Stat | null => {
-  const ranked = tally(ctx.playerPlays, gameKey).slice(0, 5);
+  const ranked = tally(ctx.playerPlays, gameKey).slice(0, TOP_GAMES_COLLECTED);
   if (ranked.length < 2) return null; // a "top 5" of one game is just the top game slide
   const games = ranked.map((entry) => {
     const play = ctx.playerPlays.find((p) => p.gameId === entry.key)!;
@@ -90,10 +99,24 @@ export const topCoPlayer = (ctx: StatContext): Stat | null => {
   );
   if (ranked.length === 0) return null;
   const [playerId, top] = ranked[0];
-  return { id: 'topCoPlayer', core: true, name: top.name, playerId, shared: top.count };
+  // The slide names one person and then lists the rest, so the top five travel
+  // together rather than the slide having to ask for them separately.
+  const others = ranked.slice(0, 5).map(([id, entry]) => ({
+    playerId: id,
+    name: entry.name,
+    shared: entry.count,
+  }));
+  return { id: 'topCoPlayer', core: true, name: top.name, playerId, shared: top.count, others };
 };
 
-const MIN_HEAD_TO_HEAD = 3;
+/**
+ * Head-to-head plays needed before someone can be a nemesis.
+ *
+ * Higher than it was, because the ranking is now a rate: two losses out of two
+ * games is a 100% loss rate and means nothing. Five is enough for the number to
+ * carry some weight without excluding people you only play occasionally.
+ */
+const MIN_HEAD_TO_HEAD = 5;
 
 export const nemesis = (ctx: StatContext): Stat | null => {
   const tallies = new Map<
@@ -127,9 +150,13 @@ export const nemesis = (ctx: StatContext): Stat | null => {
   );
   if (eligible.length === 0) return null;
 
+  // Ranked by the share of head-to-head games lost, not the raw count. By count
+  // the nemesis is always whoever you play most — which is a fact about your
+  // calendar, not about who beats you.
   eligible.sort(
     (a, b) =>
-      b[1].lossesTo - a[1].lossesTo ||
+      b[1].lossesTo / b[1].headToHead - a[1].lossesTo / a[1].headToHead ||
+      b[1].headToHead - a[1].headToHead ||
       a[1].firstSeen - b[1].firstSeen ||
       a[1].name.localeCompare(b[1].name),
   );
@@ -141,6 +168,7 @@ export const nemesis = (ctx: StatContext): Stat | null => {
     name: top.name,
     lossesTo: top.lossesTo,
     headToHead: top.headToHead,
+    lossRate: top.lossesTo / top.headToHead,
   };
 };
 
@@ -151,7 +179,21 @@ export const gamesLearned = (ctx: StatContext): Stat | null => {
     if (!seen.has(play.gameId)) seen.set(play.gameId, gameRefOf(play));
   }
   if (seen.size === 0) return null;
-  const games = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+
+  // How often each new game was played afterwards. The slide shows only the
+  // first handful, and sorting alphabetically made that handful six games
+  // beginning with "A" — a sample of the alphabet rather than of the year.
+  const playsPerGame = new Map<number, number>();
+  for (const play of ctx.playerPlays) {
+    if (!seen.has(play.gameId)) continue;
+    playsPerGame.set(play.gameId, (playsPerGame.get(play.gameId) ?? 0) + 1);
+  }
+
+  const games = [...seen.values()].sort(
+    (a, b) =>
+      (playsPerGame.get(b.gameId) ?? 0) - (playsPerGame.get(a.gameId) ?? 0) ||
+      a.name.localeCompare(b.name),
+  );
   return { id: 'gamesLearned', core: true, count: games.length, games };
 };
 

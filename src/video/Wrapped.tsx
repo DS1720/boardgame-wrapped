@@ -1,50 +1,134 @@
-import { AbsoluteFill, useCurrentFrame, spring, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Series } from 'remotion';
+import type { Track } from '@/shared/audio';
 import type { WrappedStats } from '@/stats/types';
+import { FontLoader, ThemeProvider, useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
+import { themeFromBoxArt } from '@/theme/generate';
+import { DEFAULT_THEME } from '@/theme/starters';
+import type { Theme } from '@/theme/types';
 import { VIDEO } from './config';
+import { SignatureBackdrop } from './signature';
+import { SLIDE_COMPONENTS, SlideShell } from './slides';
+import { Soundtrack } from './Soundtrack';
+import { Texture } from './Texture';
+import { boxArtFor, useBoxArtManifest } from './useBoxArt';
+import { DEFAULT_BPM, planTimeline, type Timeline, type TimelineSlideId } from './timeline';
 
 export interface WrappedProps {
   stats?: WrappedStats | null;
+  theme?: Theme | null;
+  /** Recolor each slide around its own box art. Step 6's fourth theme mode. */
+  boxArtMode?: boolean;
+  /**
+   * The soundtrack. Its detected tempo drives the slide grid, so passing a
+   * track re-times the whole video — a slower song makes a longer one.
+   */
+  track?: Track | null;
+  /** Overrides the track's tempo. Ignored when a track is supplied. */
+  bpm?: number;
+  /** Which slides to include, in order. Defaults to the plan's ten-slide cut. */
+  cut?: TimelineSlideId[] | null;
 }
 
 /**
- * Step 1 placeholder composition. Steps 6-8 replace this with the theme system,
- * the real slides and the audio track. It exists now so the render pipeline can
- * be verified end to end before any design work starts.
+ * The video.
+ *
+ * The ground, texture and signature live here rather than inside the slides, so
+ * they persist across every cut. Only the content changes from slide to slide —
+ * that is what makes ten sequences read as one video rather than ten clips.
  */
-export const Wrapped: React.FC<WrappedProps> = ({ stats = null }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const enter = spring({ frame, fps, config: { stiffness: 120, damping: 18 } });
+const Stage: React.FC<{ stats: WrappedStats; timeline: Timeline; track: Track | null }> = ({
+  stats,
+  timeline,
+  track,
+}) => {
+  const theme = useTheme();
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: theme.color.bg }}>
+      <Texture texture={theme.texture} color={theme.color} />
+      <SignatureBackdrop />
+      <Soundtrack track={track} />
+
+      <Series>
+        {timeline.slides.map((slide) => {
+          const Component = SLIDE_COMPONENTS[slide.id];
+          if (!Component) return null;
+          return (
+            <Series.Sequence
+              key={`${slide.id}-${slide.from}`}
+              durationInFrames={slide.durationInFrames}
+            >
+              <SlideShell durationInFrames={slide.durationInFrames}>
+                <Component stat={slide.stat} stats={stats} />
+              </SlideShell>
+            </Series.Sequence>
+          );
+        })}
+      </Series>
+    </AbsoluteFill>
+  );
+};
+
+/** Shown in the Studio and the preview before an export is loaded. */
+const Empty: React.FC = () => {
+  const theme = useTheme();
+  const displayFont = useFont('display');
+  const bodyFont = useFont('body');
+  const { display, body } = useTypeScale();
 
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: '#0E1512',
-        color: '#F0EDE4',
+        backgroundColor: theme.color.bg,
         padding: VIDEO.safeMargin,
         justifyContent: 'center',
-        fontFamily: 'system-ui, sans-serif',
       }}
     >
-      <div style={{ opacity: enter, transform: `translateY(${(1 - enter) * 40}px)` }}>
-        <p
-          style={{
-            fontSize: 32,
-            letterSpacing: 6,
-            textTransform: 'uppercase',
-            color: '#8C9A93',
-            margin: 0,
-          }}
-        >
-          {stats?.rangeLabel ?? 'No data'}
-        </p>
-        <h1 style={{ fontSize: 132, lineHeight: 1, margin: '24px 0 0' }}>
-          {stats?.playerName ?? 'Board Game Wrapped'}
-        </h1>
-        <p style={{ fontSize: 40, color: '#F2C879', marginTop: 40 }}>
-          {stats ? `${stats.stats.length} slides ready` : 'Drop an export to begin'}
-        </p>
-      </div>
+      <Texture texture={theme.texture} color={theme.color} />
+      <SignatureBackdrop />
+      <h1 style={{ ...displayFont, fontSize: display * 0.5, color: theme.color.ink, margin: 0 }}>
+        Board Game Wrapped
+      </h1>
+      <p style={{ ...bodyFont, fontSize: body, color: theme.color.accent, marginTop: 20 }}>
+        Drop an export to begin
+      </p>
     </AbsoluteFill>
+  );
+};
+
+export const Wrapped: React.FC<WrappedProps> = ({
+  stats = null,
+  theme = null,
+  boxArtMode = false,
+  track = null,
+  bpm = DEFAULT_BPM,
+  cut = null,
+}) => {
+  const base = theme ?? DEFAULT_THEME;
+  const manifest = useBoxArtManifest();
+
+  // Box-art mode colors the video from the top game's cover — the one game that
+  // characterizes the whole year.
+  const topGame = stats?.stats.find((s) => s.id === 'topGame');
+  const dominant = topGame?.id === 'topGame' ? boxArtFor(manifest, topGame.game.gameId)?.dominant : null;
+  const resolved = boxArtMode ? themeFromBoxArt(base, dominant) : base;
+
+  // The track's tempo wins: the point of step 8 is that the video is cut to the
+  // music, not that the music is stretched to the video.
+  const timeline = planTimeline(stats, {
+    bpm: track?.bpm ?? bpm,
+    ...(cut ? { cut } : {}),
+  });
+
+  return (
+    <ThemeProvider theme={resolved}>
+      <FontLoader theme={resolved}>
+        {stats && timeline.slides.length > 0 ? (
+          <Stage stats={stats} timeline={timeline} track={track} />
+        ) : (
+          <Empty />
+        )}
+      </FontLoader>
+    </ThemeProvider>
   );
 };

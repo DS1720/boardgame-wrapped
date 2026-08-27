@@ -1,5 +1,6 @@
 export type SlideId =
   | 'totalPlays'
+  | 'timePlayed'
   | 'topGame'
   | 'topFive'
   | 'winRate'
@@ -31,11 +32,44 @@ export interface StatBase {
 
 export type Stat =
   | (StatBase & { id: 'totalPlays'; plays: number; nights: number; distinctGames: number })
+  | (StatBase & {
+      id: 'timePlayed';
+      /** Estimated total, in minutes. */
+      minutes: number;
+      /** Plays that had a stated game length and so contributed to the total. */
+      playsCounted: number;
+      /** Plays skipped because their game has no stated length. */
+      playsMissing: number;
+      /** The game the most estimated time went into — not always the most played. */
+      topGame: (GameRef & { minutes: number; plays: number }) | null;
+    })
   | (StatBase & { id: 'topGame'; game: GameRef; plays: number })
-  | (StatBase & { id: 'topFive'; games: Array<GameRef & { plays: number }> })
+  | (StatBase & {
+      id: 'topFive';
+      /**
+       * Up to **six** games, despite the name. The Top Five slide shows five;
+       * the outro grid shows six so it fills a 3x2 without a hole in it.
+       */
+      games: Array<GameRef & { plays: number }>;
+    })
   | (StatBase & { id: 'winRate'; wins: number; losses: number; ratio: number; coopOnly: boolean })
-  | (StatBase & { id: 'topCoPlayer'; name: string; playerId: number; shared: number })
-  | (StatBase & { id: 'nemesis'; name: string; playerId: number; lossesTo: number; headToHead: number })
+  | (StatBase & {
+      id: 'topCoPlayer';
+      name: string;
+      playerId: number;
+      shared: number;
+      /** The top five, including the one named above, for the slide's list. */
+      others: Array<{ playerId: number; name: string; shared: number }>;
+    })
+  | (StatBase & {
+      id: 'nemesis';
+      name: string;
+      playerId: number;
+      lossesTo: number;
+      headToHead: number;
+      /** `lossesTo / headToHead`. This is what the nemesis is ranked by. */
+      lossRate: number;
+    })
   | (StatBase & { id: 'gamesLearned'; count: number; games: GameRef[] })
   | (StatBase & { id: 'topLocation'; name: string; nights: number })
   | (StatBase & { id: 'bestGame'; game: GameRef; ratio: number; plays: number })

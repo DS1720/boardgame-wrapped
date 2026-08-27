@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "video:studio": "remotion studio src/video/index.ts",
-    "video:render": "remotion render src/video/index.ts Wrapped out/test.mp4"
+    "video:render": "remotion render src/video/index.ts Wrapped out/test.mp4",
+    "prefetch:boxart": "tsx scripts/prefetch-boxart.ts",
+    "prefetch:fonts": "tsx scripts/prefetch-fonts.ts"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.0",
@@ -22,6 +24,7 @@
     "@remotion/renderer": "^4.0.0",
     "express": "^4.19.2",
     "idb-keyval": "^6.2.1",
+    "node-vibrant": "^4.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "remotion": "^4.0.0"

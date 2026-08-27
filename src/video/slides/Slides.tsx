@@ -1,0 +1,556 @@
+import { AbsoluteFill } from 'remotion';
+import type { Stat } from '@/stats/types';
+import type { WrappedStats } from '@/stats/types';
+import { formatDay, formatNumber, formatPercent } from '@/shared/format';
+import { withAlpha } from '@/theme/color';
+import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
+import { BoxArt, BoxArtHero } from '../BoxArt';
+import { CountUp, Reveal, Stagger } from '../motion';
+import { SignaturePlate, TallyMarks, useTally } from '../signature';
+import { boxArtFor, useBoxArtManifest } from '../useBoxArt';
+import { Caption, Eyebrow, Headline, SafeArea, Stack, StatBlock } from './layout';
+
+/**
+ * The ten slides of the default cut.
+ *
+ * Only the ones whose content is genuinely a single number use the
+ * eyebrow/number/caption shape. The plan is explicit that forcing every slide
+ * into it is a mistake, so the top five is a grid, the nemesis is a face-off,
+ * and the top game leads with its cover.
+ */
+
+export interface SlideProps {
+  stat: Stat | null;
+  stats: WrappedStats;
+}
+
+/** Entry beats, in frames. Shared so every slide has the same internal rhythm. */
+const BEAT = { first: 0, second: 6, third: 12 } as const;
+
+/**
+ * Fades the hero backdrop out above the caption block, with no visible edge.
+ * A mask reads only alpha, so the keyword here is not a colour escaping into a
+ * slide; it is written as a keyword so the "no literal colours" grep stays clean.
+ */
+const HERO_FADE = 'linear-gradient(to bottom, black 0%, black 46%, transparent 68%)';
+
+/* -------------------------------------------------------------------------- */
+
+export const IntroSlide: React.FC<SlideProps> = ({ stats }) => {
+  const { color } = useTheme();
+  const bodyFont = useFont('body');
+  const { body } = useTypeScale();
+
+  return (
+    <SafeArea justify="center">
+      <Stack gap={20}>
+        <Reveal delay={BEAT.first}>
+          <Eyebrow>{stats.rangeLabel}</Eyebrow>
+        </Reveal>
+        <Reveal delay={BEAT.second}>
+          <Headline maxLines={2}>{stats.playerName}</Headline>
+        </Reveal>
+        <Reveal delay={BEAT.third}>
+          <p style={{ ...bodyFont, fontSize: body, color: color.accent, margin: 0 }}>
+            A year at the table
+          </p>
+        </Reveal>
+      </Stack>
+    </SafeArea>
+  );
+};
+
+export const TotalPlaysSlide: React.FC<SlideProps> = ({ stat }) => {
+  const tally = useTally();
+  if (stat?.id !== 'totalPlays') return null;
+
+  return (
+    <SafeArea>
+      <Stack gap={28}>
+        <SignaturePlate delay={BEAT.first}>
+          <StatBlock
+            eyebrow="Plays"
+            value={<CountUp to={stat.plays} delay={BEAT.second} />}
+            caption={`across ${formatNumber(stat.nights)} game nights · ${formatNumber(
+              stat.distinctGames,
+            )} different games`}
+          />
+        </SignaturePlate>
+        {tally ? (
+          <Reveal delay={BEAT.third} distance={0}>
+            <TallyMarks count={stat.plays} delay={BEAT.third} />
+          </Reveal>
+        ) : null}
+      </Stack>
+    </SafeArea>
+  );
+};
+
+export const TopGameSlide: React.FC<SlideProps> = ({ stat }) => {
+  const manifest = useBoxArtManifest();
+  if (stat?.id !== 'topGame') return null;
+  const entry = boxArtFor(manifest, stat.game.gameId);
+
+  return (
+    <>
+      {/* The hero fills the frame and is masked out before the caption, so the
+          cover sits centred in the space above it rather than against the top
+          edge, and the backdrop has no hard seam where it stops. */}
+      <AbsoluteFill style={{ maskImage: HERO_FADE, WebkitMaskImage: HERO_FADE }}>
+        <Reveal delay={BEAT.first} distance={24} fill>
+          <BoxArtHero entry={entry} name={stat.game.name} width={620} height={620} />
+        </Reveal>
+      </AbsoluteFill>
+      <SafeArea justify="flex-end">
+        <Stack gap={16}>
+          <Reveal delay={BEAT.second}>
+            <Eyebrow>Most played</Eyebrow>
+          </Reveal>
+          <Reveal delay={BEAT.second + 4}>
+            <Headline>{stat.game.name}</Headline>
+          </Reveal>
+          <Reveal delay={BEAT.third}>
+            <Caption accent>
+              <CountUp to={stat.plays} delay={BEAT.third} /> times
+            </Caption>
+          </Reveal>
+        </Stack>
+      </SafeArea>
+    </>
+  );
+};
+
+export const TopFiveSlide: React.FC<SlideProps> = ({ stat }) => {
+  const manifest = useBoxArtManifest();
+  const { color } = useTheme();
+  const bodyFont = useFont('body');
+  const utilityFont = useFont('utility');
+  const { body, caption } = useTypeScale();
+  if (stat?.id !== 'topFive') return null;
+
+  return (
+    <SafeArea>
+      <Stack gap={26}>
+        <Reveal delay={BEAT.first}>
+          <Stack gap={6}>
+            <Eyebrow>The year in five</Eyebrow>
+            <Headline maxLines={1}>Most played</Headline>
+          </Stack>
+        </Reveal>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
+          <Stagger delay={BEAT.second} direction="right" distance={40}>
+            {/* The stat carries six for the outro grid; this slide is a top five. */}
+            {stat.games.slice(0, 5).map((game, index) => (
+              <div key={game.gameId} style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
+                <span
+                  style={{
+                    ...utilityFont,
+                    fontSize: caption,
+                    color: color.inkMuted,
+                    width: 34,
+                    flexShrink: 0,
+                  }}
+                >
+                  {index + 1}
+                </span>
+                <BoxArt entry={boxArtFor(manifest, game.gameId)} name={game.name} width={132} height={132} />
+                <span
+                  style={{
+                    ...bodyFont,
+                    fontSize: body,
+                    color: color.ink,
+                    flex: 1,
+                    minWidth: 0,
+                    // Five rows of wrapped titles would overflow the frame.
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {game.name}
+                </span>
+                <span
+                  style={{
+                    ...bodyFont,
+                    fontSize: body,
+                    color: color.accent,
+                    flexShrink: 0,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {formatNumber(game.plays)}
+                </span>
+              </div>
+            ))}
+          </Stagger>
+        </div>
+      </Stack>
+    </SafeArea>
+  );
+};
+
+export const WinRateSlide: React.FC<SlideProps> = ({ stat }) => {
+  if (stat?.id !== 'winRate') return null;
+  const total = stat.wins + stat.losses;
+
+  return (
+    <SafeArea>
+      <Stack gap={28}>
+        <SignaturePlate delay={BEAT.first}>
+          <StatBlock
+            eyebrow={stat.coopOnly ? 'Co-op record' : 'Win rate'}
+            value={<CountUp to={Math.round(stat.ratio * 100)} delay={BEAT.second} format={(v) => `${v}%`} />}
+            caption={
+              stat.coopOnly
+                ? `${formatNumber(stat.wins)} wins in ${formatNumber(total)} co-op plays`
+                : `${formatNumber(stat.wins)} wins in ${formatNumber(total)} competitive plays`
+            }
+          />
+        </SignaturePlate>
+        <Reveal delay={BEAT.third} distance={0}>
+          <WinBar ratio={stat.ratio} />
+        </Reveal>
+      </Stack>
+    </SafeArea>
+  );
+};
+
+/** A single bar. The percentage is already the headline; this just gives it a shape. */
+const WinBar: React.FC<{ ratio: number }> = ({ ratio }) => {
+  const { color } = useTheme();
+  return (
+    <div
+      style={{
+        height: 26,
+        width: '100%',
+        borderRadius: 13,
+        backgroundColor: withAlpha(color.ink, 0.16),
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          width: `${Math.round(ratio * 100)}%`,
+          height: '100%',
+          backgroundColor: color.accent,
+          borderRadius: 13,
+        }}
+      />
+    </div>
+  );
+};
+
+export const TopCoPlayerSlide: React.FC<SlideProps> = ({ stat }) => {
+  const { color } = useTheme();
+  const bodyFont = useFont('body');
+  const utilityFont = useFont('utility');
+  const { body, caption } = useTypeScale();
+  if (stat?.id !== 'topCoPlayer') return null;
+
+  // The headline names one person; the others give that number something to be
+  // compared against. "180 plays together" alone says nothing about the gap.
+  const rest = stat.others.filter((o) => o.playerId !== stat.playerId).slice(0, 4);
+  const widest = Math.max(stat.shared, ...rest.map((o) => o.shared), 1);
+
+  return (
+    <SafeArea>
+      <Stack gap={26}>
+        <Reveal delay={BEAT.first}>
+          <Eyebrow>Played most with</Eyebrow>
+        </Reveal>
+        <Reveal delay={BEAT.second}>
+          <Headline>{stat.name}</Headline>
+        </Reveal>
+        <Reveal delay={BEAT.second + 4}>
+          <Caption accent>
+            <CountUp to={stat.shared} delay={BEAT.second + 4} /> plays together
+          </Caption>
+        </Reveal>
+
+        {rest.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
+            <Reveal delay={BEAT.third}>
+              <Eyebrow>Then</Eyebrow>
+            </Reveal>
+            <Stagger delay={BEAT.third + 4} direction="right" distance={34}>
+              {rest.map((person) => (
+                <div key={person.playerId} style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                  <span
+                    style={{
+                      ...bodyFont,
+                      fontSize: body * 0.9,
+                      color: color.ink,
+                      width: 300,
+                      flexShrink: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {person.name}
+                  </span>
+                  {/* A bar rather than bare figures: the drop from first to
+                      fifth is the part worth seeing. */}
+                  <span
+                    style={{
+                      flex: 1,
+                      height: 14,
+                      borderRadius: 7,
+                      backgroundColor: withAlpha(color.ink, 0.14),
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'block',
+                        width: `${(person.shared / widest) * 100}%`,
+                        height: '100%',
+                        borderRadius: 7,
+                        backgroundColor: color.accentAlt,
+                      }}
+                    />
+                  </span>
+                  <span
+                    style={{
+                      ...utilityFont,
+                      fontSize: caption,
+                      color: color.inkMuted,
+                      width: 88,
+                      textAlign: 'right',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {formatNumber(person.shared)}
+                  </span>
+                </div>
+              ))}
+            </Stagger>
+          </div>
+        )}
+      </Stack>
+    </SafeArea>
+  );
+};
+
+export const NemesisSlide: React.FC<SlideProps> = ({ stat }) => {
+  const { color } = useTheme();
+  const bodyFont = useFont('body');
+  const { body } = useTypeScale();
+  if (stat?.id !== 'nemesis') return null;
+
+  return (
+    <SafeArea>
+      <Stack gap={18}>
+        <Reveal delay={BEAT.first}>
+          <Eyebrow>Nemesis</Eyebrow>
+        </Reveal>
+        <Reveal delay={BEAT.second}>
+          <Headline>{stat.name}</Headline>
+        </Reveal>
+        <Reveal delay={BEAT.third}>
+          <p style={{ ...bodyFont, fontSize: body, color: color.inkMuted, margin: 0 }}>
+            beat you in{' '}
+            <span style={{ color: color.accent }}>
+              <CountUp
+                to={Math.round(stat.lossRate * 100)}
+                delay={BEAT.third}
+                format={(v) => `${v}%`}
+              />
+            </span>{' '}
+            of your games — {formatNumber(stat.lossesTo)} of {formatNumber(stat.headToHead)}
+          </p>
+        </Reveal>
+      </Stack>
+    </SafeArea>
+  );
+};
+
+export const GamesLearnedSlide: React.FC<SlideProps> = ({ stat }) => {
+  const manifest = useBoxArtManifest();
+  const { color } = useTheme();
+  const bodyFont = useFont('body');
+  const { body } = useTypeScale();
+  if (stat?.id !== 'gamesLearned') return null;
+
+  const shown = stat.games.slice(0, 6);
+
+  return (
+    <SafeArea>
+      <Stack gap={28}>
+        <SignaturePlate delay={BEAT.first}>
+          <StatBlock
+            eyebrow="Learned this year"
+            value={<CountUp to={stat.count} delay={BEAT.second} />}
+            caption={stat.count === 1 ? 'new game' : 'new games'}
+          />
+        </SignaturePlate>
+        {shown.length > 0 ? (
+          <div
+            style={{
+              display: 'grid',
+              // Two columns so every cover sits beside its title. A bare wall of
+              // box art asks you to recognise games you had never played before.
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '16px 24px',
+              width: '100%',
+            }}
+          >
+            <Stagger delay={BEAT.third} distance={26}>
+              {shown.map((game) => (
+                <div key={game.gameId} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <BoxArt
+                    entry={boxArtFor(manifest, game.gameId)}
+                    name={game.name}
+                    width={104}
+                    height={104}
+                  />
+                  <span
+                    style={{
+                      ...bodyFont,
+                      fontSize: body * 0.76,
+                      color: color.ink,
+                      lineHeight: 1.2,
+                      minWidth: 0,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {game.name}
+                  </span>
+                </div>
+              ))}
+            </Stagger>
+          </div>
+        ) : null}
+        {stat.count > shown.length ? (
+          <Reveal delay={BEAT.third + 10}>
+            <p style={{ ...bodyFont, fontSize: body, color: color.inkMuted, margin: 0 }}>
+              and {formatNumber(stat.count - shown.length)} more
+            </p>
+          </Reveal>
+        ) : null}
+      </Stack>
+    </SafeArea>
+  );
+};
+
+export const TopLocationSlide: React.FC<SlideProps> = ({ stat }) => {
+  if (stat?.id !== 'topLocation') return null;
+
+  return (
+    <SafeArea>
+      <Stack gap={18}>
+        <Reveal delay={BEAT.first}>
+          <Eyebrow>Where you played most</Eyebrow>
+        </Reveal>
+        <Reveal delay={BEAT.second}>
+          <Headline>{stat.name}</Headline>
+        </Reveal>
+        <Reveal delay={BEAT.third}>
+          <Caption accent>
+            <CountUp to={stat.nights} delay={BEAT.third} /> nights
+          </Caption>
+        </Reveal>
+      </Stack>
+    </SafeArea>
+  );
+};
+
+/**
+ * The outro: the top-five grid, built to be screenshotted.
+ *
+ * Everything a person would want in a shared screenshot is on this one frame —
+ * whose year it is, the range, and the five games — and it holds still for two
+ * and a half bars so there is time to take it.
+ */
+export const OutroSlide: React.FC<SlideProps> = ({ stats }) => {
+  const manifest = useBoxArtManifest();
+  const { color } = useTheme();
+  const utilityFont = useFont('utility');
+  const bodyFont = useFont('body');
+  const displayFont = useFont('display');
+  const { caption, body, display } = useTypeScale();
+
+  const topFive = stats.stats.find((s) => s.id === 'topFive');
+  // Six, so the grid below fills 3x2 without a hole in the bottom row.
+  const games = topFive?.id === 'topFive' ? topFive.games.slice(0, 6) : [];
+  const totals = stats.stats.find((s) => s.id === 'totalPlays');
+
+  return (
+    <SafeArea justify="center">
+      <Stack gap={30}>
+        <Reveal delay={BEAT.first}>
+          <Stack gap={8}>
+            {/* The range is the headline of a screenshot, not a caption on it:
+                whoever sees this shared should read the year first. */}
+            <p
+              style={{
+                ...displayFont,
+                fontSize: display * 0.42,
+                color: color.accent,
+                margin: 0,
+                lineHeight: 1,
+              }}
+            >
+              {stats.rangeLabel}
+            </p>
+            <Headline maxLines={1}>{stats.playerName}</Headline>
+            {totals?.id === 'totalPlays' ? (
+              <p style={{ ...bodyFont, fontSize: body, color: color.inkMuted, margin: 0 }}>
+                {formatNumber(totals.plays)} plays · {formatNumber(totals.distinctGames)} games ·{' '}
+                {formatNumber(totals.nights)} nights
+              </p>
+            ) : null}
+          </Stack>
+        </Reveal>
+
+        {games.length > 0 ? (
+          <div
+            style={{
+              display: 'grid',
+              // Three across, two down. Six covers fill it exactly, so the
+              // bottom row is never a ragged pair.
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 18,
+              width: '100%',
+            }}
+          >
+            <Stagger delay={BEAT.second} distance={30}>
+              {games.map((game) => (
+                <div key={game.gameId} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <BoxArt entry={boxArtFor(manifest, game.gameId)} name={game.name} width={248} height={248} />
+                  <span
+                    style={{
+                      ...bodyFont,
+                      fontSize: caption,
+                      color: color.ink,
+                      lineHeight: 1.2,
+                      // A screenshot has to stand alone, so the grid names its
+                      // games rather than relying on the cover being recognized.
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {game.name}
+                  </span>
+                  <span style={{ ...utilityFont, fontSize: caption, color: color.accent }}>
+                    {formatNumber(game.plays)}×
+                  </span>
+                </div>
+              ))}
+            </Stagger>
+          </div>
+        ) : null}
+      </Stack>
+    </SafeArea>
+  );
+};
+
+/** Slides that have no stat of their own and read from the whole set. */
+export const BOOKENDS = { intro: IntroSlide, outro: OutroSlide };
+
+export { formatDay, formatPercent };
