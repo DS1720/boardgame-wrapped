@@ -1,6 +1,7 @@
 import { AbsoluteFill } from 'remotion';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { VIDEO } from '../config';
+import { Float, KineticWords } from '../motion';
 
 /**
  * Slide layout primitives.
@@ -83,28 +84,36 @@ export const Caption: React.FC<{ children: React.ReactNode; accent?: boolean }> 
  * The headline step: a name, a title, anything that is words rather than a
  * number. Shrinks to fit rather than wrapping into an unreadable block.
  */
-export const Headline: React.FC<{ children: string; maxLines?: number }> = ({
-  children,
-  maxLines = 2,
-}) => {
+export const Headline: React.FC<{
+  children: string;
+  maxLines?: number;
+  /** Assemble a word at a time. Off for headlines that are already in motion. */
+  kinetic?: boolean;
+  delay?: number;
+}> = ({ children, maxLines = 2, kinetic = true, delay = 0 }) => {
   const font = useFont('display');
   const { headline } = useTypeScale();
   const { color } = useTheme();
   const size = fitText(children, headline, maxLines);
 
+  const style: React.CSSProperties = {
+    ...font,
+    fontSize: size,
+    color: color.ink,
+    margin: 0,
+    lineHeight: 0.98,
+    // Tight tracking at display sizes: loose letterspacing on a 130px headline
+    // is what makes big type look like a document rather than a title card.
+    letterSpacing: '-0.025em',
+    overflowWrap: 'break-word',
+    maxWidth: '100%',
+  };
+
+  if (!kinetic) return <h2 style={style}>{children}</h2>;
+
   return (
-    <h2
-      style={{
-        ...font,
-        fontSize: size,
-        color: color.ink,
-        margin: 0,
-        lineHeight: 1.05,
-        overflowWrap: 'break-word',
-        maxWidth: '100%',
-      }}
-    >
-      {children}
+    <h2 style={style}>
+      <KineticWords text={children} delay={delay} />
     </h2>
   );
 };
@@ -115,18 +124,25 @@ export const DisplayNumber: React.FC<{ children: React.ReactNode }> = ({ childre
   const { display } = useTypeScale();
   const { color } = useTheme();
   return (
-    <p
-      style={{
-        ...font,
-        fontSize: display,
-        color: color.accent,
-        margin: 0,
-        lineHeight: 0.94,
-        fontVariantNumeric: 'tabular-nums',
-      }}
-    >
-      {children}
-    </p>
+    // The number keeps a slow drift of its own once it has counted up, so the
+    // biggest thing on the slide is never frozen.
+    <Float amount={5} period={9}>
+      <p
+        style={{
+          ...font,
+          fontSize: display,
+          color: color.accent,
+          margin: 0,
+          // Just under 1: tight enough to look set rather than typed, loose
+          // enough that the caption below is not touching the digits.
+          lineHeight: 0.95,
+          letterSpacing: '-0.035em',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {children}
+      </p>
+    </Float>
   );
 };
 
@@ -166,10 +182,17 @@ export const StatBlock: React.FC<{
   value: React.ReactNode;
   caption?: React.ReactNode;
 }> = ({ eyebrow, value, caption }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: '100%' }}>
-    <Eyebrow>{eyebrow}</Eyebrow>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: '100%' }}>
+    {/* Phase-offset from the number, so the block breathes rather than slides. */}
+    <Float amount={4} period={11} phase={1.2}>
+      <Eyebrow>{eyebrow}</Eyebrow>
+    </Float>
     <DisplayNumber>{value}</DisplayNumber>
-    {caption ? <Caption>{caption}</Caption> : null}
+    {caption ? (
+      <Float amount={4} period={10} phase={2.4}>
+        <Caption>{caption}</Caption>
+      </Float>
+    ) : null}
   </div>
 );
 

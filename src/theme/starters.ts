@@ -26,7 +26,7 @@ export const punchboard: Theme = {
     display: 'archivo-condensed',
     body: 'plex-sans',
     utility: 'plex-mono',
-    scale: [28, 40, 92, 220],
+    scale: [30, 44, 132, 300],
   },
   // Cardboard is stiff and does not bounce: a fast, hard-damped punch.
   motion: { stiffness: 180, damping: 22, stagger: 4 },
@@ -54,7 +54,7 @@ export const scorepad: Theme = {
     display: 'bricolage',
     body: 'source-serif',
     utility: 'courier-prime',
-    scale: [26, 38, 88, 200],
+    scale: [28, 42, 126, 280],
   },
   // A pen stroke settles rather than snaps: softer, slower, wider stagger.
   motion: { stiffness: 110, damping: 18, stagger: 6 },
@@ -83,7 +83,7 @@ export const tableLight: Theme = {
     display: 'familjen',
     body: 'inter',
     utility: 'inter-tracked',
-    scale: [28, 40, 96, 232],
+    scale: [30, 44, 136, 310],
   },
   // Lamplight is slow and heavy; nothing in this theme should feel snappy.
   motion: { stiffness: 90, damping: 20, stagger: 7 },

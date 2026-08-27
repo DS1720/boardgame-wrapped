@@ -168,3 +168,93 @@ export const Stagger: React.FC<StaggerProps> = ({
     </>
   );
 };
+
+/**
+ * Keeps something moving for as long as it is on screen.
+ *
+ * `Reveal` animates an element in and then leaves it perfectly still, which is
+ * what made finished slides read as paused. This adds a slow drift that never
+ * stops — small enough that you do not watch it, large enough that the frame is
+ * never frozen.
+ *
+ * Each element gets its own `phase`, so a stack of them breathes out of step
+ * rather than sliding as one block.
+ */
+export const Float: React.FC<{
+  children: React.ReactNode;
+  /** Pixels of travel. Keep it small; this is texture, not animation. */
+  amount?: number;
+  /** Seconds per cycle. Long, so it never visibly repeats within a slide. */
+  period?: number;
+  phase?: number;
+}> = ({ children, amount = 7, period = 8, phase = 0 }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const t = (frame / fps / period) * Math.PI * 2 + phase;
+
+  return (
+    <div
+      style={{
+        transform: `translate3d(${Math.cos(t * 0.77) * amount * 0.45}px, ${
+          Math.sin(t) * amount
+        }px, 0)`,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
+/**
+ * A headline that arrives a word at a time.
+ *
+ * The single most recognisable move in this kind of video: the line does not
+ * fade in, it assembles. Words are separate spans on one baseline grid, each on
+ * its own spring, so a long title still wraps naturally.
+ */
+export const KineticWords: React.FC<{
+  text: string;
+  delay?: number;
+  /** Frames between one word and the next. */
+  step?: number;
+  style?: React.CSSProperties;
+}> = ({ text, delay = 0, step = 3, style }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const { motion } = useTheme();
+  const words = text.split(/\s+/).filter(Boolean);
+
+  return (
+    <span style={{ display: 'inline', ...style }}>
+      {words.map((word, index) => {
+        const at = delay + index * step;
+        const progress = spring({
+          frame: frame - at,
+          fps,
+          config: { stiffness: motion.stiffness, damping: motion.damping },
+        });
+        const opacity = interpolate(frame - at, [0, 6], [0, 1], {
+          extrapolateLeft: 'clamp',
+          extrapolateRight: 'clamp',
+        });
+
+        return (
+          <span
+            // eslint-disable-next-line react/no-array-index-key -- position is the identity
+            key={index}
+            style={{
+              display: 'inline-block',
+              opacity,
+              // Rises and settles, rather than simply appearing.
+              transform: `translateY(${(1 - progress) * 0.34}em)`,
+              // A space of its own, so `inline-block` words do not run together.
+              marginRight: '0.26em',
+            }}
+          >
+            {word}
+          </span>
+        );
+      })}
+    </span>
+  );
+};

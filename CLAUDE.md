@@ -455,7 +455,11 @@ Measured on the real export: 5 players, 4 rendered and 1 skipped, 27.7 MB in
 
 ### Motion
 
-Three things keep the frame alive, added after step 12:
+The rule this design works to: **no frame is ever completely still.** Content
+that has finished animating in still sits on something alive, and keeps a slow
+drift of its own.
+
+Four things keep the frame moving:
 
 - **[Ambient.tsx](src/video/Ambient.tsx)** — three colour fields drifting on
   their own periods (23s, 31s, 41s), mounted **above the `<Series>`** so it runs
@@ -464,16 +468,44 @@ Three things keep the frame alive, added after step 12:
   of covering them.
 - **Hero drift** — `BoxArtHero` floats on a nine-second cycle, longer than the
   slide, so it never visibly repeats.
+- **`Float`** ([motion/index.tsx](src/video/motion/index.tsx)) — a slow drift
+  that never stops, applied to the number, its eyebrow and its caption at
+  different phases so a stat block breathes rather than sliding as one piece.
+  `Reveal` animates something in and then leaves it frozen; this is what stops a
+  finished slide reading as a paused video.
 - **The top-five countdown** ([slides/TopFive.tsx](src/video/slides/TopFive.tsx))
   reveals five to one, filling upward, with first place landing last on a plate.
   Rows hold their final positions from the start and are simply invisible until
   their turn; laying them out as they arrive would shove every row already on
   screen.
+- **`KineticWords`** assembles a headline a word at a time instead of fading it
+  in — the single most recognisable move in this kind of video.
+
+### Two things learned tuning the background
+
+**More opacity is not more movement.** The first attempt at "more visible" raised
+every field and added a wide `surface` wash over the whole frame. On a dark
+theme that is not motion, it is fog: the felt-dark ground became a flat olive
+haze and the contrast big type needs went with it. Movement comes from
+*coloured* fields crossing a ground that stays dark.
+
+**The lamp was being drawn twice.** `texture: 'lamp'` and `signature: 'lamp'`
+rendered near-identical gradients, one static and one drifting, stacked. With
+the ambient fields on top that was three glow layers in the middle of the frame.
+The texture slot for `lamp` is now empty and the signature owns it.
+
+### Type
+
+Display and headline steps are roughly 40% larger than they were, with negative
+tracking (`-0.025em` on headlines, `-0.035em` on numbers). Loose letterspacing
+on a 130px headline is what makes big type look like a document rather than a
+title card. `fitText` still shrinks anything that would overrun, so the larger
+base is safe for a 56-character game title.
 
 **This costs bitrate.** Constant motion means no two frames are alike, so
 inter-frame compression has far less to work with: the same video went from
-9.5 MB to 15.3 MB. Still well inside the plan's budget, but worth knowing before
-adding more.
+9.5 MB to 18.0 MB, and the render from 56s to 95s. Still inside the plan's
+budget per 30 seconds, but worth knowing before adding more.
 
 ### Lead-in lines
 

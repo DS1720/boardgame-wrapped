@@ -41,15 +41,12 @@ export const Texture: React.FC<{ texture: TextureId; color: ThemeColor }> = ({ t
     );
   }
 
-  // lamp: a warm pool centred above the middle, everything outside falling off.
-  return (
-    <AbsoluteFill
-      style={{
-        backgroundImage: `radial-gradient(58% 38% at 50% 38%, ${withAlpha(color.accent, 0.22)} 0%, ${withAlpha(color.accent, 0.08)} 45%, transparent 72%)`,
-        pointerEvents: 'none',
-      }}
-    />
-  );
+  // `lamp` draws nothing here. The lamp *signature* already renders a warm pool
+  // — a drifting one — and this drew a second, static copy of the same gradient
+  // underneath it. Two pools plus the ambient fields turned the middle of the
+  // frame to haze and cost the dark theme the contrast its big type needs.
+  // The signature owns the lamp; this texture slot stays empty for it.
+  return null;
 };
 
 /**

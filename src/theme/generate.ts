@@ -108,7 +108,7 @@ export const randomTheme = ({ dark, rand = Math.random }: RandomThemeOptions = {
       display: pick(DISPLAY_FONTS, rand).id,
       body: pick(BODY_FONTS, rand).id,
       utility: pick(UTILITY_FONTS, rand).id,
-      scale: [28, 40, 92, 220],
+      scale: [30, 44, 132, 300],
     },
     motion: pick(MOTION_PROFILES, rand),
     texture: pick(TEXTURES, rand),

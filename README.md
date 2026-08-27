@@ -278,6 +278,11 @@ Dark themes get a vignette; every theme gets its paper or grain at 3–4%.
 
 ## Movement
 
+**Nothing on screen is ever completely still.** A number that has finished
+counting still drifts; the eyebrow above it and the caption below drift at
+different rates, so the block breathes instead of sliding. Headlines assemble a
+word at a time rather than fading in.
+
 The background never stops. Three soft colour fields drift across the frame on
 different cycles, running on the video's own clock rather than each slide's — so
 the motion carries straight through the cuts instead of restarting at every one.
@@ -291,7 +296,12 @@ narrator.
 The top five is a **countdown**. Five appears first, then four, then three, and
 the list fills upward until first place lands last, larger and on its own plate.
 
-A full year now runs about 66 seconds.
+Type is set big and tight — the numbers fill the frame the way this kind of
+video should.
+
+A full year runs about 66 seconds and comes out around 18 MB. Constant motion
+is expensive to compress: no two frames are alike, so there is far less for the
+encoder to reuse.
 
 ## Done
 
