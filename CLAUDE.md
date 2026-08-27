@@ -10,8 +10,8 @@ player and a date range, get a personalized vertical video. Nothing is uploaded;
 no account, no cloud, no network calls beyond box-art prefetch (step 5) and
 localhost.
 
-`boardgame-wrapped-plan.md` is the spec. It defines 12 steps; steps 1–9 are
-built and tested, 10–12 are not started. Treat it as the source of truth for
+`boardgame-wrapped-plan.md` is the spec. It defines 12 steps; steps 1–10 are
+built and tested, 11–12 are not started. Treat it as the source of truth for
 scope and for what each remaining step must do.
 
 ## Setup and commands
@@ -23,7 +23,7 @@ or every command below except the `npx tsx` one will fail.
 npm install
 npm run dev          # UI on http://localhost:5173
 npm run server       # render service on http://localhost:4000 (stub until step 10)
-npm test             # vitest, 287 tests
+npm test             # vitest, 298 tests
 npm run typecheck    # tsc --noEmit
 npm run video:studio # Remotion Studio
 npm run video:render # renders out/test.mp4
@@ -89,6 +89,7 @@ Four layers, and the boundaries between them are the point:
 | [src/audio/analyze.ts](src/audio/analyze.ts) | Tempo and downbeat detection | Pure DSP on PCM; tested against synthetic click tracks |
 | [src/shared/audio.ts](src/shared/audio.ts) | Beat grid, crop snapping, loop maths | Pure; the UI and the renderer share it |
 | [server/audio.ts](server/audio.ts) | Upload, decode, store | Node-only; decoding needs ffmpeg |
+| [server/render.ts](server/render.ts) | `bundle()` cache + `renderMedia()` | One render at a time; the bundle is built once and reused |
 | [src/video/signature/](src/video/signature/) | Die-cut, tally marks, lamp pool | One per theme, on every slide |
 | [server/boxart.ts](server/boxart.ts) | Box art download + color extraction | Node-only; the browser cannot write to `public/` |
 | [server/fonts.ts](server/fonts.ts) | Font mirror | Node-only; same reasoning |
@@ -364,6 +365,35 @@ the UI cannot drift from what is actually on by default.
 content box is 1232px, so the columns are 828 + 24 + 380 with no horizontal
 scroll — verified at 1024, 1100, 1280 and 1366.
 
+## Rendering
+
+`POST /render` takes `{ stats, theme, track, slides }` — the same object the
+preview is running — and writes `out/<player>-<range>-<theme>.mp4`. The UI polls
+`/render/progress`; `/render/cancel` stops one and `/render/reveal` opens the
+folder.
+
+**The webpack `@` alias now lives in one file.** Remotion's CLI reads
+`remotion.config.ts`; `bundle()` does not read it at all, so the alias is in
+[remotion.webpack.ts](remotion.webpack.ts) and both import it. A version that
+fixed only one would fail exactly where it is hardest to spot: a render that
+works from the command line and not from the app.
+
+Settings are pinned in `RENDER_SETTINGS` and mirrored in `remotion.config.ts`,
+with a test asserting they agree. **`pixelFormat` is `yuv420p`** — rendering from
+JPEG frames otherwise yields `yuvj420p`, the deprecated full-range variant,
+which plays but can shift colours depending on how a player reads the range tag.
+
+Measured on the real export: 1630 frames in **56 s**, 9.5 MB for 54 seconds of
+video, H.264 High at CRF 18 with the `moov` atom at byte 36 (so it starts
+playing before it has fully downloaded).
+
+**Errors are surfaced verbatim.** A missing audio file reports the 404 and the
+path; replacing that with "render failed" throws away the fix.
+
+Two things are deterministic and one is not: the **duration and frame count**
+are identical across runs, the **encoded bytes are not** — x264 is threaded and
+not bit-exact. The plan's test case asks for the first, which holds.
+
 ## Session persistence
 
 [src/app/state/useSession.ts](src/app/state/useSession.ts) stores the player,
@@ -386,10 +416,9 @@ faces, four theme modes, a soundtrack the video is cut to, and a single-screen
 control surface. 242 passing tests. The default cut at 120 BPM is 28 bars —
 about 56 seconds; every slide turned on is 46 bars, about 92.
 
-**Step 10 — rendering an MP4 from the UI — is next**, then 11 batch →
-12 polish. Everything it needs is in place: `/render` receives the same props
-shape the preview already uses, and `bundle()` + `renderMedia()` are the only
-missing pieces.
+**Step 11 — batch render — is next**, then 12 polish. `startRender` already
+returns a job with its own progress and cancel, so batching is a queue around
+it rather than new render machinery.
 
 Known gaps left deliberately:
 
@@ -397,8 +426,11 @@ Known gaps left deliberately:
   (`bestGame`, `nightOwl`, `longestWinStreak`, …) are computed and shown in the
   StatsInspector but are not in `DEFAULT_CUT`. They have lengths in `SLIDE_BARS`
   so adding one is small.
-- The `/render` route in [server/index.ts](server/index.ts) is still a stub.
-  Videos can only be produced from the CLI (`npx remotion render`) until step 10.
+- **Only one render at a time**, enforced with a 409. Remotion opens a browser
+  per render and saturates the CPU; two at once take longer than two in sequence
+  and are likelier to run out of memory. Step 11 turns this into a real queue.
+- The bundle is cached for the life of the process, so **editing a slide means
+  restarting `npm run server`** before the change reaches a render.
 - **No bundled tracks ship with the repo.** `public/audio/` is gitignored and
   empty; the plan's suggestion to download 3–5 Pixabay tracks has not been done,
   because those are licensed files rather than code. `POST /audio/scan` adopts

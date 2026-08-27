@@ -4,6 +4,7 @@ import { BoxArtPrefetch } from './components/BoxArtPrefetch';
 import { DropZone } from './components/DropZone';
 import { PlayerPicker } from './components/PlayerPicker';
 import { Preview } from './components/Preview';
+import { RenderPanel } from './components/RenderPanel';
 import { RangePicker } from './components/RangePicker';
 import { SlidePicker, defaultSlideSelection } from './components/SlidePicker';
 import { StatsInspector } from './components/StatsInspector';
@@ -212,6 +213,14 @@ export const App: React.FC = () => {
             onSetColor={themeSelection.setColor}
             onSetFont={themeSelection.setFont}
             onToggleBoxArt={themeSelection.setBoxArtMode}
+          />
+
+          <RenderPanel
+            stats={stats}
+            theme={themeSelection.theme}
+            track={track}
+            cut={cut}
+            durationInFrames={timeline.durationInFrames}
           />
 
           <BoxArtPrefetch dataset={dataset} />

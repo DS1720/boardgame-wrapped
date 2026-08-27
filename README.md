@@ -23,9 +23,10 @@ Steps 1–9 of `boardgame-wrapped-plan.md` are implemented and tested:
 | 7 Slides | Ten slides, motion primitives, all three signatures — a real video |
 | 8 Audio | Upload your own music, beat detection, crop, loop — cuts land on the beat |
 | 9 Preview UI | One screen: controls left, live video right; all 19 slides selectable |
-| 10–12 | Not started — see the plan |
+| 10 Render | An MP4 on disk, from the app, with progress and a show-in-folder button |
+| 11–12 | Not started — see the plan |
 
-287 tests pass (`npm test`).
+298 tests pass (`npm test`).
 
 ## Setup
 
@@ -33,7 +34,7 @@ Steps 1–9 of `boardgame-wrapped-plan.md` are implemented and tested:
 npm install
 npm run dev        # UI at http://localhost:5173
 npm run server     # render service at http://localhost:4000
-npm test           # 287 tests
+npm test           # 298 tests
 ```
 
 The dev server proxies `/api` to the render service, so run both if you want to
@@ -229,7 +230,20 @@ which is rarely the one you played most often.
 
 The default cut runs about 56 seconds. Every slide turned on runs about 92.
 
+## Rendering
+
+Press **Render MP4**. The file lands in `out/` as
+`<player>-<range>-<theme>.mp4`, with a progress bar while it works and a
+**Show in folder** button when it finishes.
+
+A full year takes about a minute and comes out around 9–10 MB: 1080 × 1920,
+H.264 at CRF 18, AAC audio, fast-start so it plays before it has finished
+downloading. Names are sanitised, so "Jürgen Groß" over a custom range becomes
+`jurgen-gross-2026-05-01-2026-06-30-table-light.mp4`.
+
+If a render fails you get the actual reason — the missing file, the 404, the
+line — not "render failed".
+
 ## Next
 
-Step 10: rendering an MP4 from the UI. Today videos come out of the CLI only —
-`npx remotion render` — and the `/render` route is still a stub.
+Step 11: batch render — every player in one go.

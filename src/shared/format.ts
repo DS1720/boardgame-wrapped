@@ -26,14 +26,38 @@ export const toDayKey = (d: Date): string =>
     d.getDate(),
   ).padStart(2, '0')}`;
 
-/** Sanitize a player name for use in an output filename. */
-export const slugify = (s: string): string =>
-  s
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase() || 'player';
+/**
+ * Letters that carry no combining accent, so NFD leaves them whole and the
+ * strip below simply deletes them.
+ *
+ * Without this, "Gro\u00df" slugified to "gro" and "Stra\u00dfe" \u2014 a real location in
+ * this dataset \u2014 to "stra-e".
+ */
+const TRANSLITERATE: Array<[RegExp, string]> = [
+  [/\u00df/g, 'ss'],
+  [/\u00e6/gi, 'ae'],
+  [/\u0153/gi, 'oe'],
+  [/\u00f8/gi, 'o'],
+  [/[\u0111\u00f0]/gi, 'd'],
+  [/\u00fe/gi, 'th'],
+  [/\u0142/gi, 'l'],
+];
+
+/** Sanitize a name for use in an output filename. */
+export const slugify = (s: string): string => {
+  const transliterated = TRANSLITERATE.reduce(
+    (text, [pattern, replacement]) => text.replace(pattern, replacement),
+    s,
+  );
+  return (
+    transliterated
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase() || 'player'
+  );
+};
 
 /**
  * A duration in minutes, rendered for a caption.

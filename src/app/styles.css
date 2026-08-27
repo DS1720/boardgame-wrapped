@@ -804,3 +804,57 @@ button.icon:hover:not(:disabled) {
   border-style: solid;
   border-color: var(--accent);
 }
+
+/* Render */
+.render-progress {
+  margin: 0 0 12px;
+}
+
+.render-progress .bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-lift);
+  overflow: hidden;
+}
+
+.render-progress .bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 150ms linear;
+}
+
+.render-counts {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.render-done {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+.render-done strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* Render errors are stack traces from webpack or ffmpeg: they need to wrap and
+   stay readable rather than being clipped to one line. */
+.render-error {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.render-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}

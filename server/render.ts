@@ -1,0 +1,243 @@
+/**
+ * The render service (Node only).
+ *
+ * Bundles the composition once, then renders one video at a time into `out/`.
+ * The bundle is the expensive part — a few seconds of webpack — so it is built
+ * on the first render and reused for every one after.
+ */
+import { execFile } from 'node:child_process';
+import { mkdir, stat } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { bundle } from '@remotion/bundler';
+import { makeCancelSignal, renderMedia, selectComposition } from '@remotion/renderer';
+import { withProjectAliases } from '../remotion.webpack';
+import { slugify } from '../src/shared/format';
+import type { Track } from '../src/shared/audio';
+import type { WrappedStats } from '../src/stats/types';
+import type { Theme } from '../src/theme/types';
+import type { TimelineSlideId } from '../src/video/timeline';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(here, '..');
+export const OUT_DIR = path.resolve(PROJECT_ROOT, 'out');
+const ENTRY = path.resolve(PROJECT_ROOT, 'src', 'video', 'index.ts');
+
+/**
+ * Matches the CLI settings in remotion.config.ts, so both produce the same file.
+ *
+ * `pixelFormat` is pinned to `yuv420p`. Rendering from JPEG frames otherwise
+ * yields `yuvj420p` — the deprecated full-range variant, which plays but can
+ * shift colours on players that read the range tag differently. `yuv420p` is
+ * what phones and every desktop player expect.
+ */
+export const RENDER_SETTINGS = {
+  codec: 'h264',
+  crf: 18,
+  imageFormat: 'jpeg',
+  pixelFormat: 'yuv420p',
+} as const;
+
+export class RenderError extends Error {}
+
+export interface RenderInput {
+  stats: WrappedStats;
+  theme: Theme | null;
+  track: Track | null;
+  /** The ordered cut. Named `slides` in the request, per the plan. */
+  slides: TimelineSlideId[] | null;
+}
+
+export interface RenderProgress {
+  phase: 'bundling' | 'preparing' | 'rendering' | 'encoding' | 'done' | 'failed' | 'cancelled';
+  /** 0–1 across the whole job, not just the frame pass. */
+  progress: number;
+  renderedFrames: number;
+  encodedFrames: number;
+  totalFrames: number;
+  outputFile: string | null;
+  bytes: number | null;
+  error: string | null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Naming                                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `out/<player>-<range>-<theme>.mp4`, with every part slugified.
+ *
+ * Names in this dataset contain umlauts, spaces, brackets and one trailing
+ * space; range labels contain arrows. None of that belongs in a filename, and
+ * on Windows some of it cannot be in one.
+ */
+export const outputFileName = (input: RenderInput): string => {
+  const parts = [
+    slugify(input.stats.playerName),
+    slugify(input.stats.rangeLabel),
+    slugify(input.theme?.name ?? 'theme'),
+  ].filter(Boolean);
+  return `${parts.join('-')}.mp4`;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Bundle                                                                      */
+/* -------------------------------------------------------------------------- */
+
+let bundlePromise: Promise<string> | null = null;
+
+/**
+ * Build the bundle once and hand the same one to every render.
+ *
+ * A failed bundle clears the cache rather than poisoning it, so fixing the
+ * problem and rendering again does not need a server restart.
+ */
+export const getBundle = async (onProgress?: (percent: number) => void): Promise<string> => {
+  bundlePromise ??= bundle({
+    entryPoint: ENTRY,
+    webpackOverride: withProjectAliases,
+    onProgress: (percent) => onProgress?.(percent),
+  }).catch((err) => {
+    bundlePromise = null;
+    throw err;
+  });
+  return bundlePromise;
+};
+
+/** Drop the cached bundle. The next render rebuilds it. */
+export const invalidateBundle = (): void => {
+  bundlePromise = null;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Render                                                                      */
+/* -------------------------------------------------------------------------- */
+
+export interface RenderJob {
+  id: string;
+  progress: RenderProgress;
+  cancel: () => void;
+  done: Promise<void>;
+}
+
+const emptyProgress = (): RenderProgress => ({
+  phase: 'bundling',
+  progress: 0,
+  renderedFrames: 0,
+  encodedFrames: 0,
+  totalFrames: 0,
+  outputFile: null,
+  bytes: null,
+  error: null,
+});
+
+/**
+ * Render one video.
+ *
+ * `selectComposition` is what resolves `calculateMetadata`, so the duration
+ * comes from the same `planTimeline` call the preview uses rather than being
+ * computed twice.
+ */
+export const startRender = (input: RenderInput): RenderJob => {
+  const progress = emptyProgress();
+  const cancelSignal = makeCancelSignal();
+  const id = `${Date.now().toString(36)}`;
+
+  const inputProps = {
+    stats: input.stats,
+    theme: input.theme,
+    track: input.track,
+    cut: input.slides,
+  };
+
+  const done = (async () => {
+    try {
+      const serveUrl = await getBundle((percent) => {
+        // Bundling is the first slice of the job, not a separate wait.
+        progress.progress = percent * 0.1;
+      });
+
+      progress.phase = 'preparing';
+      const composition = await selectComposition({
+        serveUrl,
+        id: 'Wrapped',
+        inputProps,
+      });
+
+      progress.totalFrames = composition.durationInFrames;
+      progress.phase = 'rendering';
+
+      await mkdir(OUT_DIR, { recursive: true });
+      const outputFile = path.join(OUT_DIR, outputFileName(input));
+
+      await renderMedia({
+        composition,
+        serveUrl,
+        codec: RENDER_SETTINGS.codec,
+        crf: RENDER_SETTINGS.crf,
+        imageFormat: RENDER_SETTINGS.imageFormat,
+        pixelFormat: RENDER_SETTINGS.pixelFormat,
+        outputLocation: outputFile,
+        inputProps,
+        cancelSignal: cancelSignal.cancelSignal,
+        onProgress: ({ renderedFrames, encodedFrames, progress: ratio }) => {
+          progress.renderedFrames = renderedFrames;
+          progress.encodedFrames = encodedFrames;
+          // The remaining 90% of the bar belongs to the render itself.
+          progress.progress = 0.1 + ratio * 0.9;
+          progress.phase = encodedFrames > 0 && renderedFrames >= composition.durationInFrames
+            ? 'encoding'
+            : 'rendering';
+        },
+      });
+
+      progress.outputFile = outputFile;
+      progress.bytes = (await stat(outputFile)).size;
+      progress.progress = 1;
+      progress.phase = 'done';
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // A cancel surfaces as a thrown error; it is not a failure to report.
+      if (/cancel/i.test(message)) {
+        progress.phase = 'cancelled';
+        return;
+      }
+      progress.phase = 'failed';
+      // The real message, not a generic one: a webpack error names the file and
+      // line, and replacing that with "render failed" throws away the fix.
+      progress.error = message;
+    }
+  })();
+
+  return { id, progress, cancel: () => cancelSignal.cancel(), done };
+};
+
+/* -------------------------------------------------------------------------- */
+/* Reveal in the file manager                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Open the output folder with the rendered file selected.
+ *
+ * The path is never passed through a shell — `execFile` takes an argument
+ * array, so a filename cannot become a command however it is spelled.
+ */
+export const revealInFolder = (file: string): Promise<void> =>
+  new Promise((resolve) => {
+    const target = path.resolve(file);
+    // Refuse anything outside out/: this is reachable from an HTTP route.
+    if (!target.startsWith(OUT_DIR)) {
+      resolve();
+      return;
+    }
+
+    const [command, args] =
+      process.platform === 'win32'
+        ? ['explorer.exe', [`/select,${target}`]]
+        : process.platform === 'darwin'
+          ? ['open', ['-R', target]]
+          : ['xdg-open', [path.dirname(target)]];
+
+    // explorer.exe exits non-zero even when it worked, so the result is ignored.
+    execFile(command, args, () => resolve());
+  });

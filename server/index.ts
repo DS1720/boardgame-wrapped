@@ -21,6 +21,13 @@ import {
   scanForNewTracks,
   updateTrack,
 } from './audio';
+import {
+  outputFileName,
+  revealInFolder,
+  startRender,
+  type RenderInput,
+  type RenderJob,
+} from './render';
 import type { RawGame } from '../src/shared/types';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -207,14 +214,70 @@ app.post('/audio/scan', async (_req, res) => {
 /* Render                                                                      */
 /* -------------------------------------------------------------------------- */
 
-app.post('/render', async (req, res) => {
-  const { stats } = req.body ?? {};
-  if (!stats?.playerName) {
-    res.status(400).json({ error: 'Send a stats payload with a playerName.' });
+/**
+ * One render at a time.
+ *
+ * Remotion opens a browser per render and saturates the CPU; two at once take
+ * longer than two in sequence and are far more likely to run out of memory.
+ * Step 11 turns this into a proper queue.
+ */
+let job: RenderJob | null = null;
+
+const isRunning = (current: RenderJob | null): current is RenderJob =>
+  current !== null && current.progress.phase !== 'done' && current.progress.phase !== 'failed'
+  && current.progress.phase !== 'cancelled';
+
+app.post('/render', (req, res) => {
+  if (isRunning(job)) {
+    res.status(409).json({ error: 'A render is already running.' });
     return;
   }
-  // Step 10: bundle() once at startup, then renderMedia() into OUT_DIR.
-  res.status(200).json({ ok: true, pending: 'renderMedia is wired up in step 10' });
+
+  const body = req.body as Partial<RenderInput> | undefined;
+  if (!body?.stats?.playerName) {
+    res.status(400).json({ error: 'Send { stats, theme, track, slides } with a playerName.' });
+    return;
+  }
+
+  const input: RenderInput = {
+    stats: body.stats,
+    theme: body.theme ?? null,
+    track: body.track ?? null,
+    slides: body.slides ?? null,
+  };
+
+  job = startRender(input);
+  // Nothing awaits the render: the response returns now and the UI polls.
+  void job.done;
+  res.status(202).json({ started: true, file: outputFileName(input) });
+});
+
+app.get('/render/progress', (_req, res) => {
+  if (!job) {
+    res.json({ running: false, progress: null });
+    return;
+  }
+  res.json({ running: isRunning(job), progress: job.progress });
+});
+
+app.post('/render/cancel', (_req, res) => {
+  if (!isRunning(job)) {
+    res.status(409).json({ error: 'Nothing to cancel.' });
+    return;
+  }
+  job.cancel();
+  res.json({ cancelled: true });
+});
+
+/** Reveal the finished file in the OS file manager. */
+app.post('/render/reveal', async (_req, res) => {
+  const file = job?.progress.outputFile;
+  if (!file) {
+    res.status(409).json({ error: 'Nothing has been rendered yet.' });
+    return;
+  }
+  await revealInFolder(file);
+  res.json({ opened: true });
 });
 
 app.listen(PORT, () => {
