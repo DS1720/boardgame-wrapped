@@ -101,12 +101,16 @@ export const Headline: React.FC<{
     fontSize: size,
     color: color.ink,
     margin: 0,
-    lineHeight: 0.98,
+    // Just over 1. At 0.98 the line box was shorter than the glyphs and the
+    // baseline of a 136px name came out shaved off at the bottom.
+    lineHeight: 1.04,
     // Tight tracking at display sizes: loose letterspacing on a 130px headline
     // is what makes big type look like a document rather than a title card.
     letterSpacing: '-0.025em',
     overflowWrap: 'break-word',
     maxWidth: '100%',
+    // Descenders on a display face reach past the line box even at 1.04.
+    paddingBottom: '0.06em',
   };
 
   if (!kinetic) return <h2 style={style}>{children}</h2>;

@@ -184,7 +184,10 @@ export const leadInFor = (id: TimelineSlideId): string | null => LEAD_INS[id] ??
  * grid, two for the rest, as the plan specifies.
  */
 export const SLIDE_BARS: Record<TimelineSlideId, number> = {
-  intro: 4,
+  // Two bars, not four. The intro carries a name and a date — there is nothing
+  // to read for eight seconds, and a title card that outstays its content is
+  // the fastest way to lose someone before the first number.
+  intro: 2,
   totalPlays: 2,
   timePlayed: 2,
   topGame: 4,

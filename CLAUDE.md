@@ -448,6 +448,16 @@ Measured on the real export: 5 players, 4 rendered and 1 skipped, 27.7 MB in
   "half the year was one game" fired for 44 of 93 players, because three of six
   plays clears it. 75% of players with 50+ plays earn one; most casual players
   get none, which is the point.
+- **The hero cover is contained, not cropped.** `BoxArt` takes a `fit` prop:
+  `cover` (the default) fills the box and trims the overhang, which is right
+  for a grid where covers have to line up whatever shape they came in. The
+  most-played slide passes `contain` into a 620×740 box instead, so the art
+  keeps its own proportions — a square crop took the credits line and the
+  publisher's mark off the bottom of the one cover the slide exists to show.
+  The geometry is `coverBox()`, exported and unit-tested, because `<Img>` needs
+  a composition context a test cannot provide.
+- **The backdrop fade is on the backdrop only.** An earlier version masked the
+  whole hero and faded out the bottom half of the cover with it.
 - **The square** ([src/video/Square.tsx](src/video/Square.tsx)) is a `Still`
   composition, rendered beside every MP4 as `<same-name>.png`. A failure there
   never fails the video.
@@ -480,6 +490,37 @@ Four things keep the frame moving:
   screen.
 - **`KineticWords`** assembles a headline a word at a time instead of fading it
   in — the single most recognisable move in this kind of video.
+- **The quip** ([slides/Quip.tsx](src/video/slides/Quip.tsx)) arrives at the
+  foot of the frame 46 frames — about a second and a half — after its slide's
+  content, and drifts for as long as it is up. It is rendered by `Wrapped` for
+  every slide rather than by each slide, so a stat component never has to think
+  about it and one change covers all twenty.
+
+### The quips are data, not filler
+
+[src/stats/quips.ts](src/stats/quips.ts) is a pure `quipFor(slideId, stats)`.
+Every line is derived from the number it sits under — "That is 4.5 a week. Every
+week.", "You could have watched all of Lord of the Rings 9 times." — so it is a
+remark about *this* year rather than something that would fit anyone's. A
+generic quip under a specific number makes the number feel generic too.
+
+It returns `null` freely, and that is the important half: a slide with no line
+is better than a slide with a limp one. Small numbers get nothing (`gamesLearned`
+under 4, `busiestDay` under 4, a top five with fewer than five games), a co-op-only
+year gets no win-rate joke, and the bookends never get one at all — they have no
+number to remark on. Thresholds are asserted in
+[quips.test.ts](src/stats/__tests__/quips.test.ts).
+
+### The intro is two bars
+
+It was four, which is a long time to hold three lines of text at the top of a
+video. Two bars, with the year set large, the name assembled by `KineticWords`
+and every element on its own `Float`, says the same thing while moving.
+
+A flat bottom edge on a name like "Tina" is the **baseline, not a clip** — T, i,
+n and a all terminate there. This was investigated three times before rendering
+a name with descenders settled it: "Tingy Jpq" shows every tail in full. Do not
+"fix" it again.
 
 ### Two things learned tuning the background
 
@@ -524,7 +565,8 @@ slide's own frame still starts at zero and every `BEAT` inside it works
 unchanged. A lead-in is never a slide of its own — turning a slide off can then
 never strand its introduction.
 
-The default cut is now **33 bars, about 66 seconds** (was 56).
+The default cut is **31 bars, about 62 seconds** at 120 BPM; every slide turned
+on is 52 bars, about 104.
 
 ### The mirror test found a bug, not an effect
 
@@ -556,12 +598,7 @@ Two details worth keeping:
 
 ## Status and next step
 
-Steps 1–9 done: 18 stat modules and 20 slides, 228 covers, 32 mirrored font
-faces, four theme modes, a soundtrack the video is cut to, and a single-screen
-control surface. 242 passing tests. The default cut at 120 BPM is 28 bars —
-about 56 seconds; every slide turned on is 46 bars, about 92.
-
-**All twelve steps are done.** The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 353 passing tests. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.
@@ -591,8 +628,6 @@ Known gaps left deliberately:
 - A **one-play player still gets a ten-slide video**, including a "top five"
   showing one game. It is coherent and never breaks, but step 12's polish pass
   should consider a shorter cut when `stats.thin` is true.
-- **The slide selection is not persisted.** Theme choice survives a reload;
-  which slides are in the cut does not.
 
 ## Repo gotchas
 

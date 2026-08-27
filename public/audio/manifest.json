@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-08-27T21:37:50.672Z",
+  "generatedAt": "2026-08-27T21:49:25.546Z",
   "tracks": [
     {
       "id": "adore-ya-mtc1gbup",
@@ -10,7 +10,7 @@
       "beatOffset": 0.14,
       "confidence": 0.07,
       "durationSeconds": 212.346,
-      "trimStart": 0.14,
+      "trimStart": 5.273689839572192,
       "trimEnd": 212.346,
       "license": "User supplied",
       "credit": "",

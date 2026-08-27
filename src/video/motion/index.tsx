@@ -195,9 +195,12 @@ export const Float: React.FC<{
   return (
     <div
       style={{
-        transform: `translate3d(${Math.cos(t * 0.77) * amount * 0.45}px, ${
-          Math.sin(t) * amount
-        }px, 0)`,
+        // 2D `translate`, deliberately not `translate3d`. The 3D form promotes
+        // the element to its own compositor layer sized to its border box, and
+        // anything the glyphs overhang — which a 136px display face at a tight
+        // line-height certainly does — is clipped when that layer is rasterised.
+        // It cost the intro the bottom of the player's name.
+        transform: `translate(${Math.cos(t * 0.77) * amount * 0.45}px, ${Math.sin(t) * amount}px)`,
       }}
     >
       {children}

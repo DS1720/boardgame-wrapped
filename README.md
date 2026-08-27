@@ -118,6 +118,11 @@ Games without a cover get a **fallback tile**: the name typeset on a ground whos
 hue is derived from the name itself, at the same radius and crop as a real box.
 Deterministic, so it looks the same in the preview and in a CLI render.
 
+In grids, covers are cropped square so they line up whatever shape they came in.
+On the most-played slide the cover is shown **whole** instead — board game boxes
+are rarely square, and a square crop cuts the credits line and the publisher's
+mark off the bottom of the one cover that slide is about.
+
 ## Themes
 
 Themes are data: six colors, three fonts, four type sizes, a motion profile, a
@@ -296,10 +301,20 @@ narrator.
 The top five is a **countdown**. Five appears first, then four, then three, and
 the list fills upward until first place lands last, larger and on its own plate.
 
+A beat after a number lands, a small line slides in at the foot of the frame and
+keeps drifting: *"That is 4.5 a week. Every week."*, *"You could have watched all
+of Lord of the Rings 9 times."*, *"99% of your games. At this point it is a
+duo."* Every one is worked out from the number above it, so it is about your
+year rather than being filler that would fit anyone's — and slides whose numbers
+are too small to be worth a remark simply do not get one.
+
 Type is set big and tight — the numbers fill the frame the way this kind of
 video should.
 
-A full year runs about 66 seconds and comes out around 18 MB. Constant motion
+The opening card is short — two bars, moving the whole time — because holding
+three lines of text is not how you start a video like this.
+
+A full year runs about 62 seconds and comes out around 20 MB. Constant motion
 is expensive to compress: no two frames are alike, so there is far less for the
 encoder to reuse.
 

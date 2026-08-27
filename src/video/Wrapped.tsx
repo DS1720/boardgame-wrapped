@@ -1,6 +1,7 @@
 import { AbsoluteFill, Sequence, Series } from 'remotion';
 import type { Track } from '@/shared/audio';
-import type { WrappedStats } from '@/stats/types';
+import { quipFor } from '@/stats/quips';
+import type { SlideId, WrappedStats } from '@/stats/types';
 import { FontLoader, ThemeProvider, useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { themeFromBoxArt } from '@/theme/generate';
 import { DEFAULT_THEME } from '@/theme/starters';
@@ -11,6 +12,7 @@ import { SLIDE_COMPONENTS, SlideShell } from './slides';
 import { Soundtrack } from './Soundtrack';
 import { Ambient } from './Ambient';
 import { LeadIn } from './slides/LeadIn';
+import { Quip } from './slides/Quip';
 import { Texture, Vignette } from './Texture';
 import { boxArtFor, useBoxArtManifest } from './useBoxArt';
 import {
@@ -67,6 +69,12 @@ const Stage: React.FC<{ stats: WrappedStats; timeline: Timeline; track: Track | 
           const Component = SLIDE_COMPONENTS[slide.id];
           if (!Component) return null;
           const lead = leadInFor(slide.id);
+          // The bookends are not data slides; an aside under them would be a
+          // remark about nothing.
+          const quip =
+            slide.id === 'intro' || slide.id === 'outro'
+              ? null
+              : quipFor(slide.id as SlideId, stats);
 
           return (
             <Series.Sequence
@@ -79,13 +87,18 @@ const Stage: React.FC<{ stats: WrappedStats; timeline: Timeline; track: Track | 
                     <LeadIn text={lead} />
                     {/* Offsetting with a Sequence rather than passing a delay
                         means the slide's own frame still starts at zero, so
-                        every BEAT inside it keeps working unchanged. */}
+                        every BEAT inside it keeps working unchanged — and the
+                        aside is cued from the content, not from the line. */}
                     <Sequence from={LEAD_IN_FRAMES} layout="none">
                       <Component stat={slide.stat} stats={stats} />
+                      <Quip text={quip} />
                     </Sequence>
                   </>
                 ) : (
-                  <Component stat={slide.stat} stats={stats} />
+                  <>
+                    <Component stat={slide.stat} stats={stats} />
+                    <Quip text={quip} />
+                  </>
                 )}
               </SlideShell>
             </Series.Sequence>

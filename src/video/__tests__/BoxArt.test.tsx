@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { BoxArt, displaySize, FallbackTile, MIN_DISPLAY_PX } from '../BoxArt';
+import { BoxArt, coverBox, displaySize, FallbackTile, MIN_DISPLAY_PX } from '../BoxArt';
 import { BOX_ART } from '../config';
 import { boxArtSrc, fallbackHue, type BoxArtEntry } from '@/shared/boxart';
 
@@ -42,6 +42,28 @@ describe('BoxArt', () => {
     const html = renderToStaticMarkup(<BoxArt entry={null} name="Unknown Game" width={600} height={600} />);
     expect(html).toContain('Unknown Game');
     expect(html).not.toContain('<img');
+  });
+});
+
+describe('coverBox', () => {
+  it('pins a cropped cover to the exact box', () => {
+    expect(coverBox('cover', 248, 248)).toMatchObject({
+      width: 248,
+      height: 248,
+      objectFit: 'cover',
+    });
+  });
+
+  it('lets a contained cover keep its own height under the box as a ceiling', () => {
+    // The hero: a portrait box is what the crop used to cut the credits line
+    // off of, so height has to come from the art, not from the caller.
+    const style = coverBox('contain', 620, 740);
+    expect(style.height).toBe('auto');
+    expect(style.maxHeight).toBe(740);
+    expect(style.objectFit).toBe('contain');
+    // Width still comes from the caller — a contained cover is centred in the
+    // slide, not shrunk to whatever the file happens to be.
+    expect(style.width).toBe(620);
   });
 });
 

@@ -1,4 +1,4 @@
-import { AbsoluteFill } from 'remotion';
+
 import type { Stat } from '@/stats/types';
 import type { WrappedStats } from '@/stats/types';
 import { formatDay, formatNumber, formatPercent } from '@/shared/format';
@@ -6,7 +6,7 @@ import { superlativeFor } from '@/stats/superlative';
 import { withAlpha } from '@/theme/color';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { BoxArt, BoxArtHero } from '../BoxArt';
-import { CountUp, Reveal, Stagger } from '../motion';
+import { CountUp, Float, Reveal, Stagger } from '../motion';
 import { SignaturePlate, TallyMarks, useTally } from '../signature';
 import { boxArtFor, useBoxArtManifest } from '../useBoxArt';
 import { Caption, Eyebrow, Headline, SafeArea, Stack, StatBlock } from './layout';
@@ -29,32 +29,68 @@ export interface SlideProps {
 const BEAT = { first: 0, second: 6, third: 12 } as const;
 
 /**
- * Fades the hero backdrop out above the caption block, with no visible edge.
- * A mask reads only alpha, so the keyword here is not a colour escaping into a
- * slide; it is written as a keyword so the "no literal colours" grep stays clean.
+ * The box the most-played cover is fitted inside.
+ *
+ * Wider than it is tall would crop a portrait box; taller than the frame can
+ * spare would push the caption into the quip. This is the largest box that
+ * leaves room for both, and `fit="contain"` means a square cover simply sits
+ * smaller inside it rather than being stretched to fill it.
  */
-const HERO_FADE = 'linear-gradient(to bottom, black 0%, black 46%, transparent 68%)';
+const HERO_W = 620;
+const HERO_H = 740;
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Two bars, and moving throughout.
+ *
+ * The range slides in from the left, the name assembles a word at a time, and
+ * the whole block keeps a slow drift — so even a card with three lines on it is
+ * never a still frame.
+ */
 export const IntroSlide: React.FC<SlideProps> = ({ stats }) => {
   const { color } = useTheme();
   const bodyFont = useFont('body');
-  const { body } = useTypeScale();
+  const displayFont = useFont('display');
+  const { body, display } = useTypeScale();
 
   return (
     <SafeArea justify="center">
-      <Stack gap={20}>
-        <Reveal delay={BEAT.first}>
-          <Eyebrow>{stats.rangeLabel}</Eyebrow>
+      <Stack gap={16}>
+        <Reveal delay={BEAT.first} direction="right" distance={60}>
+          <Float amount={5} period={9}>
+            {/* The year set large: it is half of what this card is telling you. */}
+            <p
+              style={{
+                ...displayFont,
+                fontSize: display * 0.36,
+                color: color.accent,
+                margin: 0,
+                lineHeight: 1,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              {stats.rangeLabel}
+            </p>
+          </Float>
         </Reveal>
-        <Reveal delay={BEAT.second}>
-          <Headline maxLines={2}>{stats.playerName}</Headline>
-        </Reveal>
-        <Reveal delay={BEAT.third}>
-          <p style={{ ...bodyFont, fontSize: body, color: color.accent, margin: 0 }}>
-            A year at the table
-          </p>
+
+        {/* The name drifts on its own. It carries no Reveal: KineticWords already
+            assembles it a word at a time, and a second entrance on top read as a
+            stutter. (The flat bottom edge on a name like "Tina" is the baseline,
+            not a clip — confirmed by rendering a name with descenders.) */}
+        <Float amount={7} period={11} phase={1.4}>
+          <Headline maxLines={2} delay={BEAT.second}>
+            {stats.playerName}
+          </Headline>
+        </Float>
+
+        <Reveal delay={BEAT.third + 4} direction="right" distance={40}>
+          <Float amount={5} period={8} phase={2.6}>
+            <p style={{ ...bodyFont, fontSize: body, color: color.inkMuted, margin: 0 }}>
+              A year at the table
+            </p>
+          </Float>
         </Reveal>
       </Stack>
     </SafeArea>
@@ -94,27 +130,47 @@ export const TopGameSlide: React.FC<SlideProps> = ({ stat }) => {
 
   return (
     <>
-      {/* The hero fills the frame and is masked out before the caption, so the
-          cover sits centred in the space above it rather than against the top
-          edge, and the backdrop has no hard seam where it stops. */}
-      <AbsoluteFill style={{ maskImage: HERO_FADE, WebkitMaskImage: HERO_FADE }}>
-        <Reveal delay={BEAT.first} distance={24} fill>
-          <BoxArtHero entry={entry} name={stat.game.name} width={620} height={620} />
-        </Reveal>
-      </AbsoluteFill>
-      <SafeArea justify="flex-end">
-        <Stack gap={16}>
-          <Reveal delay={BEAT.second}>
-            <Eyebrow>Most played</Eyebrow>
+      {/*
+        The blurred backdrop fills the frame; the cover and its caption are one
+        centred group on top of it.
+        
+        No mask over the hero: masking the whole thing faded out the bottom half
+        of the cover, which is the one thing this slide exists to show. The
+        backdrop fades on its own, inside BoxArtHero. And the caption travels
+        with the cover rather than being pinned to the bottom of the frame,
+        which left a screen's worth of dead space between them.
+      */}
+      <BoxArtHero entry={entry} name={stat.game.name} width={HERO_W} height={HERO_H} showCover={false} />
+
+      <SafeArea justify="center" align="center">
+        <Stack gap={30}>
+          <Reveal delay={BEAT.first} distance={26}>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <Float amount={9} period={9}>
+                <BoxArt
+                  entry={entry}
+                  name={stat.game.name}
+                  width={HERO_W}
+                  height={HERO_H}
+                  fit="contain"
+                />
+              </Float>
+            </div>
           </Reveal>
-          <Reveal delay={BEAT.second + 4}>
-            <Headline>{stat.game.name}</Headline>
-          </Reveal>
-          <Reveal delay={BEAT.third}>
-            <Caption accent>
-              <CountUp to={stat.plays} delay={BEAT.third} /> times
-            </Caption>
-          </Reveal>
+
+          <Stack gap={12}>
+            <Reveal delay={BEAT.second}>
+              <Eyebrow>Most played</Eyebrow>
+            </Reveal>
+            <Reveal delay={BEAT.second + 4}>
+              <Headline maxLines={2}>{stat.game.name}</Headline>
+            </Reveal>
+            <Reveal delay={BEAT.third}>
+              <Caption accent>
+                <CountUp to={stat.plays} delay={BEAT.third} /> times
+              </Caption>
+            </Reveal>
+          </Stack>
         </Stack>
       </SafeArea>
     </>

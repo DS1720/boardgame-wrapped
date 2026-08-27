@@ -124,13 +124,31 @@ export interface BoxArtProps {
   height: number;
   colors?: TileColors;
   fontFamily?: string;
+  /**
+   * How the art meets the box.
+   *
+   * `cover` fills it and trims the overhang — right for a grid, where the
+   * covers have to line up whatever shape they came in. `contain` keeps the
+   * art's own proportions inside the box instead, so nothing is cut off. The
+   * hero uses it: a publisher's box is rarely square, and a square crop takes
+   * the credits line off the bottom of the one cover the slide is about.
+   */
+  fit?: 'cover' | 'contain';
 }
 
 /**
- * One cover, cropped to the given box. Renders the fallback tile when the game
+ * One cover, fitted to the given box. Renders the fallback tile when the game
  * has no stored art, so callers never have to branch on it.
  */
-export const BoxArt: React.FC<BoxArtProps> = ({ entry, name, width, height, colors, fontFamily }) => {
+export const BoxArt: React.FC<BoxArtProps> = ({
+  entry,
+  name,
+  width,
+  height,
+  colors,
+  fontFamily,
+  fit = 'cover',
+}) => {
   const theme = useTheme();
   const tile = colors ?? theme.color;
   const src = boxArtSrc(entry);
@@ -157,24 +175,58 @@ export const BoxArt: React.FC<BoxArtProps> = ({ entry, name, width, height, colo
       width={width}
       height={height}
       style={{
-        width,
-        height,
-        objectFit: 'cover',
+        ...coverBox(fit, width, height),
         borderRadius: BOX_ART.radius,
         display: 'block',
-        backgroundColor: tile.surface,
+        backgroundColor: fit === 'contain' ? 'transparent' : tile.surface,
       }}
     />
   );
 };
 
+/**
+ * The geometry half of a cover's style, pulled out so the two fits can be
+ * tested without a browser — `<Img>` needs a composition context that a unit
+ * test has no way to provide.
+ */
+export const coverBox = (
+  fit: 'cover' | 'contain',
+  width: number,
+  height: number,
+): Pick<React.CSSProperties, 'width' | 'height' | 'maxHeight' | 'objectFit'> => ({
+  width,
+  // Contained art gets the box as a ceiling rather than a shape: the element
+  // takes the cover's own aspect ratio up to `height`, so there is no letterbox
+  // bar to paint and the drop shadow follows the art.
+  height: fit === 'contain' ? 'auto' : height,
+  maxHeight: height,
+  objectFit: fit,
+});
+
 /* -------------------------------------------------------------------------- */
 /* Hero                                                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Fades the blurred backdrop out towards the bottom, so it blends into the
+ * ground instead of stopping at an edge.
+ *
+ * A mask reads only alpha, so the keyword is not a colour escaping into a
+ * slide. This is applied to the **backdrop only** — masking the whole hero, as
+ * an earlier version did, faded out the bottom half of the cover itself.
+ */
+const BACKDROP_FADE = 'linear-gradient(to bottom, black 0%, black 42%, transparent 78%)';
+
 export interface BoxArtHeroProps extends BoxArtProps {
   /** Fills the frame behind the cover with a blurred, darkened copy of it. */
   backdrop?: boolean;
+  /**
+   * Draw only the blurred backdrop, leaving the caller to place the cover.
+   *
+   * A slide that wants the cover to travel with its caption needs the two in
+   * one flow, while the backdrop still fills the whole frame behind them.
+   */
+  showCover?: boolean;
   /**
    * Float the cover slowly for as long as it is on screen.
    *
@@ -198,8 +250,10 @@ export const BoxArtHero: React.FC<BoxArtHeroProps> = ({
   height,
   colors,
   fontFamily,
+  fit,
   backdrop = true,
   drift = true,
+  showCover = true,
 }) => {
   const theme = useTheme();
   const frame = useCurrentFrame();
@@ -224,6 +278,8 @@ export const BoxArtHero: React.FC<BoxArtHeroProps> = ({
             overflow: 'hidden',
             // Scaled up so the blur never pulls the frame edges in.
             transform: `scale(${BOX_ART.heroBackdropScale})`,
+            maskImage: BACKDROP_FADE,
+            WebkitMaskImage: BACKDROP_FADE,
           }}
         >
           <Img
@@ -249,6 +305,7 @@ export const BoxArtHero: React.FC<BoxArtHeroProps> = ({
         </div>
       ) : null}
 
+      {showCover ? (
       <div
         style={{
           position: 'relative',
@@ -272,9 +329,11 @@ export const BoxArtHero: React.FC<BoxArtHeroProps> = ({
             height={height}
             colors={colors}
             fontFamily={fontFamily}
+            fit={fit}
           />
         </div>
       </div>
+      ) : null}
     </div>
   );
 };
