@@ -1,4 +1,4 @@
-import { staticFile } from 'remotion';
+import { Img, staticFile } from 'remotion';
 import { boxArtSrc, fallbackHue, type BoxArtEntry } from '@/shared/boxart';
 import { useFont, useTheme } from '@/theme/ThemeContext';
 import type { ThemeColor } from '@/theme/types';
@@ -147,7 +147,11 @@ export const BoxArt: React.FC<BoxArtProps> = ({ entry, name, width, height, colo
   }
 
   return (
-    <img
+    // Remotion's `<Img>`, not a plain `<img>`: it holds the render until the
+    // file has actually decoded. With a bare tag a still can capture before the
+    // cover arrives — the square came out with two of six games blank, and a
+    // still has no later frame to correct itself on.
+    <Img
       src={staticFile(src)}
       alt={entry?.name ?? name}
       width={width}
@@ -205,7 +209,7 @@ export const BoxArtHero: React.FC<BoxArtHeroProps> = ({
             transform: `scale(${BOX_ART.heroBackdropScale})`,
           }}
         >
-          <img
+          <Img
             src={staticFile(src)}
             alt=""
             style={{

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { AudioPicker } from './components/AudioPicker';
+import { BatchPanel } from './components/BatchPanel';
 import { BoxArtPrefetch } from './components/BoxArtPrefetch';
 import { DropZone } from './components/DropZone';
 import { PlayerPicker } from './components/PlayerPicker';
@@ -221,6 +222,15 @@ export const App: React.FC = () => {
             track={track}
             cut={cut}
             durationInFrames={timeline.durationInFrames}
+          />
+
+          <BatchPanel
+            dataset={dataset}
+            players={players}
+            range={activeRange}
+            theme={themeSelection.theme}
+            track={track}
+            cut={cut}
           />
 
           <BoxArtPrefetch dataset={dataset} />

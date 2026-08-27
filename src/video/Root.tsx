@@ -1,4 +1,5 @@
-import { Composition } from 'remotion';
+import { Composition, Still } from 'remotion';
+import { Square, SQUARE, type SquareProps } from './Square';
 import { Wrapped, type WrappedProps } from './Wrapped';
 import { VIDEO } from './config';
 import { DEFAULT_BPM, EMPTY_DURATION_FRAMES, planTimeline } from './timeline';
@@ -10,22 +11,43 @@ import { DEFAULT_BPM, EMPTY_DURATION_FRAMES, planTimeline } from './timeline';
  * follow the timeline the same way the slides do.
  */
 export const RemotionRoot: React.FC = () => (
-  <Composition
-    id="Wrapped"
-    component={Wrapped}
-    fps={VIDEO.fps}
-    width={VIDEO.width}
-    height={VIDEO.height}
-    durationInFrames={EMPTY_DURATION_FRAMES}
-    defaultProps={
-      { stats: null, theme: null, boxArtMode: false, track: null, bpm: DEFAULT_BPM, cut: null } as WrappedProps
-    }
-    calculateMetadata={({ props }) => ({
-      durationInFrames: planTimeline((props as WrappedProps).stats ?? null, {
-        // Same precedence as the component: the track re-times the video.
-        bpm: (props as WrappedProps).track?.bpm ?? (props as WrappedProps).bpm ?? DEFAULT_BPM,
-        ...((props as WrappedProps).cut ? { cut: (props as WrappedProps).cut! } : {}),
-      }).durationInFrames,
-    })}
-  />
+  <>
+    <Composition
+      id="Wrapped"
+      component={Wrapped}
+      fps={VIDEO.fps}
+      width={VIDEO.width}
+      height={VIDEO.height}
+      durationInFrames={EMPTY_DURATION_FRAMES}
+      defaultProps={
+        {
+          stats: null,
+          theme: null,
+          boxArtMode: false,
+          track: null,
+          bpm: DEFAULT_BPM,
+          cut: null,
+        } as WrappedProps
+      }
+      calculateMetadata={({ props }) => ({
+        durationInFrames: planTimeline((props as WrappedProps).stats ?? null, {
+          // Same precedence as the component: the track re-times the video.
+          bpm: (props as WrappedProps).track?.bpm ?? (props as WrappedProps).bpm ?? DEFAULT_BPM,
+          ...((props as WrappedProps).cut ? { cut: (props as WrappedProps).cut! } : {}),
+        }).durationInFrames,
+      })}
+    />
+
+    {/*
+      The shareable square, rendered beside the MP4. A `Still` rather than a
+      one-frame composition, so it never acquires a duration or an audio track.
+    */}
+    <Still
+      id="Square"
+      component={Square}
+      width={SQUARE.width}
+      height={SQUARE.height}
+      defaultProps={{ stats: null, theme: null, boxArtMode: false } as SquareProps}
+    />
+  </>
 );

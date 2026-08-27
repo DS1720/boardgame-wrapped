@@ -28,6 +28,7 @@ import {
   type RenderInput,
   type RenderJob,
 } from './render';
+import { startBatch, type BatchJob, type BatchRequestItem } from './batch';
 import type { RawGame } from '../src/shared/types';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -224,8 +225,10 @@ app.post('/audio/scan', async (_req, res) => {
 let job: RenderJob | null = null;
 
 const isRunning = (current: RenderJob | null): current is RenderJob =>
-  current !== null && current.progress.phase !== 'done' && current.progress.phase !== 'failed'
-  && current.progress.phase !== 'cancelled';
+  current !== null &&
+  current.progress.phase !== 'done' &&
+  current.progress.phase !== 'failed' &&
+  current.progress.phase !== 'cancelled';
 
 app.post('/render', (req, res) => {
   if (isRunning(job)) {
@@ -269,9 +272,59 @@ app.post('/render/cancel', (_req, res) => {
   res.json({ cancelled: true });
 });
 
+/* -------------------------------------------------------------------------- */
+/* Batch                                                                       */
+/* -------------------------------------------------------------------------- */
+
+let batch: BatchJob | null = null;
+
+app.post('/batch', (req, res) => {
+  if (batch?.state.running || isRunning(job)) {
+    res.status(409).json({ error: 'A render is already running.' });
+    return;
+  }
+
+  const items = (req.body?.items ?? []) as BatchRequestItem[];
+  if (!Array.isArray(items) || items.length === 0) {
+    res.status(400).json({ error: 'Send { items: [...] } with at least one player.' });
+    return;
+  }
+  const bad = items.find((item) => !item?.stats?.playerName);
+  if (bad) {
+    res.status(400).json({ error: 'Every item needs stats with a playerName.' });
+    return;
+  }
+
+  batch = startBatch({ items, minPlays: Number(req.body?.minPlays ?? 0) || 0 });
+  void batch.done;
+  res.status(202).json({ started: true, total: items.length });
+});
+
+app.get('/batch/progress', (_req, res) => {
+  if (!batch) {
+    res.json({ running: false, state: null });
+    return;
+  }
+  res.json({ running: batch.state.running, state: batch.state });
+});
+
+app.post('/batch/cancel', (_req, res) => {
+  if (!batch?.state.running) {
+    res.status(409).json({ error: 'Nothing to cancel.' });
+    return;
+  }
+  batch.cancel();
+  res.json({ cancelled: true });
+});
+
 /** Reveal the finished file in the OS file manager. */
 app.post('/render/reveal', async (_req, res) => {
-  const file = job?.progress.outputFile;
+  // Falls back to the last file a batch produced, so the button works after
+  // either kind of render.
+  const file =
+    job?.progress.outputFile ??
+    [...(batch?.state.items ?? [])].reverse().find((i) => i.file)?.file ??
+    null;
   if (!file) {
     res.status(409).json({ error: 'Nothing has been rendered yet.' });
     return;

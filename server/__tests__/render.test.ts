@@ -87,8 +87,12 @@ describe('render settings', () => {
   });
 
   it('pins a pixel format every player understands', () => {
-    // JPEG frames otherwise produce yuvj420p, the deprecated full-range
-    // variant, which can shift colours depending on how a player reads it.
     expect(RENDER_SETTINGS.pixelFormat).toBe('yuv420p');
+  });
+
+  it('tags the colour space as HD, not as SD PAL', () => {
+    // Left at the default, a 1080x1920 render came out tagged bt470bg, so a
+    // player honouring the tag would convert the colours wrongly.
+    expect(RENDER_SETTINGS.colorSpace).toBe('bt709');
   });
 });

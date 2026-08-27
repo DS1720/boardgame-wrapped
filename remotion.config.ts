@@ -6,6 +6,7 @@ Config.setCodec('h264');
 Config.setCrf(18);
 // Kept in step with RENDER_SETTINGS in server/render.ts.
 Config.setPixelFormat('yuv420p');
+Config.setColorSpace('bt709');
 Config.setOverwriteOutput(true);
 
 // Shared with the render service so the CLI and the app bundle identically.

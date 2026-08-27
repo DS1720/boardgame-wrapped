@@ -9,7 +9,7 @@ import { VIDEO } from './config';
 import { SignatureBackdrop } from './signature';
 import { SLIDE_COMPONENTS, SlideShell } from './slides';
 import { Soundtrack } from './Soundtrack';
-import { Texture } from './Texture';
+import { Texture, Vignette } from './Texture';
 import { boxArtFor, useBoxArtManifest } from './useBoxArt';
 import { DEFAULT_BPM, planTimeline, type Timeline, type TimelineSlideId } from './timeline';
 
@@ -47,6 +47,7 @@ const Stage: React.FC<{ stats: WrappedStats; timeline: Timeline; track: Track | 
     <AbsoluteFill style={{ backgroundColor: theme.color.bg }}>
       <Texture texture={theme.texture} color={theme.color} />
       <SignatureBackdrop />
+      <Vignette color={theme.color} />
       <Soundtrack track={track} />
 
       <Series>

@@ -24,9 +24,10 @@ Steps 1–9 of `boardgame-wrapped-plan.md` are implemented and tested:
 | 8 Audio | Upload your own music, beat detection, crop, loop — cuts land on the beat |
 | 9 Preview UI | One screen: controls left, live video right; all 19 slides selectable |
 | 10 Render | An MP4 on disk, from the app, with progress and a show-in-folder button |
-| 11–12 | Not started — see the plan |
+| 11 Batch | Every player in one go, a theme each, skip-on-error |
+| 12 Polish | Vignette, per-player superlative, and a square still to share |
 
-298 tests pass (`npm test`).
+**All twelve steps are done.** 338 tests pass (`npm test`).
 
 ## Setup
 
@@ -34,7 +35,7 @@ Steps 1–9 of `boardgame-wrapped-plan.md` are implemented and tested:
 npm install
 npm run dev        # UI at http://localhost:5173
 npm run server     # render service at http://localhost:4000
-npm test           # 298 tests
+npm test           # 338 tests
 ```
 
 The dev server proxies `/api` to the render service, so run both if you want to
@@ -244,6 +245,39 @@ downloading. Names are sanitised, so "Jürgen Groß" over a custom range becomes
 If a render fails you get the actual reason — the missing file, the 404, the
 line — not "render failed".
 
-## Next
+## Batch render
 
-Step 11: batch render — every player in one go.
+Tick the players you want — or **Select all** — set a minimum play count, and
+press render. They go one after another, and you get a summary at the end.
+
+**A random theme per player** gives everyone their own palette, fonts and
+motion. It is seeded by player id, so the same person gets the same theme every
+time: re-running a batch produces the same set of videos rather than a different
+-looking one.
+
+If one player fails the rest carry on. The summary names who failed and why, so
+you can re-run just them.
+
+On this export: 68 of 104 players clear a three-play minimum. Five players took
+about four minutes.
+
+## The finishing touches
+
+Every render also writes a **1080 × 1080 square** beside the MP4 — the same
+year, laid out for the places a vertical video does not go. Same name, `.png`
+instead of `.mp4`.
+
+The outro carries a **superlative** when the year earned one: *"Played with 60
+different people."*, *"504 plays. Never off the table."*, *"Albin had your number
+all year."* The thresholds come from your own export, set so that roughly the
+top tenth of players clear them — a line everyone gets is a caption, not a
+superlative, so most players simply do not get one.
+
+Dark themes get a vignette; every theme gets its paper or grain at 3–4%.
+
+## Done
+
+That is the whole plan. What is here: your export in, a video per player out,
+cut to music you chose, in a theme you picked or one picked for you, rendered
+one at a time or fifty in a row — all on your own machine, with nothing
+uploaded anywhere.

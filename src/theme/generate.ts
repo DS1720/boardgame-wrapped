@@ -155,3 +155,44 @@ export const themeFromBoxArt = (base: Theme, dominant: string | null | undefined
     },
   };
 };
+
+/* -------------------------------------------------------------------------- */
+/* Per-player themes                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A deterministic pseudo-random source.
+ *
+ * The batch renderer gives each player their own random theme, and "random"
+ * there has to mean *fixed for that player* — re-running a batch must produce
+ * the same videos, or a re-render after one failure would come back looking
+ * like a different set.
+ */
+export const seededRandom = (seed: number): (() => number) => {
+  // Mixed so that adjacent player ids do not produce adjacent hues; a plain
+  // linear congruential generator seeded with 1, 2, 3 gives three near-identical
+  // first draws, and the whole group would come out the same colour.
+  let state = (Math.imul(seed ^ 0x9e3779b9, 0x85ebca6b) >>> 0) || 0x6d2b79f5;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    // xorshift the output so the low bits are not simply counting.
+    let x = state;
+    x ^= x >>> 15;
+    x = Math.imul(x, 0x2545f491);
+    x ^= x >>> 13;
+    return (x >>> 0) / 2 ** 32;
+  };
+};
+
+/**
+ * The theme for one player in a batch.
+ *
+ * Seeded by player id, so the same person gets the same theme every time and
+ * two people in the same batch get different ones.
+ */
+export const themeForPlayer = (playerId: number, options: { dark?: boolean } = {}): Theme => {
+  const theme = randomTheme({ dark: options.dark, rand: seededRandom(playerId) });
+  // The generated id carries a random tail, which would make the theme name in
+  // a filename differ between runs. Pin it to the player instead.
+  return { ...theme, id: `player-${playerId}`, name: `Random ${playerId}` };
+};

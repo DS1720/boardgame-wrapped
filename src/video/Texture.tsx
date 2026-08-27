@@ -1,6 +1,6 @@
 import { AbsoluteFill } from 'remotion';
 import type { TextureId, ThemeColor } from '@/theme/types';
-import { withAlpha } from '@/theme/color';
+import { isDark, withAlpha } from '@/theme/color';
 
 /**
  * The theme's ground treatment.
@@ -46,6 +46,34 @@ export const Texture: React.FC<{ texture: TextureId; color: ThemeColor }> = ({ t
     <AbsoluteFill
       style={{
         backgroundImage: `radial-gradient(58% 38% at 50% 38%, ${withAlpha(color.accent, 0.22)} 0%, ${withAlpha(color.accent, 0.08)} 45%, transparent 72%)`,
+        pointerEvents: 'none',
+      }}
+    />
+  );
+};
+
+/**
+ * A vignette, on dark themes only.
+ *
+ * On a dark ground it pulls the corners down and holds the eye at the centre,
+ * which is where every slide puts its number. On a light theme the same overlay
+ * reads as dirt on the lens, so it is simply not drawn — `isDark` decides, not
+ * the theme id, so a random dark theme gets one too.
+ */
+export const Vignette: React.FC<{ color: ThemeColor }> = ({ color }) => {
+  if (!isDark(color.bg)) return null;
+
+  return (
+    <AbsoluteFill
+      aria-hidden
+      style={{
+        // Transparent well past the safe margin, so it never darkens content —
+        // only the frame edges outside it.
+        //
+        // Strength set by the plan's mirror test: at 0.28 it was invisible when
+        // removed, which by that rule means it should not have been there at
+        // all. This is the point where it does something.
+        backgroundImage: `radial-gradient(72% 54% at 50% 47%, transparent 52%, rgb(0 0 0 / 0.42) 100%)`,
         pointerEvents: 'none',
       }}
     />

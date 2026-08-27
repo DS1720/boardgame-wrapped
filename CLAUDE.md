@@ -10,8 +10,8 @@ player and a date range, get a personalized vertical video. Nothing is uploaded;
 no account, no cloud, no network calls beyond box-art prefetch (step 5) and
 localhost.
 
-`boardgame-wrapped-plan.md` is the spec. It defines 12 steps; steps 1–10 are
-built and tested, 11–12 are not started. Treat it as the source of truth for
+`boardgame-wrapped-plan.md` is the spec. It defines 12 steps; steps 1–12 are
+built and tested. All twelve are done. Treat it as the source of truth for
 scope and for what each remaining step must do.
 
 ## Setup and commands
@@ -23,7 +23,7 @@ or every command below except the `npx tsx` one will fail.
 npm install
 npm run dev          # UI on http://localhost:5173
 npm run server       # render service on http://localhost:4000 (stub until step 10)
-npm test             # vitest, 298 tests
+npm test             # vitest, 338 tests
 npm run typecheck    # tsc --noEmit
 npm run video:studio # Remotion Studio
 npm run video:render # renders out/test.mp4
@@ -90,6 +90,7 @@ Four layers, and the boundaries between them are the point:
 | [src/shared/audio.ts](src/shared/audio.ts) | Beat grid, crop snapping, loop maths | Pure; the UI and the renderer share it |
 | [server/audio.ts](server/audio.ts) | Upload, decode, store | Node-only; decoding needs ffmpeg |
 | [server/render.ts](server/render.ts) | `bundle()` cache + `renderMedia()` | One render at a time; the bundle is built once and reused |
+| [server/batch.ts](server/batch.ts) | Sequential queue around `startRender` | Skip-on-error; payloads released as it goes |
 | [src/video/signature/](src/video/signature/) | Die-cut, tally marks, lamp pool | One per theme, on every slide |
 | [server/boxart.ts](server/boxart.ts) | Box art download + color extraction | Node-only; the browser cannot write to `public/` |
 | [server/fonts.ts](server/fonts.ts) | Font mirror | Node-only; same reasoning |
@@ -387,12 +388,83 @@ Measured on the real export: 1630 frames in **56 s**, 9.5 MB for 54 seconds of
 video, H.264 High at CRF 18 with the `moov` atom at byte 36 (so it starts
 playing before it has fully downloaded).
 
+**`colorSpace: 'bt709'` is doing more than it looks.** Left at the default, a
+1080x1920 render came out tagged `bt470bg` — SD PAL — at full JPEG range, which
+ffprobe reports as `yuvj420p`. A player honouring those tags converts the colours
+wrongly. Setting the colour space fixes the whole chain at once: true `yuv420p`,
+limited range, HD primaries. `pixelFormat` alone did not.
+
 **Errors are surfaced verbatim.** A missing audio file reports the 404 and the
 path; replacing that with "render failed" throws away the fix.
 
 Two things are deterministic and one is not: the **duration and frame count**
 are identical across runs, the **encoded bytes are not** — x264 is threaded and
 not bit-exact. The plan's test case asks for the first, which holds.
+
+## Batch rendering
+
+`POST /batch` takes `{ items, minPlays }` and renders them one after another.
+Stats and themes are computed **in the browser** and posted whole — both are
+pure functions it already has, and sending the finished payload keeps the
+service from needing its own copy of the ingest and stats layers.
+
+- **A failure never aborts the queue.** Fifty videos is half an hour of work;
+  stopping the lot because the fourth had no box art is the wrong trade every
+  time. The item is marked, the reason is kept against the player's name, and
+  the run continues.
+- **Payloads are released as they go.** `requested[index]` is nulled once an
+  item finishes — fifty players' worth of stats held to the end of a run is the
+  one place this queue could grow without bound.
+- **The minimum-plays skip happens before rendering**, and skipped players are
+  reported with their actual play count rather than silently dropped.
+
+### Seeded themes
+
+`themeForPlayer(playerId)` in [src/theme/generate.ts](src/theme/generate.ts)
+gives each player a fixed random theme. Two details make it work:
+
+- The seed is **hashed, not used directly**. A plain LCG seeded with 1, 2, 3
+  gives three near-identical first draws, and the whole group comes out one
+  colour.
+- The theme's `id` and `name` are **pinned to the player**. `randomTheme` puts a
+  random tail in its id, which would make the theme part of a filename differ
+  between runs of the same batch.
+
+Measured on the real export: 5 players, 4 rendered and 1 skipped, 27.7 MB in
+3m49s, each with its own theme.
+
+## Polish
+
+- **Textures** sit at 3–4.5% of the theme's ink, per theme.
+- **The vignette** ([src/video/Texture.tsx](src/video/Texture.tsx)) draws only
+  when `isDark(bg)` — decided by the colour, not the theme id, so a random dark
+  theme gets one too. Its strength was set by the plan's mirror test: at 0.28 it
+  was invisible when removed, which by that rule means it should not have been
+  there. 0.42 is where it does something.
+- **The superlative** ([src/stats/superlative.ts](src/stats/superlative.ts)) is
+  one line on the outro. Thresholds are measured from the real export at roughly
+  the 90th percentile across the 50 players with five or more plays, and claims
+  based on a *proportion* need 20 plays behind them — without that guard
+  "half the year was one game" fired for 44 of 93 players, because three of six
+  plays clears it. 75% of players with 50+ plays earn one; most casual players
+  get none, which is the point.
+- **The square** ([src/video/Square.tsx](src/video/Square.tsx)) is a `Still`
+  composition, rendered beside every MP4 as `<same-name>.png`. A failure there
+  never fails the video.
+- **`--dry-run`** was already `scripts/dry-run.ts`, from step 4.
+
+### The mirror test found a bug, not an effect
+
+Removing the vignette and re-rendering produced a square with **two of six
+covers blank**. That was not the vignette: `BoxArt` used a plain `<img>`, so a
+still could capture before the covers decoded, and a still has no later frame to
+correct itself on. It now uses Remotion's `<Img>`, which holds the render until
+the file has loaded. Three consecutive renders are byte-identical.
+
+That change has a cost worth knowing: `<Img>` calls `useCurrentFrame()`, so
+`BoxArt`'s image path can no longer be rendered by `renderToStaticMarkup` in a
+unit test. The test covers the path decision and the crop tokens instead, and
+the crop itself is verified from rendered frames.
 
 ## Session persistence
 
@@ -416,9 +488,14 @@ faces, four theme modes, a soundtrack the video is cut to, and a single-screen
 control surface. 242 passing tests. The default cut at 120 BPM is 28 bars —
 about 56 seconds; every slide turned on is 46 bars, about 92.
 
-**Step 11 — batch render — is next**, then 12 polish. `startRender` already
-returns a job with its own progress and cancel, so batching is a queue around
-it rather than new render machinery.
+**All twelve steps are done.** The plan is complete: ingest, a 20-module stats
+engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
+to, a single-screen control surface, single and batch rendering, and the polish
+pass.
+
+Nothing in the plan remains. Natural next moves, none of them specified:
+per-player audio, a landscape cut (the plan forbids one), or moving the stats
+engine server-side so a batch does not need a browser tab open.
 
 Known gaps left deliberately:
 
@@ -426,9 +503,9 @@ Known gaps left deliberately:
   (`bestGame`, `nightOwl`, `longestWinStreak`, …) are computed and shown in the
   StatsInspector but are not in `DEFAULT_CUT`. They have lengths in `SLIDE_BARS`
   so adding one is small.
-- **Only one render at a time**, enforced with a 409. Remotion opens a browser
-  per render and saturates the CPU; two at once take longer than two in sequence
-  and are likelier to run out of memory. Step 11 turns this into a real queue.
+- **Only one render at a time**, single or batch, enforced with a 409. Remotion
+  opens a browser per render and saturates the CPU; two at once take longer than
+  two in sequence and are likelier to run out of memory.
 - The bundle is cached for the life of the process, so **editing a slide means
   restarting `npm run server`** before the change reaches a render.
 - **No bundled tracks ship with the repo.** `public/audio/` is gitignored and

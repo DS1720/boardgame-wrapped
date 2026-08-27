@@ -10,7 +10,7 @@ import { mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundle } from '@remotion/bundler';
-import { makeCancelSignal, renderMedia, selectComposition } from '@remotion/renderer';
+import { makeCancelSignal, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import { withProjectAliases } from '../remotion.webpack';
 import { slugify } from '../src/shared/format';
 import type { Track } from '../src/shared/audio';
@@ -26,16 +26,21 @@ const ENTRY = path.resolve(PROJECT_ROOT, 'src', 'video', 'index.ts');
 /**
  * Matches the CLI settings in remotion.config.ts, so both produce the same file.
  *
- * `pixelFormat` is pinned to `yuv420p`. Rendering from JPEG frames otherwise
- * yields `yuvj420p` — the deprecated full-range variant, which plays but can
- * shift colours on players that read the range tag differently. `yuv420p` is
- * what phones and every desktop player expect.
+ * `colorSpace` is the one that does the work. Left at its default, a 1080x1920
+ * render came out tagged `bt470bg` — SD PAL — with full-range JPEG levels, which
+ * ffprobe reports as `yuvj420p`. A player honouring those tags converts the
+ * colours wrongly.
+ *
+ * Setting `bt709` fixes the whole chain: the output becomes true `yuv420p` at
+ * limited range with HD primaries. `pixelFormat` alone did not achieve this —
+ * the colour space is what drives the conversion.
  */
 export const RENDER_SETTINGS = {
   codec: 'h264',
   crf: 18,
   imageFormat: 'jpeg',
   pixelFormat: 'yuv420p',
+  colorSpace: 'bt709',
 } as const;
 
 export class RenderError extends Error {}
@@ -49,13 +54,15 @@ export interface RenderInput {
 }
 
 export interface RenderProgress {
-  phase: 'bundling' | 'preparing' | 'rendering' | 'encoding' | 'done' | 'failed' | 'cancelled';
+  phase: 'bundling' | 'preparing' | 'rendering' | 'encoding' | 'still' | 'done' | 'failed' | 'cancelled';
   /** 0–1 across the whole job, not just the frame pass. */
   progress: number;
   renderedFrames: number;
   encodedFrames: number;
   totalFrames: number;
   outputFile: string | null;
+  /** The square still written beside the video, or null if it could not be made. */
+  stillFile: string | null;
   bytes: number | null;
   error: string | null;
 }
@@ -127,6 +134,7 @@ const emptyProgress = (): RenderProgress => ({
   encodedFrames: 0,
   totalFrames: 0,
   outputFile: null,
+  stillFile: null,
   bytes: null,
   error: null,
 });
@@ -177,6 +185,7 @@ export const startRender = (input: RenderInput): RenderJob => {
         crf: RENDER_SETTINGS.crf,
         imageFormat: RENDER_SETTINGS.imageFormat,
         pixelFormat: RENDER_SETTINGS.pixelFormat,
+        colorSpace: RENDER_SETTINGS.colorSpace,
         outputLocation: outputFile,
         inputProps,
         cancelSignal: cancelSignal.cancelSignal,
@@ -193,6 +202,28 @@ export const startRender = (input: RenderInput): RenderJob => {
 
       progress.outputFile = outputFile;
       progress.bytes = (await stat(outputFile)).size;
+
+      // The square is seconds of work next to a minute of video, so it is
+      // always made — but never at the cost of the video. A still that fails
+      // leaves the MP4 exactly as it was.
+      progress.phase = 'still';
+      try {
+        const stillFile = outputFile.replace(/\.mp4$/, '.png');
+        const square = await selectComposition({ serveUrl, id: 'Square', inputProps });
+        await renderStill({
+          composition: square,
+          serveUrl,
+          output: stillFile,
+          inputProps,
+          imageFormat: 'png',
+          cancelSignal: cancelSignal.cancelSignal,
+        });
+        progress.stillFile = stillFile;
+      } catch {
+        // Not worth failing the render over, and not worth a message either:
+        // the video is what was asked for.
+      }
+
       progress.progress = 1;
       progress.phase = 'done';
     } catch (err) {

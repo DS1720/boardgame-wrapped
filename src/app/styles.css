@@ -858,3 +858,108 @@ button.icon:hover:not(:disabled) {
   align-items: center;
   gap: 14px;
 }
+
+/* Batch render */
+.batch-select {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.batch-min {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.batch-min input {
+  width: 64px;
+  background: var(--surface-lift);
+  color: var(--ink);
+  border: 1px solid var(--surface-lift);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.batch-players {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 2px 16px;
+}
+
+.batch-players label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 2px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.batch-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Selected but under the threshold: shown struck through rather than silently
+   dropped, so the count in the button is never a surprise. */
+.batch-players li.is-below .batch-name {
+  text-decoration: line-through;
+  color: var(--ink-muted);
+}
+
+.batch-status {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.batch-status.is-done { color: var(--accent); }
+.batch-status.is-failed { color: var(--warn); }
+.batch-status.is-rendering { color: var(--accent); }
+.batch-status.is-skipped,
+.batch-status.is-queued { color: var(--ink-muted); }
+
+.batch-running {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.batch-summary {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.batch-summary p { margin: 0 0 8px; color: var(--ink-muted); }
+.batch-summary strong { color: var(--ink); }
+
+.batch-failures {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--warn);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}

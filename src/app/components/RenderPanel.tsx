@@ -17,12 +17,22 @@ const API = '/api';
 const POLL_MS = 400;
 
 interface Progress {
-  phase: 'bundling' | 'preparing' | 'rendering' | 'encoding' | 'done' | 'failed' | 'cancelled';
+  phase:
+    | 'bundling'
+    | 'preparing'
+    | 'rendering'
+    | 'encoding'
+    | 'still'
+    | 'done'
+    | 'failed'
+    | 'cancelled';
   progress: number;
   renderedFrames: number;
   encodedFrames: number;
   totalFrames: number;
   outputFile: string | null;
+  /** The square written beside the video. Null if it could not be made. */
+  stillFile: string | null;
   bytes: number | null;
   error: string | null;
 }
@@ -32,6 +42,7 @@ const PHASE_LABEL: Record<Progress['phase'], string> = {
   preparing: 'Working out the length…',
   rendering: 'Rendering frames',
   encoding: 'Encoding',
+  still: 'Making the square…',
   done: 'Done',
   failed: 'Failed',
   cancelled: 'Cancelled',
@@ -155,6 +166,7 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
         <p className="render-done">
           Wrote <strong>{progress.outputFile.split(/[\\/]/).pop()}</strong>
           {progress.bytes ? ` · ${mb(progress.bytes)}` : ''}
+          {progress.stillFile ? ' · plus a 1080 × 1080 square to share' : ''}
         </p>
       )}
 

@@ -2,6 +2,7 @@ import { AbsoluteFill } from 'remotion';
 import type { Stat } from '@/stats/types';
 import type { WrappedStats } from '@/stats/types';
 import { formatDay, formatNumber, formatPercent } from '@/shared/format';
+import { superlativeFor } from '@/stats/superlative';
 import { withAlpha } from '@/theme/color';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { BoxArt, BoxArtHero } from '../BoxArt';
@@ -477,6 +478,8 @@ export const OutroSlide: React.FC<SlideProps> = ({ stats }) => {
   // Six, so the grid below fills 3x2 without a hole in the bottom row.
   const games = topFive?.id === 'topFive' ? topFive.games.slice(0, 6) : [];
   const totals = stats.stats.find((s) => s.id === 'totalPlays');
+  // Null when nothing about this year was distinctive enough to claim.
+  const superlative = superlativeFor(stats);
 
   return (
     <SafeArea justify="center">
@@ -501,6 +504,11 @@ export const OutroSlide: React.FC<SlideProps> = ({ stats }) => {
               <p style={{ ...bodyFont, fontSize: body, color: color.inkMuted, margin: 0 }}>
                 {formatNumber(totals.plays)} plays · {formatNumber(totals.distinctGames)} games ·{' '}
                 {formatNumber(totals.nights)} nights
+              </p>
+            ) : null}
+            {superlative ? (
+              <p style={{ ...bodyFont, fontSize: body, color: color.accent, margin: '2px 0 0' }}>
+                {superlative.line}
               </p>
             ) : null}
           </Stack>
