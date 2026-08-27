@@ -1,0 +1,168 @@
+/* Palette matches the "Table Light" starter theme so the tool and its output
+   look related: felt-dark ground, warm lamp accent. */
+:root {
+  --bg: #0e1512;
+  --surface: #182420;
+  --surface-lift: #1f2e29;
+  --ink: #f0ede4;
+  --ink-muted: #8c9a93;
+  --accent: #f2c879;
+  --warn: #d9784f;
+  --radius: 10px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.shell {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+header h1 {
+  font-size: 34px;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+header p {
+  margin: 6px 0 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--surface-lift);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.panel h2 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.summary { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.summary p { margin: 0; }
+
+.dropzone {
+  border: 1.5px dashed var(--surface-lift);
+  border-radius: var(--radius);
+  padding: 64px 24px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.dropzone:hover, .dropzone:focus-visible, .dropzone.is-over {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.dropzone strong { font-size: 19px; }
+.dropzone span { color: var(--ink-muted); font-size: 13px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.chip {
+  background: var(--surface-lift);
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+.chip:hover { border-color: var(--accent); }
+.chip.is-active { background: var(--accent); color: #14201b; font-weight: 600; }
+
+.row { display: flex; gap: 16px; flex-wrap: wrap; }
+.row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+input[type='date'] {
+  background: var(--surface-lift);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink);
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.players { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
+.player {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.player:hover { background: var(--surface-lift); }
+.player.is-active { background: var(--accent); color: #14201b; font-weight: 600; }
+.count { color: var(--ink-muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+.player.is-active .count { color: #14201b; }
+.count em { color: var(--warn); font-style: normal; font-size: 11px; text-transform: uppercase; }
+
+.stats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.stats li { display: grid; grid-template-columns: 180px 1fr; gap: 14px; align-items: baseline; }
+.stat-id { color: var(--ink-muted); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+.stat-id em { color: var(--surface-lift); font-style: normal; }
+.stat-value { font-variant-numeric: tabular-nums; }
+
+.error { color: var(--warn); margin: 12px 0 0; }
+.warn { color: var(--accent); margin: 0 0 14px; }
+.empty { color: var(--ink-muted); margin: 0; }
+
+.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  padding: 0;
+}
+
+button:focus-visible, .dropzone:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 620px) {
+  .stats li { grid-template-columns: 1fr; gap: 2px; }
+}

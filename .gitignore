@@ -1,0 +1,16 @@
+node_modules
+out
+public/boxart/*
+!public/boxart/.gitkeep
+public/audio/*
+!public/audio/.gitkeep
+!public/audio/manifest.json
+.DS_Store
+
+# duplicate scaffold from a scaffolding accident - not the real project
+/boardgame-wrapped/
+
+# BG Stats exports - personal play data, never commit
+/data/*
+!/data/.gitkeep
+*BGStatsExport*.json

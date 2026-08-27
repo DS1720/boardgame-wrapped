@@ -1,0 +1,40 @@
+{
+  "name": "boardgame-wrapped",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Local Spotify-Wrapped-style video generator for BG Stats exports. Mobile format (1080x1920).",
+  "scripts": {
+    "dev": "vite",
+    "server": "tsx watch server/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "video:studio": "remotion studio src/video/index.ts",
+    "video:render": "remotion render src/video/index.ts Wrapped out/test.mp4"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.0",
+    "@remotion/cli": "^4.0.0",
+    "@remotion/google-fonts": "^4.0.0",
+    "@remotion/media-utils": "^4.0.0",
+    "@remotion/player": "^4.0.0",
+    "@remotion/renderer": "^4.0.0",
+    "express": "^4.19.2",
+    "idb-keyval": "^6.2.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3",
+    "vite": "^5.3.4",
+    "vitest": "^2.1.9"
+  }
+}
