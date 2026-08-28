@@ -8,6 +8,7 @@ import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { BoxArt, BoxArtHero } from '../BoxArt';
 import { CountUp, Float, Reveal, Stagger } from '../motion';
 import { SignaturePlate, TallyMarks } from '../signature';
+import { ChipStacks, DealtHand, HeadToHead, PinDrop } from './details';
 import { boxArtFor, useBoxArtManifest } from '../useBoxArt';
 import { Caption, Eyebrow, Headline, SafeArea, Stack, StatBlock } from './layout';
 
@@ -87,6 +88,13 @@ export const IntroSlide: React.FC<SlideProps> = ({ stats }) => {
             A year at the table
           </p>
         </Reveal>
+
+        {/* Every one of these evenings starts by dealing, so the intro does
+            too. The fan keeps breathing afterwards: this is the one card in the
+            video with no number on it to hold the eye. */}
+        <div style={{ marginTop: 18 }}>
+          <DealtHand delay={BEAT.third + 10} />
+        </div>
       </Stack>
     </SafeArea>
   );
@@ -197,36 +205,28 @@ export const WinRateSlide: React.FC<SlideProps> = ({ stat }) => {
             }
           />
         </SignaturePlate>
-        <Reveal delay={BEAT.third} distance={0}>
-          <WinBar ratio={stat.ratio} />
-        </Reveal>
+        {/*
+          Chips, not a bar. The bar it replaces never animated at all — it was
+          drawn at its final width on the first frame — and a filled bar states
+          the ratio where two stacks let you see it, which is worth more on the
+          one slide whose subject is a comparison.
+        */}
+        {/* Dropped clear of the caption. Tucked up against "61 wins in 222
+            competitive plays" the chips read as part of that line rather than
+            as their own answer to it. */}
+        <div style={{ marginTop: 66 }}>
+          <Reveal delay={BEAT.third} distance={0}>
+            <ChipStacks
+              wins={stat.wins}
+              losses={stat.losses}
+              delay={BEAT.third}
+              wonLabel={stat.coopOnly ? 'beaten' : 'won'}
+              lostLabel={stat.coopOnly ? 'lost to' : 'lost'}
+            />
+          </Reveal>
+        </div>
       </Stack>
     </SafeArea>
-  );
-};
-
-/** A single bar. The percentage is already the headline; this just gives it a shape. */
-const WinBar: React.FC<{ ratio: number }> = ({ ratio }) => {
-  const { color } = useTheme();
-  return (
-    <div
-      style={{
-        height: 26,
-        width: '100%',
-        borderRadius: 13,
-        backgroundColor: withAlpha(color.ink, 0.16),
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          width: `${Math.round(ratio * 100)}%`,
-          height: '100%',
-          backgroundColor: color.accent,
-          borderRadius: 13,
-        }}
-      />
-    </div>
   );
 };
 
@@ -350,6 +350,14 @@ export const NemesisSlide: React.FC<SlideProps> = ({ stat }) => {
             of your games — {formatNumber(stat.lossesTo)} of {formatNumber(stat.headToHead)}
           </p>
         </Reveal>
+        <Reveal delay={BEAT.third + 6} distance={0}>
+          <HeadToHead
+            theirName={stat.name}
+            theirWins={stat.lossesTo}
+            yourWins={stat.headToHead - stat.lossesTo}
+            delay={BEAT.third + 6}
+          />
+        </Reveal>
       </Stack>
     </SafeArea>
   );
@@ -443,6 +451,10 @@ export const TopLocationSlide: React.FC<SlideProps> = ({ stat }) => {
             <CountUp to={stat.nights} delay={BEAT.third} /> nights
           </Caption>
         </Reveal>
+        {/* The rings keep going out after the pin lands. This is the one slide
+            about a place rather than a moment, and a place is somewhere you
+            keep going back to. */}
+        <PinDrop delay={BEAT.third + 4} />
       </Stack>
     </SafeArea>
   );

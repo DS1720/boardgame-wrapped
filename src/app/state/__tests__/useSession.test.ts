@@ -55,6 +55,31 @@ describe('round trip', () => {
     expect(restored.boxArtMode).toBe(true);
   });
 
+  it('remembers a range renamed by hand, separately from the derived label', () => {
+    const storage = memoryStorage();
+    saveSession(
+      {
+        ...defaultSession(),
+        rangeLabel: '2026',
+        rangeName: 'Our first year',
+      },
+      storage,
+    );
+
+    const restored = loadSession(storage);
+    // Both survive. The derived label is what the year chips match on, so
+    // renaming the range must not overwrite it.
+    expect(restored.rangeLabel).toBe('2026');
+    expect(restored.rangeName).toBe('Our first year');
+  });
+
+  it('treats a missing or non-string range name as no override', () => {
+    const storage = memoryStorage();
+    storage.setItem('bgw:session', JSON.stringify({ version: 1, rangeName: 42 }));
+    expect(loadSession(storage).rangeName).toBeNull();
+    expect(loadSession(memoryStorage()).rangeName).toBeNull();
+  });
+
   it('preserves the slide order, not just the set', () => {
     const storage = memoryStorage();
     const arranged: SlideId[] = ['topLocation', 'winRate', 'totalPlays'];

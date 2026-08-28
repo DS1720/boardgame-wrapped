@@ -154,6 +154,27 @@ strokes tally marks on in every theme**, in that theme's own colour, because
 that is the slide the whole video is about. **The "played with" slide counts in
 the theme's own hand** — dice, tiles, pegs or strokes.
 
+Most other slides have a small drawing of their own, and each one is about that
+slide's subject rather than being pattern. The **intro** deals a hand, because
+that is how every one of these evenings starts. **Win rate** stacks chips for
+wins against chips for losses on the same scale. A **win streak** lights up link
+by link, since the connection is what makes it a streak. **Best** and **worst
+game** lay out every play as a won or lost marker. **People played with** draws
+people. **Nemesis** fills one track from both ends so you can see where you
+meet. Your **busiest day** piles up instead of spreading out. **Night owl**
+swings a hand round a 24-hour ring with your late hours shaded. **First and last
+play** tears a calendar through exactly the months your range covers. **Where
+you played** drops a pin and lets the rings keep going out. And **time played**
+runs a clock whose hand laps once per day you spent at the table.
+
+## Naming the range
+
+Under the date pickers there is a box for what the video should call this range.
+Leave it empty and it uses the obvious thing — “2026”, or the two dates. Type
+something and that is what appears instead: “Our first year”, “The Basement
+Sessions”, whatever it was. Renaming it does not change which dates are
+selected.
+
 Themes are data: six colors, three fonts, four type sizes, a motion profile, a
 texture and a signature. No slide component contains a literal color or font.
 

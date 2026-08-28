@@ -637,6 +637,28 @@ export const useCountMarks = (): CountSignature | null => {
     : null;
 };
 
+/**
+ * The theme's own mark, **excluding the tally**.
+ *
+ * The plays slide draws stripes in every theme, so a second slide drawing them
+ * again is the same picture twice for one fact and a different fact. Scorepad
+ * simply has no mark away from the plays slide; the other three do, and that is
+ * where they are told apart.
+ */
+export const useThemeMark = (): CountSignature | null => {
+  const kind = useCountMarks();
+  return kind === 'tally' ? null : kind;
+};
+
+/** The theme's own mark, drawn. Nothing at all for a theme whose mark is the tally. */
+export const ThemeMarks: React.FC<CountMarksProps> = (props) => {
+  const kind = useThemeMark();
+  if (kind === 'dice') return <DiceMarks {...props} />;
+  if (kind === 'tiles') return <TileMarks {...props} />;
+  if (kind === 'pegs') return <PegMarks {...props} />;
+  return null;
+};
+
 /** Whichever counting mark the current theme uses. */
 export const CountMarks: React.FC<CountMarksProps> = (props) => {
   const kind = useCountMarks();

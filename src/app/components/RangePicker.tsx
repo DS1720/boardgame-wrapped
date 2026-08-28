@@ -6,6 +6,9 @@ interface Props {
   dataset: Dataset;
   range: DateRange;
   onChange: (range: DateRange) => void;
+  /** What the video should call this range. Blank means use the derived label. */
+  name: string;
+  onName: (value: string) => void;
   error: string | null;
   onError: (message: string | null) => void;
 }
@@ -13,7 +16,15 @@ interface Props {
 const toInput = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-export const RangePicker: React.FC<Props> = ({ dataset, range, onChange, error, onError }) => {
+export const RangePicker: React.FC<Props> = ({
+  dataset,
+  range,
+  onChange,
+  name,
+  onName,
+  error,
+  onError,
+}) => {
   const years = useMemo(() => {
     const set = new Set(dataset.plays.map((p) => p.date.getFullYear()));
     return [...set].sort((a, b) => b - a);
@@ -66,6 +77,27 @@ export const RangePicker: React.FC<Props> = ({ dataset, range, onChange, error, 
           />
         </label>
       </div>
+      {/*
+        Blank is not an empty title, it is "no override" — so the derived label
+        goes in the placeholder rather than being typed into the field. Seeding
+        the input with it would make every session look renamed, and clearing
+        the box would then be the only way back to the default.
+      */}
+      <label className="range-name">
+        Shown in the video
+        <input
+          type="text"
+          value={name}
+          placeholder={range.label}
+          maxLength={40}
+          onChange={(e) => onName(e.target.value)}
+          aria-describedby="range-name-note"
+        />
+      </label>
+      <p className="panel-note" id="range-name-note">
+        Leave empty to use “{range.label}”.
+      </p>
+
       {error && <p className="error">{error}</p>}
     </section>
   );

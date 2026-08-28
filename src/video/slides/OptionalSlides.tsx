@@ -1,8 +1,19 @@
+import { AbsoluteFill } from 'remotion';
 import { formatDay, formatDays, formatDuration, formatNumber } from '@/shared/format';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { BoxArt } from '../BoxArt';
+import { VIDEO } from '../config';
 import { CountUp, Reveal } from '../motion';
-import { CountMarks, SignaturePlate, useCountMarks } from '../signature';
+import { SignaturePlate, ThemeMarks, useThemeMark } from '../signature';
+import {
+  CalendarTear,
+  Crowd,
+  DayClock,
+  DayStack,
+  HourDial,
+  ResultRow,
+  StreakChain,
+} from './details';
 import { boxArtFor, useBoxArtManifest } from '../useBoxArt';
 import { Caption, DisplayNumber, Eyebrow, Headline, SafeArea, Stack, StatBlock } from './layout';
 import type { SlideProps } from './Slides';
@@ -28,22 +39,23 @@ export const LongestWinStreakSlide: React.FC<SlideProps> = ({ stat }) => {
   if (stat?.id !== 'longestWinStreak') return null;
   return (
     <SafeArea>
-      <SignaturePlate delay={BEAT.first}>
-        <StatBlock
-          eyebrow="Longest win streak"
-          value={<CountUp to={stat.length} delay={BEAT.second} />}
-          caption={stat.length === 1 ? 'win' : 'wins in a row'}
-        />
-      </SignaturePlate>
+      <Stack gap={30}>
+        <SignaturePlate delay={BEAT.first}>
+          <StatBlock
+            eyebrow="Longest win streak"
+            value={<CountUp to={stat.length} delay={BEAT.second} />}
+            caption={stat.length === 1 ? 'win' : 'wins in a row'}
+          />
+        </SignaturePlate>
+        <Reveal delay={BEAT.third} distance={0}>
+          <StreakChain length={stat.length} delay={BEAT.third} />
+        </Reveal>
+      </Stack>
     </SafeArea>
   );
 };
 
 export const CoPlayerCountSlide: React.FC<SlideProps> = ({ stat }) => {
-  // Where a theme counts in its own hand: Scorepad's strokes, Felt Table's
-  // dice, Meadow's tiles, Peg Board's pegs. The plays slide is stripes for
-  // everyone, so this is the slide that tells the six designs apart.
-  const marks = useCountMarks();
   if (stat?.id !== 'coPlayerCount') return null;
 
   return (
@@ -56,11 +68,12 @@ export const CoPlayerCountSlide: React.FC<SlideProps> = ({ stat }) => {
             caption={stat.count === 1 ? 'other person' : 'different people'}
           />
         </SignaturePlate>
-        {marks ? (
-          <Reveal delay={BEAT.third} distance={0}>
-            <CountMarks count={stat.count} delay={BEAT.third} />
-          </Reveal>
-        ) : null}
+        {/* People drawn as people. This slide used to borrow whichever mark
+            the theme owned, which on Scorepad meant the same stripes the plays
+            slide had already drawn — two different facts wearing one picture. */}
+        <Reveal delay={BEAT.third} distance={0}>
+          <Crowd count={stat.count} delay={BEAT.third} />
+        </Reveal>
       </Stack>
     </SafeArea>
   );
@@ -81,6 +94,11 @@ export const BusiestDaySlide: React.FC<SlideProps> = ({ stat }) => {
           <Caption accent>
             <CountUp to={stat.plays} delay={BEAT.third} /> plays in one day
           </Caption>
+        </Reveal>
+        {/* Every other count in the video is spread across a year. This one
+            happened in a day, so it piles up instead of spreading out. */}
+        <Reveal delay={BEAT.third + 4} distance={0}>
+          <DayStack plays={stat.plays} delay={BEAT.third + 4} />
         </Reveal>
       </Stack>
     </SafeArea>
@@ -111,28 +129,42 @@ export const NightOwlSlide: React.FC<SlideProps> = ({ stat }) => {
             {Math.round(stat.lateShare * 100)}% of your games began after 22:00
           </Caption>
         </Reveal>
+        <Reveal delay={BEAT.third + 4} distance={0}>
+          <HourDial peakHour={stat.peakHour} delay={BEAT.third + 4} />
+        </Reveal>
       </Stack>
     </SafeArea>
   );
 };
 
 export const GroupShareSlide: React.FC<SlideProps> = ({ stat }) => {
+  const marks = useThemeMark();
   if (stat?.id !== 'groupShare') return null;
   return (
     <SafeArea>
-      <SignaturePlate delay={BEAT.first}>
-        <StatBlock
-          eyebrow="Nights you made it to"
-          value={
-            <CountUp
-              to={Math.round(stat.ratio * 100)}
-              delay={BEAT.second}
-              format={(v) => `${v}%`}
-            />
-          }
+      <Stack gap={28}>
+        <SignaturePlate delay={BEAT.first}>
+          <StatBlock
+            eyebrow="Nights you made it to"
+            value={
+              <CountUp
+                to={Math.round(stat.ratio * 100)}
+                delay={BEAT.second}
+                format={(v) => `${v}%`}
+              />
+            }
           caption={`${formatNumber(stat.attended)} of ${formatNumber(stat.total)} game nights`}
-        />
-      </SignaturePlate>
+          />
+        </SignaturePlate>
+        {/* The one slide that still counts in the theme's own hand — dice,
+            tiles or pegs. Scorepad draws nothing here on purpose: its mark is
+            the tally, and the plays slide has already used it. */}
+        {marks ? (
+          <Reveal delay={BEAT.third} distance={0}>
+            <ThemeMarks count={stat.attended} delay={BEAT.third} />
+          </Reveal>
+        ) : null}
+      </Stack>
     </SafeArea>
   );
 };
@@ -168,6 +200,11 @@ const GameRateSlide: React.FC<{
             <CountUp to={Math.round(ratio * 100)} delay={BEAT.third} format={(v) => `${v}%`} /> in{' '}
             {formatNumber(plays)} plays
           </Caption>
+        </Reveal>
+        {/* The plays themselves: a percentage is a fact you read, a row of
+            filled and hollow markers is the same fact you can count. */}
+        <Reveal delay={BEAT.third + 5} distance={0}>
+          <ResultRow ratio={ratio} plays={plays} delay={BEAT.third + 5} />
         </Reveal>
       </Stack>
     </SafeArea>
@@ -323,10 +360,30 @@ export const FirstAndLastPlaySlide: React.FC<SlideProps> = ({ stat }) => {
     </Reveal>
   );
 
+  // Absolute month indices, so a range that crosses New Year still counts
+  // forwards. "2025-11" to "2026-02" is four pages, not minus nine.
+  const monthOf = (day: string) => {
+    const [year, month] = day.split('-').map(Number);
+    return year * 12 + (month - 1);
+  };
+
   return (
     <SafeArea>
-      <Stack gap={34}>
+      <Stack gap={26}>
         {row('Started the year with', stat.first, BEAT.first)}
+        {/*
+          The calendar sits between the two, because what it draws is the gap
+          between them. It tears exactly the months the range covers — a year
+          that ran January to March tears three, not twelve — so the flourish
+          is the length of the span rather than a fixed piece of decoration.
+        */}
+        <Reveal delay={BEAT.second} distance={0}>
+          <CalendarTear
+            fromMonth={monthOf(stat.first.day)}
+            toMonth={monthOf(stat.last.day)}
+            delay={BEAT.second}
+          />
+        </Reveal>
         {row('Ended it with', stat.last, BEAT.third)}
       </Stack>
     </SafeArea>
@@ -352,6 +409,18 @@ export const TimePlayedSlide: React.FC<SlideProps> = ({ stat }) => {
   const top = stat.topGame;
 
   return (
+    <>
+      {/*
+        The clock hangs in the top corner rather than beside the number.
+        In the row it shared with the stat block it took width off the caption
+        and broke "estimated from how long these games take" across more lines
+        than it should — a decoration that costs the text its shape is not
+        earning its place. One lap of the dial is still one day.
+      */}
+      <AbsoluteFill style={{ padding: VIDEO.safeMargin, alignItems: 'flex-end' }}>
+        <DayClock minutes={stat.minutes} delay={BEAT.second} />
+      </AbsoluteFill>
+
     <SafeArea>
       <Stack gap={26}>
         <SignaturePlate delay={BEAT.first}>
@@ -401,5 +470,6 @@ export const TimePlayedSlide: React.FC<SlideProps> = ({ stat }) => {
         )}
       </Stack>
     </SafeArea>
+    </>
   );
 };

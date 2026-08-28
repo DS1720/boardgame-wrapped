@@ -223,6 +223,64 @@ that they read as six studios' work, not one palette shuffled.
 | Meadow | parchment | `tiles` | tiles dropped in with a quarter turn, roads meeting at the joins |
 | Peg Board | walnut | `pegs` | pegs drop into a drilled track, empty holes ahead of them |
 
+### Detail animations belong to a stat, not to a theme
+
+[src/video/slides/details.tsx](src/video/slides/details.tsx) is the other half
+of the picture. A **signature** belongs to a theme and appears on every slide; a
+**detail** belongs to one stat and appears wherever that stat does, in whatever
+theme is on.
+
+The rule all of them are written to: **the drawing has to be about the number
+underneath it.** A shape that would fit any slide equally well is decoration,
+and decoration is what makes a video look assembled rather than made.
+
+| Slide | Detail | Why that shape |
+|---|---|---|
+| Intro | `DealtHand` | every one of these evenings starts by dealing |
+| Win rate | `ChipStacks` | two stacks, same scale — the slide's subject is a comparison |
+| Longest win streak | `StreakChain` | the link between two wins is what makes it a streak rather than a total |
+| Best / worst game | `ResultRow` | a percentage read, versus won and lost markers you can count |
+| People played with | `Crowd` | people drawn as people |
+| Nemesis | `HeadToHead` | one track filled from both ends; where they meet is the record |
+| Busiest day | `DayStack` | every other count is spread over a year — this one piles up |
+| Night owl | `HourDial` | 24 hours as a ring, shaded at exactly the 22:00–04:00 the stat counts |
+| First and last play | `CalendarTear` | it tears the months the range actually covers, not a fixed twelve |
+| Top location | `PinDrop` | a pin lands and the rings keep going out — a place is somewhere you go back to |
+| Time played | `DayClock` | one lap of the dial is one day, so "about 4.8 days" is said as a movement |
+
+Several are worth knowing in detail:
+
+- **`ChipStacks` scales both columns by the same unit**, and says what one chip
+  is worth on screen. Scaling each column to its own height would make 61 wins
+  and 161 losses look like the same pile — the one thing the drawing exists to
+  contradict — and a chip that silently meant eighteen plays would be a chart
+  with a hidden axis. `chipScale` is pure and tested.
+- **`HourDial`'s shaded band is 22:00–04:00**, because that is the window
+  `lateShare` actually counts. A band that disagreed with the percentage beside
+  it would be worse than no band.
+- **The win-rate bar it replaced never animated at all.** It was drawn at its
+  final width on the first frame. Worth remembering when reading old slides:
+  a static shape is easy to mistake for a finished one.
+- **`CalendarTear` tears the real span.** January to March is three pages, not
+  twelve, and months are absolute indices (`year * 12 + month`) so a range that
+  crosses New Year still counts forwards.
+- **`ResultRow` spreads the wins through the row** rather than bunching them at
+  the front. *Which* plays were won is not in the stat, and putting them all at
+  one end would invent a run that may never have happened.
+- **`DayClock` hangs in the frame's top corner, not beside the number.** In the
+  row it first shared with the stat block it took width off the caption and
+  broke it across more lines than it should. A decoration that costs the text
+  its shape is not earning its place.
+
+### The tally is the plays slide's, and nowhere else
+
+`useThemeMark` is `useCountMarks` minus the tally, and it is what
+`groupShare` uses. Once the plays slide drew stripes in every theme, any second
+slide drawing them again was one picture doing duty for two different facts —
+which is exactly what happened on "People played with" before it got `Crowd`.
+So Scorepad simply has no mark away from the plays slide; the other three
+themes keep theirs, on nights-attended.
+
 ### Two slides count, and they count differently
 
 **The plays slide draws the tally stripes in every theme.** It is the one slide
@@ -779,8 +837,14 @@ range, slide arrangement, track id and box-art mode under `bgw:session`. The
 theme has its own older store; these two together are what makes a reload resume
 where you left off.
 
-Two details worth keeping:
+Three details worth keeping:
 
+- **A range can be renamed for the video** — `rangeName` — and it is stored
+  *beside* `rangeLabel` rather than replacing it. The derived label is what the
+  year chips match on, so overwriting it would make renaming a range deselect
+  the year it came from. Blank means "no override", which is why the derived
+  label lives in the field's placeholder: seeding the input with it would make
+  every session look renamed.
 - **Only the track's id is stored**, not the track. A track carries 480 waveform
   peaks and would not survive a localStorage quota. The AudioPicker re-selects
   it once the manifest arrives.
@@ -789,7 +853,7 @@ Two details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 397 passing tests. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 406 passing tests. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.

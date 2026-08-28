@@ -81,6 +81,19 @@ export const App: React.FC = () => {
     return range ?? allTimeRange(dataset);
   }, [dataset, range]);
 
+  /**
+   * The same range, wearing whatever name was typed for it.
+   *
+   * Only the stats get this one. The picker keeps `activeRange`, because its
+   * year chips match on the derived label — rename the range to "Our first
+   * year" and the 2026 chip would otherwise stop looking selected.
+   */
+  const namedRange = useMemo(() => {
+    if (!activeRange) return null;
+    const typed = session.rangeName?.trim();
+    return typed ? { ...activeRange, label: typed } : activeRange;
+  }, [activeRange, session.rangeName]);
+
   const players = useMemo(() => {
     if (!dataset || !activeRange) return [];
     return playersInPlays(playsInRange(dataset.plays, activeRange));
@@ -89,14 +102,14 @@ export const App: React.FC = () => {
   // Every module is computed; the cut decides which reach the video. Computing
   // them all means toggling a slide on is instant rather than a recalculation.
   const stats = useMemo(() => {
-    if (!dataset || !activeRange || playerId === null) return null;
+    if (!dataset || !namedRange || playerId === null) return null;
     return buildWrappedStats(
       dataset,
       playerId,
-      activeRange,
+      namedRange,
       MODULES.map((m) => m.id),
     );
-  }, [dataset, activeRange, playerId]);
+  }, [dataset, namedRange, playerId]);
 
   const cut = useMemo(() => buildCut(slides), [slides]);
 
@@ -201,6 +214,8 @@ export const App: React.FC = () => {
             <RangePicker
               dataset={dataset}
               range={activeRange}
+              name={session.rangeName ?? ''}
+              onName={(value) => patch({ rangeName: value })}
               onChange={setRange}
               error={rangeError}
               onError={setRangeError}

@@ -23,6 +23,16 @@ export interface Session {
   rangeFrom: string | null;
   rangeTo: string | null;
   rangeLabel: string | null;
+  /**
+   * A name for the range, typed by hand, shown in the video instead of the
+   * derived one.
+   *
+   * Null or blank means "use the derived label", which is why this is stored
+   * separately from `rangeLabel` rather than overwriting it: picking a
+   * different year has to change what the video says, and it cannot do that if
+   * the derived label has already been thrown away.
+   */
+  rangeName: string | null;
   /** Ordered — this is the arrangement, not just the selection. */
   slides: SlideId[];
   trackId: string | null;
@@ -35,6 +45,7 @@ export const defaultSession = (): Session => ({
   rangeFrom: null,
   rangeTo: null,
   rangeLabel: null,
+  rangeName: null,
   slides: [...DEFAULT_SLIDE_IDS],
   trackId: null,
   boxArtMode: false,
@@ -72,6 +83,7 @@ export const parseSession = (raw: unknown): Session => {
     rangeFrom: isIsoDay(value.rangeFrom) ? value.rangeFrom : null,
     rangeTo: isIsoDay(value.rangeTo) ? value.rangeTo : null,
     rangeLabel: typeof value.rangeLabel === 'string' ? value.rangeLabel : null,
+    rangeName: typeof value.rangeName === 'string' ? value.rangeName : null,
     // An empty stored list is a real choice (everything switched off), but a
     // missing or malformed one is not.
     slides: Array.isArray(value.slides) ? slides : base.slides,
