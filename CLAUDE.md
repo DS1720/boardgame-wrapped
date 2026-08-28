@@ -681,12 +681,21 @@ more than anyone…"*. Back to back they are two halves of one thought.
 slide up against its partner whenever both are in. Three consequences worth
 knowing:
 
-- **Only the leading slide moves.** Someone who dragged "Played most with" to the
-  end still gets it at the end, with its setup in front of it.
+- **Only the leading slide is repositioned by `buildCut`.** Someone who dragged
+  "Played most with" to the end still gets it at the end, with its setup in
+  front of it.
 - **The pair moves as one unit.** `unitsOf` groups it, and both `moveSlide` and
   `moveSlideTo` work on units. Without that, stepping the partner one place just
-  swapped it with its own pinned lead and `buildCut` put it straight back — the
-  arrow appeared to do nothing.
+  swapped it with its own lead and `buildCut` put it straight back — the arrow
+  appeared to do nothing.
+
+  This is also why **both halves are ordinary rows in the picker**: grabbing
+  either one moves both. An earlier version indented the leading slide and
+  disabled its controls, which was correct only while the moves still worked on
+  single rows; once they worked on units the restriction was dead weight. The
+  arrows are disabled at the ends of the list of **units**, not of rows — a pair
+  sitting last has a row that is not last, and its ↓ would look live while doing
+  nothing.
 - **The line is conditional on what was actually emitted**, not on the cut. A
   player with no co-player count gets no bridging line and no extra bar, rather
   than an introduction to a slide that never comes.

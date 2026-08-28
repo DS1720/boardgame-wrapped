@@ -779,16 +779,6 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
   background: var(--surface-lift);
 }
 
-/* The leading half of a linked pair: indented under the row it belongs with,
-   and not draggable, because its position is not its own. */
-.slide-order li.is-pinned {
-  margin-left: 16px;
-}
-
-.slide-order li.is-pinned .slide-grip {
-  cursor: default;
-}
-
 .slide-order li.is-over {
   border-top-color: var(--accent);
 }

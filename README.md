@@ -318,8 +318,9 @@ narrator.
 
 Two slides are a pair. If you have both "People played with" and "Played most
 with" in the cut, they always play back to back, with *"But one of them was at
-the table more than anyone…"* in between — the count sets up the name. They move
-around the running order together, as one block.
+the table more than anyone…"* in between — the count sets up the name. Drag or
+arrow either one and both move together; the only thing you cannot do is put
+another slide between them.
 
 While the preview plays, the slide on screen is marked in the slide list, so you
 can see where you are without counting.

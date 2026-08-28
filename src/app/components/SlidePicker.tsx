@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { SlideId, WrappedStats } from '@/stats/types';
 import { CORE_SLIDES } from '@/stats/index';
 import {
@@ -6,6 +6,7 @@ import {
   DEFAULT_SLIDE_IDS,
   LINKED_PAIRS,
   SLIDE_LABELS,
+  unitsOf,
   type TimelineSlideId,
 } from '@/video/timeline';
 
@@ -25,9 +26,10 @@ import {
  * slide across the list, an arrow is exact for moving it one place, and the
  * arrows are the only one of the two that works from a keyboard.
  *
- * A linked pair moves as one. The leading slide of a pair is fixed in front of
- * its partner, so it is not itself movable — dragging it could only ever put it
- * back where it was. Moving the partner takes it along.
+ * A linked pair moves as one: grabbing either half moves both, because the
+ * moves work on units rather than rows. Both halves are ordinary rows — drag
+ * them, arrow them, remove them. The only thing the pairing takes away is the
+ * ability to put something *between* the two, which is the point of it.
  */
 
 interface Props {
@@ -72,6 +74,12 @@ export const SlidePicker: React.FC<Props> = ({
   const [dragging, setDragging] = useState<SlideId | null>(null);
   const [over, setOver] = useState<number | null>(null);
 
+  // Blocks that move together. The arrows are disabled at the ends of the
+  // *list of units*, not at the ends of the list of rows: a pair sitting last
+  // has a row that is not last, and its ↓ would look live while doing nothing.
+  const units = useMemo(() => unitsOf(order), [order]);
+  const unitAt = (id: SlideId) => units.findIndex((unit) => unit.includes(id));
+
   const endDrag = () => {
     setDragging(null);
     setOver(null);
@@ -103,13 +111,13 @@ export const SlidePicker: React.FC<Props> = ({
         {order.map((id, index) => {
           const has = available.has(id);
           const linkedTo = LINKED_TO.get(id);
-          // Pinned in front of its partner, and so not movable on its own.
-          const pinned = linkedTo !== undefined && order.includes(linkedTo);
+          // Always plays directly before its partner, and travels with it.
+          const linked = linkedTo !== undefined && order.includes(linkedTo);
+          const unit = unitAt(id);
 
           const classes = [
             has ? '' : 'is-unavailable',
             playing === id ? 'is-playing' : '',
-            pinned ? 'is-pinned' : '',
             dragging === id ? 'is-dragging' : '',
             over === index && dragging !== null && dragging !== id ? 'is-over' : '',
           ]
@@ -120,7 +128,7 @@ export const SlidePicker: React.FC<Props> = ({
             <li
               key={id}
               className={classes}
-              draggable={!pinned}
+              draggable
               onDragStart={(event) => {
                 setDragging(id);
                 event.dataTransfer.effectAllowed = 'move';
@@ -142,7 +150,7 @@ export const SlidePicker: React.FC<Props> = ({
               onDragEnd={endDrag}
             >
               <span className="slide-grip" aria-hidden="true">
-                {pinned ? '↳' : '⠿'}
+                ⠿
               </span>
               <span className="slide-index">{has ? inCut.indexOf(id) + 2 : '–'}</span>
               <span className="slide-name" title={SLIDE_LABELS[id]}>
@@ -150,7 +158,7 @@ export const SlidePicker: React.FC<Props> = ({
               </span>
               {!CORE_SLIDES.includes(id) && <span className="slide-tag">optional</span>}
               {stats && !has && <span className="slide-tag is-muted">no data</span>}
-              {pinned && (
+              {linked && (
                 <span
                   className="slide-tag is-muted"
                   title={`Always plays just before ${SLIDE_LABELS[linkedTo]}, and moves with it`}
@@ -172,18 +180,18 @@ export const SlidePicker: React.FC<Props> = ({
                 <button
                   className="icon"
                   onClick={() => onMove(id, -1)}
-                  disabled={pinned || index === 0}
+                  disabled={unit === 0}
                   aria-label={`Move ${SLIDE_LABELS[id]} earlier`}
-                  title={pinned ? `Moves with ${SLIDE_LABELS[linkedTo]}` : 'Move earlier'}
+                  title="Move earlier"
                 >
                   ↑
                 </button>
                 <button
                   className="icon"
                   onClick={() => onMove(id, 1)}
-                  disabled={pinned || index === order.length - 1}
+                  disabled={unit === units.length - 1}
                   aria-label={`Move ${SLIDE_LABELS[id]} later`}
-                  title={pinned ? `Moves with ${SLIDE_LABELS[linkedTo]}` : 'Move later'}
+                  title="Move later"
                 >
                   ↓
                 </button>
