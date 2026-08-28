@@ -123,6 +123,21 @@ On the most-played slide the cover is shown **whole** instead — board game box
 are rarely square, and a square crop cuts the credits line and the publisher's
 mark off the bottom of the one cover that slide is about.
 
+## Records
+
+**Record holder** is an optional slide for a game where you hold the best score
+of anyone who played it. It is off by default; turn it on in the slide list.
+
+It only appears if you actually hold one, and it is fussy about what counts:
+at least two people must have put a score on the board, cooperative and team
+games are skipped because the number belongs to the table rather than to you,
+and in a game where the *lowest* score wins the best score is the lowest one.
+If you hold several, you get the one you have played most, and a count of the
+others.
+
+On the real export 19 of 93 players hold a record — so it means something when
+it shows up.
+
 ## Themes
 
 Themes are data: six colors, three fonts, four type sizes, a motion profile, a
@@ -305,6 +320,9 @@ Two slides are a pair. If you have both "People played with" and "Played most
 with" in the cut, they always play back to back, with *"But one of them was at
 the table more than anyone…"* in between — the count sets up the name. They move
 around the running order together, as one block.
+
+While the preview plays, the slide on screen is marked in the slide list, so you
+can see where you are without counting.
 
 The top five is a **countdown**. Five appears first, then four, then three, and
 the list fills upward until first place lands last, larger and on its own plate.

@@ -12,7 +12,7 @@ import { SLIDE_COMPONENTS, SlideShell } from './slides';
 import { Soundtrack } from './Soundtrack';
 import { Ambient } from './Ambient';
 import { LeadIn } from './slides/LeadIn';
-import { Quip } from './slides/Quip';
+import { Quip, QuipSpace } from './slides/Quip';
 import { Texture, Vignette } from './Texture';
 import { boxArtFor, useBoxArtManifest } from './useBoxArt';
 import {
@@ -81,24 +81,26 @@ const Stage: React.FC<{ stats: WrappedStats; timeline: Timeline; track: Track | 
               durationInFrames={slide.durationInFrames}
             >
               <SlideShell durationInFrames={slide.durationInFrames}>
-                {lead ? (
-                  <>
-                    <LeadIn text={lead} />
-                    {/* Offsetting with a Sequence rather than passing a delay
-                        means the slide's own frame still starts at zero, so
-                        every BEAT inside it keeps working unchanged — and the
-                        aside is cued from the content, not from the line. */}
-                    <Sequence from={LEAD_IN_FRAMES} layout="none">
+                <QuipSpace has={quip !== null}>
+                  {lead ? (
+                    <>
+                      <LeadIn text={lead} />
+                      {/* Offsetting with a Sequence rather than passing a delay
+                          means the slide's own frame still starts at zero, so
+                          every BEAT inside it keeps working unchanged — and the
+                          aside is cued from the content, not from the line. */}
+                      <Sequence from={LEAD_IN_FRAMES} layout="none">
+                        <Component stat={slide.stat} stats={stats} />
+                        <Quip text={quip} />
+                      </Sequence>
+                    </>
+                  ) : (
+                    <>
                       <Component stat={slide.stat} stats={stats} />
                       <Quip text={quip} />
-                    </Sequence>
-                  </>
-                ) : (
-                  <>
-                    <Component stat={slide.stat} stats={stats} />
-                    <Quip text={quip} />
-                  </>
-                )}
+                    </>
+                  )}
+                </QuipSpace>
               </SlideShell>
             </Series.Sequence>
           );

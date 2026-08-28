@@ -68,6 +68,7 @@ export const SLIDE_LABELS: Record<TimelineSlideId, string> = {
   bestGame: 'Best game',
   worstGame: 'Worst game',
   highestScore: 'Highest score',
+  gameRecord: 'Record holder',
   coPlayerCount: 'People played with',
   busiestDay: 'Busiest day',
   nightOwl: 'Night owl',
@@ -341,6 +342,8 @@ export const SLIDE_BARS: Record<TimelineSlideId, number> = {
   busiestDay: 2,
   coPlayerCount: 2,
   firstAndLastPlay: 2,
+  // Three: it carries a cover, a name, a number and two lines under it.
+  gameRecord: 3,
   nightOwl: 2,
   groupShare: 2,
   highestScore: 2,
@@ -370,6 +373,22 @@ export interface Timeline {
   bars: number;
   bpm: number;
 }
+
+/**
+ * The slide showing at `frame`, or null if the frame is outside the video.
+ *
+ * A plain scan rather than a binary search: eleven slides, called once per
+ * frame update, and being obviously correct is worth more here than being fast.
+ */
+export const slideAt = (timeline: Timeline, frame: number): TimelineSlideId | null => {
+  for (const slide of timeline.slides) {
+    if (frame >= slide.from && frame < slide.from + slide.durationInFrames) return slide.id;
+  }
+  // The very last frame is inside the last slide, not past it.
+  const last = timeline.slides[timeline.slides.length - 1];
+  if (last && frame >= last.from) return last.id;
+  return null;
+};
 
 export interface PlanOptions {
   bpm?: number;

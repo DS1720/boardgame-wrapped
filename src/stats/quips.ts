@@ -145,6 +145,22 @@ export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | 
       return 'Still bringing it up at parties.';
     }
 
+    case 'gameRecord': {
+      const record = find(stats, 'gameRecord');
+      if (!record) return null;
+      // Every branch is a remark about this record specifically — how many
+      // others they hold, or how many people they beat to it.
+      if (record.otherRecords >= 5) {
+        return `${record.otherRecords + 1} records. Somebody check the score sheets.`;
+      }
+      if (record.otherRecords >= 1) {
+        return `And ${record.otherRecords} more where that came from.`;
+      }
+      if (record.shared) return 'Somebody matched it exactly. Nobody has beaten it.';
+      if (record.contenders >= 5) return `${record.contenders} people tried. One succeeded.`;
+      return 'The number to beat.';
+    }
+
     case 'groupShare': {
       const share = find(stats, 'groupShare');
       if (!share) return null;

@@ -762,6 +762,23 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
   opacity: 0.4;
 }
 
+/* The slide under the playhead. An accent bar down the left edge rather than a
+   filled row: the list is also the thing you edit, and a whole row changing
+   colour reads as "selected for editing" instead of "playing now". */
+.slide-order li.is-playing {
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: var(--surface-lift);
+}
+
+.slide-order li.is-playing .slide-name {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.slide-order li.slide-fixed.is-playing {
+  background: var(--surface-lift);
+}
+
 /* The leading half of a linked pair: indented under the row it belongs with,
    and not draggable, because its position is not its own. */
 .slide-order li.is-pinned {

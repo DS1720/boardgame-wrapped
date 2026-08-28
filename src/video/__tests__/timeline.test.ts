@@ -12,6 +12,7 @@ import {
   leadInFor,
   PAIRED_LEAD_INS,
   planTimeline,
+  slideAt,
   slideBars,
   slideFrames,
   SLIDE_BARS,
@@ -224,6 +225,41 @@ describe('slide lengths', () => {
     // A lead-in that outlasted the bar it was given would eat into the content
     // it is introducing.
     expect(LEAD_IN_FRAMES).toBeLessThan(framesPerBar(DEFAULT_BPM, VIDEO.fps));
+  });
+});
+
+describe('slideAt', () => {
+  const plan = planTimeline(statsWith(ALL_CORE));
+
+  it('names the slide under a frame', () => {
+    for (const slide of plan.slides) {
+      expect(slideAt(plan, slide.from)).toBe(slide.id);
+      expect(slideAt(plan, slide.from + slide.durationInFrames - 1)).toBe(slide.id);
+    }
+  });
+
+  it('hands a boundary frame to the slide that is starting', () => {
+    // A cut belongs to the incoming slide: at frame `from` the new one is
+    // already on screen.
+    const [first, second] = plan.slides;
+    expect(slideAt(plan, first.from + first.durationInFrames)).toBe(second.id);
+  });
+
+  it('covers every frame of the video, with no gaps', () => {
+    for (let f = 0; f < plan.durationInFrames; f++) {
+      expect(slideAt(plan, f)).not.toBeNull();
+    }
+  });
+
+  it('keeps the last frame on the last slide rather than falling off the end', () => {
+    const last = plan.slides[plan.slides.length - 1];
+    expect(slideAt(plan, plan.durationInFrames)).toBe(last.id);
+    expect(slideAt(plan, plan.durationInFrames - 1)).toBe(last.id);
+  });
+
+  it('is null before the video starts, and on an empty plan', () => {
+    expect(slideAt(plan, -1)).toBeNull();
+    expect(slideAt(planTimeline(null), 0)).toBeNull();
   });
 });
 

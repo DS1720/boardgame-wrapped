@@ -131,6 +131,120 @@ export const groupShare = (ctx: StatContext): Stat | null => {
   };
 };
 
+/**
+ * A game this player holds the record in.
+ *
+ * "Record" means the best score of anyone who played that game inside the
+ * range — not the player's own personal best, which is what `highestScore`
+ * reports. Two guard rails make it a claim worth putting on screen:
+ *
+ * - **At least two people must have scored in the game.** Otherwise it is not a
+ *   record, it is the only score, and a player who once played something alone
+ *   would "hold the record" in it.
+ * - **Best means best, not biggest.** Eight games in the real export are
+ *   lowest-wins; taking the maximum in those names whoever did worst.
+ * - **The score has to belong to one player.** Cooperative and team games are
+ *   skipped: everyone at the table shares the number, so "you hold the record"
+ *   is not true of any of them. Both cases showed up on the real export —
+ *   Nekojima is cooperative, and three players each held Poetry for
+ *   Neanderthals at 27 because they were on the same winning team.
+ *
+ * When they hold several, the one they have played most is the one shown —
+ * a record in a game played twenty times says more than one in a game played
+ * twice — and the rest are counted alongside it. Ties break by `rank`'s rule:
+ * more plays, then earlier first appearance, then alphabetical.
+ */
+const MIN_CONTENDERS = 2;
+
+export const gameRecord = (ctx: StatContext): Stat | null => {
+  interface Board {
+    play: NormalizedPlay;
+    best: number | null;
+    holders: Set<number>;
+    scorers: Set<number>;
+    myPlays: number;
+    firstSeen: number;
+    highestWins: boolean;
+  }
+
+  const boards = new Map<number, Board>();
+
+  // Every play in range, not just this player's: a record is a fact about the
+  // whole table, and someone else may hold it.
+  for (const play of ctx.allPlays) {
+    if (play.cooperative || play.usesTeams) continue;
+
+    let board = boards.get(play.gameId);
+    if (!board) {
+      board = {
+        play,
+        best: null,
+        holders: new Set(),
+        scorers: new Set(),
+        myPlays: 0,
+        firstSeen: play.date.getTime(),
+        highestWins: play.highestWins,
+      };
+      boards.set(play.gameId, board);
+    }
+    board.firstSeen = Math.min(board.firstSeen, play.date.getTime());
+
+    for (const part of play.participants) {
+      if (part.score === null) continue;
+      board.scorers.add(part.playerId);
+
+      const better =
+        board.best === null ||
+        (board.highestWins ? part.score > board.best : part.score < board.best);
+
+      if (better) {
+        board.best = part.score;
+        board.holders = new Set([part.playerId]);
+      } else if (part.score === board.best) {
+        board.holders.add(part.playerId);
+      }
+    }
+  }
+
+  // Plays are counted from this player's own list, so a game the group played
+  // without them does not inflate the figure that picks the winner.
+  for (const play of ctx.playerPlays) {
+    const board = boards.get(play.gameId);
+    if (board) board.myPlays += 1;
+  }
+
+  const held = [...boards.values()].filter(
+    (b) =>
+      b.best !== null &&
+      b.scorers.size >= MIN_CONTENDERS &&
+      b.holders.has(ctx.playerId) &&
+      b.myPlays > 0,
+  );
+  if (held.length === 0) return null;
+
+  const ranked = rank(
+    held.map((b) => ({
+      key: b.play.gameId,
+      label: b.play.gameName,
+      count: b.myPlays,
+      firstSeen: b.firstSeen,
+    })),
+  );
+  const winner = held.find((b) => b.play.gameId === ranked[0].key)!;
+
+  return {
+    id: 'gameRecord',
+    core: false,
+    game: gameRefOf(winner.play),
+    score: winner.best!,
+    plays: winner.myPlays,
+    otherRecords: held.length - 1,
+    contenders: winner.scorers.size,
+    highestWins: winner.highestWins,
+    shared: winner.holders.size > 1,
+  };
+};
+
 export const highestScore = (ctx: StatContext): Stat | null => {
   let best: { score: number; play: (typeof ctx.playerPlays)[number] } | null = null;
   for (const play of ctx.playerPlays) {

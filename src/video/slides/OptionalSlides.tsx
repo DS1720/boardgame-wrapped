@@ -4,7 +4,7 @@ import { BoxArt } from '../BoxArt';
 import { CountUp, Reveal } from '../motion';
 import { SignaturePlate } from '../signature';
 import { boxArtFor, useBoxArtManifest } from '../useBoxArt';
-import { Caption, Eyebrow, Headline, SafeArea, Stack, StatBlock } from './layout';
+import { Caption, DisplayNumber, Eyebrow, Headline, SafeArea, Stack, StatBlock } from './layout';
 import type { SlideProps } from './Slides';
 
 /**
@@ -186,6 +186,9 @@ export const HighestScoreSlide: React.FC<SlideProps> = ({ stat }) => {
           <StatBlock
             eyebrow="Highest score"
             value={<CountUp to={stat.score} delay={BEAT.second} />}
+            // Sized against the final value: six figures at the full display
+            // step ran off the right edge of the frame.
+            fit={formatNumber(stat.score)}
             caption={`${stat.game.name} · ${formatDay(stat.day)}`}
           />
         </SignaturePlate>
@@ -197,6 +200,70 @@ export const HighestScoreSlide: React.FC<SlideProps> = ({ stat }) => {
             height={280}
           />
         </Reveal>
+      </Stack>
+    </SafeArea>
+  );
+};
+
+/**
+ * A record this player holds.
+ *
+ * Cover-led rather than number-led: the game is the subject, and the score only
+ * means something once you know which game it is in. The line under it is what
+ * turns a number into a claim — "best of five" — and the count of other records
+ * is what stops one record reading as a fluke.
+ */
+export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
+  const manifest = useBoxArtManifest();
+  if (stat?.id !== 'gameRecord') return null;
+
+  const best = stat.highestWins ? 'highest' : 'lowest';
+
+  return (
+    <SafeArea>
+      <Stack gap={22}>
+        <Reveal delay={BEAT.first} distance={26}>
+          {/* Contained, not cropped: the slide names one game, so its box
+              should be legible. A square crop took the title off the top. */}
+          <BoxArt
+            entry={boxArtFor(manifest, stat.game.gameId)}
+            name={stat.game.name}
+            width={300}
+            height={360}
+            fit="contain"
+          />
+        </Reveal>
+
+        <Stack gap={10}>
+          <Reveal delay={BEAT.second}>
+            <Eyebrow>{stat.shared ? 'You share the record in' : 'You hold the record in'}</Eyebrow>
+          </Reveal>
+          <Reveal delay={BEAT.second + 4}>
+            <Headline maxLines={2}>{stat.game.name}</Headline>
+          </Reveal>
+        </Stack>
+
+        <Reveal delay={BEAT.third}>
+          <DisplayNumber fit={formatNumber(stat.score)}>
+            <CountUp to={stat.score} delay={BEAT.third} />
+          </DisplayNumber>
+        </Reveal>
+
+        <Reveal delay={BEAT.third + 6}>
+          <Caption>
+            the {best} of {formatNumber(stat.contenders)} players
+            {stat.plays > 1 ? ` · over ${formatNumber(stat.plays)} plays` : ''}
+          </Caption>
+        </Reveal>
+
+        {stat.otherRecords > 0 && (
+          <Reveal delay={BEAT.third + 10}>
+            <Caption accent>
+              and the best score in {formatNumber(stat.otherRecords)} other{' '}
+              {stat.otherRecords === 1 ? 'game' : 'games'}
+            </Caption>
+          </Reveal>
+        )}
       </Stack>
     </SafeArea>
   );

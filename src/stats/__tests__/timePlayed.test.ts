@@ -60,6 +60,8 @@ const contextWith = (minutes: Array<number | null>, gameIds?: number[]): StatCon
     gameId: gameIds?.[i] ?? 1,
     gameName: `Game ${gameIds?.[i] ?? 1}`,
     cooperative: false,
+    highestWins: true,
+    usesTeams: false,
     boxArt: null,
     bggId: 1,
     locationId: null,

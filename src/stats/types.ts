@@ -16,7 +16,8 @@ export type SlideId =
   | 'firstAndLastPlay'
   | 'nightOwl'
   | 'groupShare'
-  | 'highestScore';
+  | 'highestScore'
+  | 'gameRecord';
 
 export interface GameRef {
   gameId: number;
@@ -44,6 +45,22 @@ export type Stat =
       topGame: (GameRef & { minutes: number; plays: number }) | null;
     })
   | (StatBase & { id: 'topGame'; game: GameRef; plays: number })
+  | (StatBase & {
+      id: 'gameRecord';
+      game: GameRef;
+      /** The record score itself. */
+      score: number;
+      /** Plays of this game in range — why this game was the one chosen. */
+      plays: number;
+      /** How many *other* games they also hold the record in. */
+      otherRecords: number;
+      /** Players who put a score on the board in this game. The "best of N". */
+      contenders: number;
+      /** False when the game is scored lowest-wins, so the slide can say so. */
+      highestWins: boolean;
+      /** True when someone else matched the score exactly. */
+      shared: boolean;
+    })
   | (StatBase & {
       id: 'topFive';
       /**

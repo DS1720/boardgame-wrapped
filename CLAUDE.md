@@ -150,6 +150,13 @@ Verified against the real export — these are not guesses:
   `estimatedPlayMinutes` in [src/ingest/parse.ts](src/ingest/parse.ts) takes the
   midpoint of the range and returns `null` when a game has neither bound.
 - `rank` is unreliable; only the `winner` boolean can be trusted.
+- **`highestWins` is real and it matters.** Eight of the 229 games are
+  lowest-wins — Cabo, Cambio, Second Chance and friends. Anything that asks
+  "who did best" and takes the maximum names the *worst* player in those games.
+  It is on `NormalizedPlay` for exactly that reason.
+- **`usesTeams` means the score is not one player's.** Poetry for Neanderthals
+  is the case that found this: three different players each held the record at
+  27, because all three were on the winning team of the same play.
 - Scores exist on roughly a third of entries.
 - Play tags and play ratings are unused.
 - Some plays have **no `locationRefId` at all** (absent, not zero) — normalized
@@ -323,6 +330,30 @@ The estimate deliberately does **not** scale with player count. Plenty of games
 do not get longer with more people, and a scaling rule would make the figure
 look more precise than it is.
 
+### `gameRecord` is a claim, so it is guarded three ways
+
+A record is the best score of **anyone** who played that game in range — not the
+player's own best, which is what `highestScore` reports. Three rails keep it
+from firing on something that is not a record:
+
+- **Two people must have scored in the game.** Otherwise it is not a record, it
+  is the only score, and anyone who played something alone would "hold" it.
+- **Best means best, not biggest** — `highestWins`, above.
+- **Cooperative and team games are skipped**, because the number belongs to the
+  table rather than to a player.
+
+When someone holds several, the one they have **played most** is shown, and the
+rest are counted beside it: a record in a game played twenty times says more
+than one in a game played twice. Ties break by `rank`'s rule.
+
+Measured on the real export: **19 of 93 players** hold one, so it is a real
+distinction rather than a participation prize. Before the co-op and team rails
+it was 24, and three of those were the same Poetry for Neanderthals team score.
+
+`highestScore` deliberately still reports the largest number rather than the
+best one — "highest score" says what it means. It is the one place the
+`highestWins` flag is knowingly not applied.
+
 ### Two stats rank by rate, not by count
 
 - **Nemesis** is whoever beats you in the highest *share* of your head-to-head
@@ -354,6 +385,13 @@ it into a cut.
   works from a keyboard. Drag is plain HTML5 `draggable` — no dependency — with
   `moveSlideTo` as the pure move behind it. The move buttons cancel `dragstart`,
   or pressing one would start a drag instead of clicking.
+- **The slide under the playhead is marked**, with an accent bar down the left
+  edge rather than a filled row: the list is also the thing you edit, and a
+  whole row changing colour reads as "selected" rather than "playing now".
+  `Preview` reports the *slide*, not the frame — `frameupdate` fires thirty
+  times a second and lifting that into React state would re-render the control
+  column on every frame. `slideAt` maps frame to slide, and the callback only
+  fires when the answer changes, so about once every two seconds.
 - **The picker shows the arrangement that will play**, via `arrangementOf` —
   `buildCut` can move a slide, and a list that disagrees with the video about
   the order is worse than no list. It is idempotent, which is what lets the UI
@@ -542,6 +580,15 @@ Things that keep the frame moving:
   and the eye does not travel that far after reading a number in the middle of
   the frame.
 
+  **A slide with an aside gives up `QUIP_BAND` (350px) of height for it.** The
+  aside is absolutely positioned while slide content is centred in the frame, so
+  without the reservation the two share the same space and collide — on the
+  most-played slide the line landed on top of the play count, and the taller the
+  game's title the worse it got. `SafeArea` reads the band from `QuipSpace`, a
+  context `Wrapped` provides, rather than every one of the twenty slides having
+  to pass a flag down. It is reserved rather than measured: measuring text needs
+  two passes, and Remotion renders each frame once.
+
 ### The quips are data, not filler
 
 [src/stats/quips.ts](src/stats/quips.ts) is a pure `quipFor(slideId, stats)`.
@@ -582,6 +629,13 @@ the ambient fields on top that was three glow layers in the middle of the frame.
 The texture slot for `lamp` is now empty and the signature owns it.
 
 ### Type
+
+**A display number shrinks to fit; it never wraps.** The scale sets 280–310px,
+which is about five characters of budget, so a six-figure score ran off the
+right edge of the frame. `DisplayNumber` takes a `fit` prop — the widest string
+the value will reach — and sizes with `fitDisplay`. It has to be the *final*
+value rather than what `CountUp` is showing, or the type would shrink as the
+number counted up.
 
 Display and headline steps are roughly 40% larger than they were, with negative
 tracking (`-0.025em` on headlines, `-0.035em` on numbers). Loose letterspacing
@@ -670,7 +724,7 @@ Two details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 374 passing tests. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 394 passing tests. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.
@@ -681,10 +735,10 @@ engine server-side so a batch does not need a browser tab open.
 
 Known gaps left deliberately:
 
-- The **optional stats have no slides**. Nine of the seventeen modules
-  (`bestGame`, `nightOwl`, `longestWinStreak`, …) are computed and shown in the
-  StatsInspector but are not in `DEFAULT_CUT`. They have lengths in `SLIDE_BARS`
-  so adding one is small.
+- The **optional stats are off by default**. Ten of the twenty-one modules
+  (`bestGame`, `nightOwl`, `gameRecord`, …) are computed and shown in the
+  StatsInspector but are not in `DEFAULT_CUT`. Each has a real slide and a
+  length in `SLIDE_BARS`; adding one to the default cut is a one-line change.
 - **Only one render at a time**, single or batch, enforced with a 409. Remotion
   opens a browser per render and saturates the CPU; two at once take longer than
   two in sequence and are likelier to run out of memory.

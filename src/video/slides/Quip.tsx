@@ -1,3 +1,4 @@
+import { createContext, useContext } from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { withAlpha } from '@/theme/color';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
@@ -27,6 +28,37 @@ export const QUIP_DELAY = 46;
  * third, close enough to the content to be read as part of the same slide.
  */
 export const QUIP_LIFT = 190;
+
+/**
+ * Vertical space a slide gives up when it has an aside under it.
+ *
+ * The lift (190), plus two lines of body text at the largest starter scale
+ * (44px at 1.35 = 119), plus 40px of air. Without this the
+ * aside is absolutely positioned over content that is centred in the full
+ * frame, and on the most-played slide it landed on top of the play count — the
+ * taller the title, the worse the collision.
+ *
+ * Reserved rather than measured: a layout that depends on measuring text needs
+ * two passes, and Remotion renders each frame once.
+ */
+export const QUIP_BAND = 350;
+
+/**
+ * How much bottom space the current slide owes its aside. Zero when it has none.
+ *
+ * A context rather than a prop because `SafeArea` is what has to act on it, and
+ * every one of the twenty slides would otherwise have to pass it through.
+ */
+const QuipSpaceContext = createContext(0);
+
+export const useQuipSpace = (): number => useContext(QuipSpaceContext);
+
+export const QuipSpace: React.FC<{ has: boolean; children: React.ReactNode }> = ({
+  has,
+  children,
+}) => (
+  <QuipSpaceContext.Provider value={has ? QUIP_BAND : 0}>{children}</QuipSpaceContext.Provider>
+);
 
 export const Quip: React.FC<{ text: string | null }> = ({ text }) => {
   const frame = useCurrentFrame();

@@ -1,10 +1,10 @@
-import { Player } from '@remotion/player';
-import { useMemo } from 'react';
+import { Player, type PlayerRef } from '@remotion/player';
+import { useEffect, useMemo, useRef } from 'react';
 import type { Track } from '@/shared/audio';
 import type { WrappedStats } from '@/stats/types';
 import type { Theme } from '@/theme/types';
 import { VIDEO } from '@/video/config';
-import { planTimeline, type TimelineSlideId } from '@/video/timeline';
+import { planTimeline, slideAt, type TimelineSlideId } from '@/video/timeline';
 import { Wrapped } from '@/video/Wrapped';
 
 /**
@@ -25,9 +25,26 @@ interface Props {
   boxArtMode: boolean;
   cut: TimelineSlideId[];
   playerName: string | null;
+  /**
+   * Called when the slide under the playhead changes.
+   *
+   * The *slide*, not the frame: `frameupdate` fires thirty times a second, and
+   * lifting that into React state would re-render the whole control column on
+   * every frame. This fires about once every two seconds.
+   */
+  onSlideChange?: (id: TimelineSlideId | null) => void;
 }
 
-export const Preview: React.FC<Props> = ({ stats, theme, track, boxArtMode, cut, playerName }) => {
+export const Preview: React.FC<Props> = ({
+  stats,
+  theme,
+  track,
+  boxArtMode,
+  cut,
+  playerName,
+  onSlideChange,
+}) => {
+  const player = useRef<PlayerRef>(null);
   // A fresh object identity on every render restarts the Player, which would
   // throw away the scrub position on every keystroke elsewhere in the UI.
   const inputProps = useMemo(
@@ -42,10 +59,38 @@ export const Preview: React.FC<Props> = ({ stats, theme, track, boxArtMode, cut,
 
   const seconds = timeline.durationInFrames / VIDEO.fps;
 
+  // Held in a ref, so a frame that stays inside the same slide costs nothing.
+  const showing = useRef<TimelineSlideId | null>(null);
+
+  useEffect(() => {
+    const node = player.current;
+    if (!node || !onSlideChange) return;
+
+    const report = (frame: number) => {
+      const id = slideAt(timeline, frame);
+      if (id === showing.current) return;
+      showing.current = id;
+      onSlideChange(id);
+    };
+
+    const onFrame = (e: { detail: { frame: number } }) => report(e.detail.frame);
+    node.addEventListener('frameupdate', onFrame);
+    // The listener only fires on a change, so the slide the player is already
+    // parked on has to be reported once up front.
+    report(node.getCurrentFrame());
+
+    return () => {
+      node.removeEventListener('frameupdate', onFrame);
+      showing.current = null;
+      onSlideChange(null);
+    };
+  }, [onSlideChange, timeline]);
+
   return (
     <aside className="preview">
       <div className="preview-frame">
         <Player
+          ref={player}
           component={Wrapped}
           inputProps={inputProps}
           durationInFrames={timeline.durationInFrames}

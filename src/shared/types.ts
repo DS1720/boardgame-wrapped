@@ -82,6 +82,24 @@ export interface NormalizedPlay {
   gameId: number;
   gameName: string;
   cooperative: boolean;
+  /**
+   * Whether the best score in this game is the highest one.
+   *
+   * Eight games in the real export are lowest-wins — Cabo, Cambio, Second
+   * Chance and friends — so anything that asks "who did best" has to read this
+   * or it names the worst player in those games. Defaults to true, which is
+   * what BG Stats means by an absent flag.
+   */
+  highestWins: boolean;
+  /**
+   * Whether this game is played in teams.
+   *
+   * Teammates share a score, so a team game's best number is not any one
+   * player's achievement. Poetry for Neanderthals is the case that found this:
+   * three different players each "held the record" at 27, because all three
+   * were on the winning team of the same play.
+   */
+  usesTeams: boolean;
   boxArt: string | null;
   bggId: number;
   locationId: number | null;

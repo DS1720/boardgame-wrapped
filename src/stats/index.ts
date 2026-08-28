@@ -19,6 +19,9 @@ export const MODULES: Array<{ id: SlideId; run: StatModule; core: boolean }> = [
   { id: 'bestGame', run: optional.bestGame, core: false },
   { id: 'worstGame', run: optional.worstGame, core: false },
   { id: 'highestScore', run: optional.highestScore, core: false },
+  // Straight after the personal best, because the two are the same number seen
+  // from different sides: what you scored, and whether it beat everyone else.
+  { id: 'gameRecord', run: optional.gameRecord, core: false },
   { id: 'topCoPlayer', run: core.topCoPlayer, core: true },
   { id: 'nemesis', run: core.nemesis, core: true },
   { id: 'coPlayerCount', run: optional.coPlayerCount, core: false },

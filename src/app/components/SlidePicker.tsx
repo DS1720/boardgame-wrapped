@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import type { SlideId, WrappedStats } from '@/stats/types';
 import { CORE_SLIDES } from '@/stats/index';
-import { ALL_SLIDES, DEFAULT_SLIDE_IDS, LINKED_PAIRS, SLIDE_LABELS } from '@/video/timeline';
+import {
+  ALL_SLIDES,
+  DEFAULT_SLIDE_IDS,
+  LINKED_PAIRS,
+  SLIDE_LABELS,
+  type TimelineSlideId,
+} from '@/video/timeline';
 
 /**
  * Which slides are in the cut, and in what order.
@@ -32,6 +38,8 @@ interface Props {
   onMove: (id: SlideId, delta: number) => void;
   /** Drop `id` at position `index` in the arrangement. */
   onReorder: (id: SlideId, index: number) => void;
+  /** The slide the preview is currently showing, marked in the list. */
+  playing?: TimelineSlideId | null;
   onReset: () => void;
   onAll: () => void;
 }
@@ -52,6 +60,7 @@ export const SlidePicker: React.FC<Props> = ({
   onToggle,
   onMove,
   onReorder,
+  playing = null,
   onReset,
   onAll,
 }) => {
@@ -85,7 +94,7 @@ export const SlidePicker: React.FC<Props> = ({
       </p>
 
       <ol className="slide-order">
-        <li className="slide-fixed">
+        <li className={`slide-fixed${playing === 'intro' ? ' is-playing' : ''}`}>
           <span className="slide-index">1</span>
           <span className="slide-name">Intro</span>
           <span className="slide-tag is-muted">always</span>
@@ -99,6 +108,7 @@ export const SlidePicker: React.FC<Props> = ({
 
           const classes = [
             has ? '' : 'is-unavailable',
+            playing === id ? 'is-playing' : '',
             pinned ? 'is-pinned' : '',
             dragging === id ? 'is-dragging' : '',
             over === index && dragging !== null && dragging !== id ? 'is-over' : '',
@@ -190,7 +200,7 @@ export const SlidePicker: React.FC<Props> = ({
           );
         })}
 
-        <li className="slide-fixed">
+        <li className={`slide-fixed${playing === 'outro' ? ' is-playing' : ''}`}>
           <span className="slide-index">{inCut.length + 2}</span>
           <span className="slide-name">Outro</span>
           <span className="slide-tag is-muted">always</span>

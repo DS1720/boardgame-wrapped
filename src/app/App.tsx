@@ -22,6 +22,7 @@ import { VIDEO } from '@/video/config';
 import {
   arrangementOf,
   buildCut,
+  type TimelineSlideId,
   insertSlide,
   moveSlide,
   moveSlideTo,
@@ -130,6 +131,10 @@ export const App: React.FC = () => {
     [arrangement, patch],
   );
 
+  // Which slide the preview is on, so the list can mark it. Session state, not
+  // saved state — it belongs to the playhead, not to the arrangement.
+  const [playing, setPlaying] = useState<TimelineSlideId | null>(null);
+
   // Adding everything keeps the current arrangement and folds the rest in
   // around it, rather than replacing what someone has already ordered.
   const allAvailable = useCallback(() => {
@@ -210,6 +215,7 @@ export const App: React.FC = () => {
             onToggle={toggleSlide}
             onMove={reorderSlide}
             onReorder={dropSlide}
+            playing={playing}
             onReset={() => patch({ slides: defaultSlideSelection() })}
             onAll={allAvailable}
           />
@@ -264,6 +270,7 @@ export const App: React.FC = () => {
           boxArtMode={themeSelection.boxArtMode}
           cut={cut}
           playerName={playerName}
+          onSlideChange={setPlaying}
         />
       </div>
     </main>

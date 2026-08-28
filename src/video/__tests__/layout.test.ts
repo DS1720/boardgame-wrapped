@@ -2,10 +2,46 @@ import { describe, expect, it } from 'vitest';
 import { formatNumber, formatPercent } from '@/shared/format';
 import { STARTERS } from '@/theme/starters';
 import { VIDEO } from '../config';
-import { fitText, MIN_HEADLINE_PX } from '../slides/layout';
+import { fitDisplay, fitText, MIN_DISPLAY_NUMBER_PX, MIN_HEADLINE_PX } from '../slides/layout';
 
 /** The width a headline actually has to live in. */
 const SAFE_WIDTH = VIDEO.width - VIDEO.safeMargin * 2;
+
+describe('fitDisplay', () => {
+  // The largest of the three starters, and so the one that overflows first.
+  const DISPLAY = 310;
+
+  it('leaves a short number at the full display size', () => {
+    for (const value of [7, 61, 233]) {
+      expect(fitDisplay(formatNumber(value), DISPLAY)).toBe(DISPLAY);
+    }
+  });
+
+  it('shrinks a six-figure score until it fits the frame', () => {
+    // The real case: 66 000 in La Cosa Nostra ran off the right edge, and a
+    // score over 100 000 ran further.
+    const text = formatNumber(123456);
+    const size = fitDisplay(text, DISPLAY);
+    expect(size).toBeLessThan(DISPLAY);
+    expect(text.length * 0.56 * size).toBeLessThanOrEqual(SAFE_WIDTH + 0.001);
+  });
+
+  it('keeps every plausible score inside the safe width', () => {
+    for (const value of [9, 99, 999, 9999, 99999, 999999, 9999999]) {
+      const text = formatNumber(value);
+      const size = fitDisplay(text, DISPLAY);
+      expect(text.length * 0.56 * size).toBeLessThanOrEqual(SAFE_WIDTH + 0.001);
+    }
+  });
+
+  it('never shrinks below the floor that keeps it a display number', () => {
+    expect(fitDisplay('9'.repeat(60), DISPLAY)).toBe(MIN_DISPLAY_NUMBER_PX);
+  });
+
+  it('never grows a number past the theme’s own step', () => {
+    expect(fitDisplay('1', 200)).toBe(200);
+  });
+});
 
 /** Same estimate the fitter uses, so the assertions measure the same thing. */
 const CHAR_WIDTH = 0.56;

@@ -98,6 +98,10 @@ export const buildDataset = (input: unknown): Dataset => {
       gameName: game?.name?.trim() || 'Unknown game',
       estimatedMinutes: estimatedPlayMinutes(game),
       cooperative: Boolean(game?.cooperative),
+      // Absent means highest wins: that is BG Stats' default, and it is the
+      // right answer for 221 of the 229 games in the real export.
+      highestWins: game?.highestWins !== false,
+      usesTeams: Boolean(game?.usesTeams),
       boxArt: game?.urlImage ? game.urlImage : null,
       bggId: game?.bggId ?? 0,
       locationId: location?.id ?? null,

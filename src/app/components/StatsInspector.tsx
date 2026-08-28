@@ -47,6 +47,17 @@ const describe = (stat: WrappedStats['stats'][number]): string => {
       return `Peak ${String(stat.peakHour).padStart(2, '0')}:00 · ${formatPercent(stat.lateShare)} after 22:00`;
     case 'groupShare':
       return `${formatPercent(stat.ratio)} of all ${stat.total} plays`;
+    case 'gameRecord':
+      return [
+        `${stat.game.name} — ${formatNumber(stat.score)}`,
+        `${stat.highestWins ? 'highest' : 'lowest'} of ${stat.contenders} players`,
+        `${stat.plays} plays`,
+        stat.shared ? 'shared' : null,
+        stat.otherRecords > 0 ? `+${stat.otherRecords} other records` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+
     case 'highestScore':
       return `${formatNumber(stat.score)} in ${stat.game.name}`;
     default:

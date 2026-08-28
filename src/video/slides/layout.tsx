@@ -2,6 +2,7 @@ import { AbsoluteFill } from 'remotion';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { VIDEO } from '../config';
 import { KineticWords } from '../motion';
+import { useQuipSpace } from './Quip';
 
 /**
  * Slide layout primitives.
@@ -25,21 +26,28 @@ export const SafeArea: React.FC<{
   children: React.ReactNode;
   justify?: React.CSSProperties['justifyContent'];
   align?: React.CSSProperties['alignItems'];
-}> = ({ children, justify = 'center', align = 'flex-start' }) => (
-  <AbsoluteFill
-    data-safe-area
-    style={{
-      padding: VIDEO.safeMargin,
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: justify,
-      alignItems: align,
-      textAlign: align === 'center' ? 'center' : 'left',
-    }}
-  >
-    {children}
-  </AbsoluteFill>
-);
+}> = ({ children, justify = 'center', align = 'flex-start' }) => {
+  // Content is centred in what is left after the aside's band is taken out, so
+  // a slide with a long name or a two-line title rides up instead of running
+  // into the line at the bottom.
+  const reserved = useQuipSpace();
+  return (
+    <AbsoluteFill
+      data-safe-area
+      style={{
+        padding: VIDEO.safeMargin,
+        paddingBottom: VIDEO.safeMargin + reserved,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: justify,
+        alignItems: align,
+        textAlign: align === 'center' ? 'center' : 'left',
+      }}
+    >
+      {children}
+    </AbsoluteFill>
+  );
+};
 
 /* -------------------------------------------------------------------------- */
 /* Type                                                                        */
@@ -122,11 +130,44 @@ export const Headline: React.FC<{
   );
 };
 
+/**
+ * Shrink a display number until it fits the safe width on one line.
+ *
+ * The scale sets 280–310px, which at this face is about five characters of
+ * budget — so a six-figure score ran off the right edge of the frame. A number
+ * never wraps, so it can only be made smaller.
+ *
+ * Pure and exported so the sizing can be tested without a browser.
+ */
+export const fitDisplay = (text: string, baseSize: number): number => {
+  const available = VIDEO.width - VIDEO.safeMargin * 2;
+  const width = Math.max(1, text.length * DISPLAY_CHAR_WIDTH);
+  return Math.max(MIN_DISPLAY_NUMBER_PX, Math.min(baseSize, available / width));
+};
+
+/**
+ * Below this the number stops being the biggest thing on the slide, which is
+ * the whole point of it. Nothing in the data reaches this — it is a floor, not
+ * a target.
+ */
+export const MIN_DISPLAY_NUMBER_PX = 120;
+
 /** The display step: the giant number. Never used for prose. */
-export const DisplayNumber: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const DisplayNumber: React.FC<{
+  children: React.ReactNode;
+  /**
+   * The widest string this number will ever show.
+   *
+   * `children` is usually a `<CountUp>`, whose text is not knowable here, so
+   * the caller passes the final value to size against. Sizing against the
+   * count's *current* value would make the type shrink as the number grew.
+   */
+  fit?: string;
+}> = ({ children, fit }) => {
   const font = useFont('display');
   const { display } = useTypeScale();
   const { color } = useTheme();
+  const size = fit === undefined ? display : fitDisplay(fit, display);
   return (
     // No drift. The number counts up and then holds perfectly still: a figure
     // that keeps sliding is harder to read, and this is the one thing on the
@@ -134,7 +175,7 @@ export const DisplayNumber: React.FC<{ children: React.ReactNode }> = ({ childre
     <p
       style={{
         ...font,
-        fontSize: display,
+        fontSize: size,
         color: color.accent,
         margin: 0,
         // Just under 1: tight enough to look set rather than typed, loose
@@ -184,13 +225,15 @@ export const StatBlock: React.FC<{
   eyebrow: string;
   value: React.ReactNode;
   caption?: React.ReactNode;
-}> = ({ eyebrow, value, caption }) => (
+  /** Passed straight to `DisplayNumber`: the widest string the value reaches. */
+  fit?: string;
+}> = ({ eyebrow, value, caption, fit }) => (
   // The three parts arrive and then stop. They used to drift on offset phases
   // so the block "breathed"; at this size that is not texture, it is the text
   // failing to settle, and it made a stat slide tiring to read.
   <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: '100%' }}>
     <Eyebrow>{eyebrow}</Eyebrow>
-    <DisplayNumber>{value}</DisplayNumber>
+    <DisplayNumber fit={fit}>{value}</DisplayNumber>
     {caption ? <Caption>{caption}</Caption> : null}
   </div>
 );
