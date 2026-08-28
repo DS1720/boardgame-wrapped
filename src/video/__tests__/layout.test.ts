@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { formatNumber, formatPercent } from '@/shared/format';
 import { STARTERS } from '@/theme/starters';
 import { VIDEO } from '../config';
-import { fitDisplay, fitText, MIN_DISPLAY_NUMBER_PX, MIN_HEADLINE_PX } from '../slides/layout';
+import {
+  fitDisplay,
+  fitLabel,
+  fitText,
+  LABEL_SCALE,
+  MIN_DISPLAY_NUMBER_PX,
+  MIN_HEADLINE_PX,
+} from '../slides/layout';
 
 /** The width a headline actually has to live in. */
 const SAFE_WIDTH = VIDEO.width - VIDEO.safeMargin * 2;
@@ -144,5 +151,78 @@ describe('the type scale', () => {
       // "233" at the display size, with tabular figures roughly 0.6em wide.
       expect(3 * display * 0.6).toBeLessThanOrEqual(SAFE_WIDTH);
     }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+/** Same estimate the label fitter uses, tracking and uppercase included. */
+const LABEL_CHAR_WIDTH = 0.78;
+
+/** Every label a slide sets, longest first. */
+const LABELS = [
+  'You share the record in',
+  'You hold the record in',
+  'Where you played most',
+  'Most games start at',
+  'Longest win streak',
+  'Learned this year',
+  'The year in five',
+  'Played most with',
+  'Best winning score',
+  'Most played',
+  'Busiest day',
+  'Played with',
+  'Win rate',
+  'Co-op record',
+  'Most of it on',
+  'Nemesis',
+  'Then',
+];
+
+describe('fitLabel', () => {
+  // The point of the change: a heading that says what the number is has to be
+  // read before the number, and at the caption step it was not.
+  it('sets a label well above the caption step', () => {
+    for (const theme of STARTERS) {
+      const caption = theme.type.scale[0];
+      expect(fitLabel('Win rate', caption)).toBeGreaterThan(caption * 1.4);
+    }
+  });
+
+  it('gives a short label the full label size', () => {
+    for (const theme of STARTERS) {
+      const caption = theme.type.scale[0];
+      expect(fitLabel('Most played', caption)).toBe(caption * LABEL_SCALE);
+    }
+  });
+
+  // Nothing in the video is long enough to be forced down to the floor, so
+  // every real label fits on one line — which is what keeps the number under it
+  // in the same place from slide to slide.
+  it('keeps every label the video sets on one line inside the safe width', () => {
+    for (const theme of STARTERS) {
+      const caption = theme.type.scale[0];
+      for (const label of LABELS) {
+        const size = fitLabel(label, caption);
+        expect(size).toBeGreaterThan(caption * 1.4);
+        expect(label.length * LABEL_CHAR_WIDTH * size).toBeLessThanOrEqual(SAFE_WIDTH + 0.001);
+      }
+    }
+  });
+
+  it('shrinks a label that would overrun rather than wrapping it', () => {
+    // Longer than anything the video sets, and short enough to be solved by
+    // shrinking rather than by hitting the floor.
+    const long = 'You hold the record in six games';
+    const size = fitLabel(long, 30);
+    expect(size).toBeLessThan(30 * LABEL_SCALE);
+    expect(size).toBeGreaterThan(30);
+    expect(long.length * LABEL_CHAR_WIDTH * size).toBeLessThanOrEqual(SAFE_WIDTH + 0.001);
+  });
+
+  // The floor is the old size, so making labels bigger cannot make one smaller.
+  it('never goes below the caption step', () => {
+    expect(fitLabel('x'.repeat(400), 30)).toBe(30);
   });
 });

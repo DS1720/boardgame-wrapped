@@ -133,8 +133,11 @@ export const ChipStacks: React.FC<{
     </div>
   );
 
+  // Above the caption step: these two words are what say which pile is which,
+  // and the slide's whole subject is the comparison between them. The axis note
+  // beside them stays small — it is a footnote to the drawing, not part of it.
   const label = (text: string, tone: string) => (
-    <p style={{ ...utility, fontSize: caption * 0.9, color: tone, margin: '10px 0 0' }}>{text}</p>
+    <p style={{ ...utility, fontSize: caption * 1.1, color: tone, margin: '10px 0 0' }}>{text}</p>
   );
 
   return (

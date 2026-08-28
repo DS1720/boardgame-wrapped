@@ -53,16 +53,64 @@ export const SafeArea: React.FC<{
 /* Type                                                                        */
 /* -------------------------------------------------------------------------- */
 
-/** Small tracked label above a stat. */
+/**
+ * The label above a stat — and the thing that says what the number *is*.
+ *
+ * It used to be set at the caption step, which lost it the argument with the
+ * figure underneath: "Longest win streak" at 30px below a 300px number reads as
+ * a footnote to the number rather than as its subject, and a viewer who missed
+ * it is left with a large 7 and no idea what it counts. At `LABEL_SCALE` it
+ * sits just above the body step, in `ink` rather than `inkMuted`, so the
+ * heading is read before the number it introduces.
+ *
+ * It is still unmistakably a label and not a headline: the utility face is
+ * uppercase and tracked, and the display step above it is six times its size.
+ */
 export const Eyebrow: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const font = useFont('utility');
   const { caption } = useTypeScale();
   const { color } = useTheme();
+  // Only a string can be measured. A label built from an expression keeps the
+  // base size, which is what every one of them resolves to anyway.
+  const size = typeof children === 'string' ? fitLabel(children, caption) : caption * LABEL_SCALE;
   return (
-    <p style={{ ...font, fontSize: caption, color: color.inkMuted, margin: 0, lineHeight: 1.2 }}>
+    <p style={{ ...font, fontSize: size, color: color.ink, margin: 0, lineHeight: 1.2 }}>
       {children}
     </p>
   );
+};
+
+/**
+ * How much bigger than the caption step a label is set.
+ *
+ * Just above the body step, which is the point: the heading and the sentence
+ * under the number are different things and should not be the same size.
+ */
+export const LABEL_SCALE = 1.6;
+
+/**
+ * Rough advance width per character for the utility face, tracking included.
+ *
+ * Wider than the display figure because every utility face is set uppercase —
+ * and Inter's 0.16em tracking is part of the width, not a decoration on top of
+ * it. This is the widest of the three, so the fit holds for all of them.
+ */
+const LABEL_CHAR_WIDTH = 0.78;
+
+/**
+ * Shrink a label until it fits the safe width on one line.
+ *
+ * A heading that wrapped would push the number down the frame by an amount that
+ * depended on how long its title happened to be, so the same slide would sit in
+ * two different places for two different players. It never goes below the
+ * caption step: nothing is smaller than it was before labels were made bigger.
+ *
+ * Pure and exported so the fit can be tested without a browser.
+ */
+export const fitLabel = (text: string, captionSize: number): number => {
+  const available = VIDEO.width - VIDEO.safeMargin * 2;
+  const width = Math.max(1, text.length * LABEL_CHAR_WIDTH);
+  return Math.max(captionSize, Math.min(captionSize * LABEL_SCALE, available / width));
 };
 
 /** Sentence-level text below a stat. */

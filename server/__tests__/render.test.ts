@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WrappedStats } from '@/stats/types';
 import { STARTERS } from '@/theme/starters';
-import { outputFileName, RENDER_SETTINGS, type RenderInput } from '../render';
+import { isInside, outputFileName, RENDER_SETTINGS, type RenderInput } from '../render';
 
 const stats = (playerName: string, rangeLabel: string): WrappedStats => ({
   playerId: 1,
@@ -94,5 +94,30 @@ describe('render settings', () => {
     // Left at the default, a 1080x1920 render came out tagged bt470bg, so a
     // player honouring the tag would convert the colours wrongly.
     expect(RENDER_SETTINGS.colorSpace).toBe('bt709');
+  });
+});
+
+describe('the reveal guard', () => {
+  const out = 'C:\\Users\\dario\\Videos\\Board Game Wrapped';
+
+  it('accepts a file the renderer just wrote', () => {
+    expect(isInside(out, `${out}\\tina-2026-punchboard.mp4`)).toBe(true);
+  });
+
+  it('accepts the folder itself', () => {
+    expect(isInside(out, out)).toBe(true);
+  });
+
+  // `startsWith` said yes to this, which is the whole reason for path.relative.
+  it('refuses a sibling folder whose name merely starts the same way', () => {
+    expect(isInside(out, `${out} old\\tina-2026-punchboard.mp4`)).toBe(false);
+  });
+
+  it('refuses a path that climbs out of the folder', () => {
+    expect(isInside(out, `${out}\\..\\secrets.txt`)).toBe(false);
+  });
+
+  it('refuses somewhere else entirely', () => {
+    expect(isInside(out, 'C:\\Windows\\System32\\config\\SAM')).toBe(false);
   });
 });

@@ -386,7 +386,15 @@ app.post('/render/reveal', async (_req, res) => {
     res.status(409).json({ error: 'Nothing has been rendered yet.' });
     return;
   }
-  await revealInFolder(file);
+  // Reported rather than swallowed. This used to answer `{ opened: true }`
+  // whatever happened, so a file the guard refused — one rendered before the
+  // output folder was changed, say — looked exactly like a working button.
+  try {
+    await revealInFolder(file);
+  } catch (err) {
+    res.status(409).json({ error: err instanceof Error ? err.message : String(err) });
+    return;
+  }
   res.json({ opened: true });
 });
 

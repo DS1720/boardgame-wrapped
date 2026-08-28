@@ -577,6 +577,31 @@ limited range, HD primaries. `pixelFormat` alone did not.
 **Errors are surfaced verbatim.** A missing audio file reports the 404 and the
 path; replacing that with "render failed" throws away the fix.
 
+### "Show in folder" needs the quotes in the right place
+
+`explorer.exe` wants `/select,"C:\path with spaces\file.mp4"` — quotes around
+the path, never around the whole argument. Node quotes any argument containing a
+space, so the array form `['/select,' + target]` reaches Windows as
+`"/select,C:\path with spaces\file.mp4"`, which explorer does not parse: it
+opens the default folder, or nothing, and reports no error. **Both output
+folders have a space in them** — `Board Game Wrapped` in the desktop build,
+`Boardgame wrapped` in this checkout — so the button was broken everywhere
+rather than in an edge case. `windowsVerbatimArguments` hands the command line
+over unquoted, so the quotes written in `revealInFolder` are the only ones
+there are.
+
+Two things went with it, because a button that fails in silence is the hardest
+kind to report:
+
+- **The guard is `path.relative`, not `startsWith`.** `startsWith` also matched a
+  sibling folder whose name merely began the same way, and it compared
+  case-sensitively, which on Windows makes `C:\Users` and `c:\users` two
+  different places. `isInside` is pure and tested.
+- **A refusal is a 409 with the reason**, shown in the panel. The route used to
+  answer `{ opened: true }` whatever happened, so a file rendered before the
+  output folder was changed looked exactly like a working button. A file that
+  has been moved since it was rendered now opens its folder rather than nothing.
+
 ### Cancelling, and why it needs more than the cancel signal
 
 `cancelSignal.cancel()` does stop Remotion rendering frames — the counter
@@ -832,6 +857,28 @@ the value will reach — and sizes with `fitDisplay`. It has to be the *final*
 value rather than what `CountUp` is showing, or the type would shrink as the
 number counted up.
 
+**The label above a stat is a heading, not a footnote.** `Eyebrow` was set at
+the caption step, which lost it the argument with the figure underneath:
+"Longest win streak" at 30px below a 300px number reads as an annotation on the
+number, and anyone who missed it is left with a large 4 and nothing saying what
+it counts. It is now `LABEL_SCALE` (1.6x caption, just above the body step) and
+set in `ink` rather than `inkMuted`. It is still unmistakably a label — every
+utility face is uppercase and tracked, and the display step is six times its
+size — but it is read first, which is the order the slide is meant to be read
+in.
+
+`fitLabel` shrinks a label that would overrun the safe width, because a heading
+that wrapped would push the number down the frame by an amount that depended on
+how long the label happened to be: the same slide would sit in two places for
+two different players. Its floor is the caption step, so making labels bigger
+cannot make one smaller. Nothing in the video reaches either bound — the longest
+is "You hold the record in", which fits on one line at full size.
+
+The two chip labels on the win-rate slide moved up with it, to 1.1x caption.
+"Won" and "lost" are what say which pile is which on the one slide whose subject
+is the comparison. The axis note beside them stayed small: it is a footnote to
+the drawing, and at any larger size the three no longer fit on one row.
+
 Display and headline steps are roughly 40% larger than they were, with negative
 tracking (`-0.025em` on headlines, `-0.035em` on numbers). Loose letterspacing
 on a 130px headline is what makes big type look like a document rather than a
@@ -934,7 +981,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 435 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 445 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.

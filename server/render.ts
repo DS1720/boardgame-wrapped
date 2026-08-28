@@ -6,6 +6,7 @@
  * on the first render and reused for every one after.
  */
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -359,29 +360,83 @@ export const startRender = (input: RenderInput): RenderJob => {
 /* Reveal in the file manager                                                  */
 /* -------------------------------------------------------------------------- */
 
+/** A reveal that could not happen, with the reason the UI should show. */
+export class RevealError extends Error {}
+
+/**
+ * True when `target` is inside `dir`, or is `dir` itself.
+ *
+ * `path.relative` rather than `startsWith`, for two reasons: `startsWith` also
+ * matches a sibling folder whose name merely begins the same way — `out-old`
+ * against `out` — and it compares case-sensitively, which on Windows makes
+ * `C:\Users` and `c:\users` two different places.
+ *
+ * Pure and exported so the guard can be tested without touching the disk.
+ */
+export const isInside = (dir: string, target: string): boolean => {
+  const rel = path.relative(path.resolve(dir), path.resolve(target));
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+};
+
 /**
  * Open the output folder with the rendered file selected.
  *
  * The path is never passed through a shell — `execFile` takes an argument
  * array, so a filename cannot become a command however it is spelled.
+ *
+ * Rejects with a `RevealError` rather than resolving quietly when there is
+ * nothing to show: a button that does nothing and says nothing is the hardest
+ * kind of failure to report.
  */
-export const revealInFolder = (file: string): Promise<void> =>
-  new Promise((resolve) => {
-    const target = path.resolve(file);
-    // Refuse anything outside the output folder: this is reachable from an
-    // HTTP route, and the folder is now user-chosen rather than fixed.
-    if (!target.startsWith(getOutDir())) {
-      resolve();
+export const revealInFolder = (file: string): Promise<void> => {
+  const target = path.resolve(file);
+  const outDir = getOutDir();
+  // Refuse anything outside the output folder: this is reachable from an HTTP
+  // route, and the folder is now user-chosen rather than fixed. It also catches
+  // the honest case — a file rendered before the folder was changed.
+  if (!isInside(outDir, target)) {
+    return Promise.reject(
+      new RevealError(`${target} is not in the output folder (${outDir}), so it cannot be shown.`),
+    );
+  }
+
+  // A file that has been moved or deleted since it was rendered still has a
+  // folder worth opening. Only when that has gone too is there nothing to do.
+  const found = existsSync(target);
+  const dir = path.dirname(target);
+  if (!found && !existsSync(dir)) {
+    return Promise.reject(new RevealError(`${target} is no longer there.`));
+  }
+
+  return new Promise((resolve) => {
+    if (process.platform === 'win32') {
+      /*
+        explorer.exe wants `/select,"C:\path with spaces\file.mp4"` — the quotes
+        around the path only, never around the whole argument.
+
+        Node quotes any argument containing a space, which turns the array form
+        into `"/select,C:\path with spaces\file.mp4"`. Explorer does not parse
+        that: it opens the default folder, or nothing at all, without an error.
+        That is exactly what "Show in folder does nothing" was. And both of this
+        app's output folders have a space in their path — `Board Game Wrapped`
+        in the desktop build, `Boardgame wrapped` in a checkout — so this was
+        the normal case, not an edge one.
+
+        `windowsVerbatimArguments` hands the command line over unquoted, so the
+        quotes written here are the only ones there are. A Windows path cannot
+        contain a double quote, so there is nothing to escape.
+      */
+      const arg = found ? `/select,"${target}"` : `"${dir}"`;
+      // explorer.exe exits non-zero even when it worked, so the result is ignored.
+      execFile('explorer.exe', [arg], { windowsVerbatimArguments: true }, () => resolve());
       return;
     }
 
-    const [command, args] =
-      process.platform === 'win32'
-        ? ['explorer.exe', [`/select,${target}`]]
-        : process.platform === 'darwin'
-          ? ['open', ['-R', target]]
-          : ['xdg-open', [path.dirname(target)]];
+    const [command, args]: [string, string[]] =
+      process.platform === 'darwin'
+        ? ['open', found ? ['-R', target] : [dir]]
+        : ['xdg-open', [dir]];
 
-    // explorer.exe exits non-zero even when it worked, so the result is ignored.
     execFile(command, args, () => resolve());
   });
+};

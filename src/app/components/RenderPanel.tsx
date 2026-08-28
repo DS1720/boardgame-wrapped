@@ -147,6 +147,25 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
     }
   };
 
+  /**
+   * Open the output folder with the finished file selected.
+   *
+   * The result is read rather than dropped: the service refuses a file outside
+   * the current output folder, and a button that fails in silence is the same
+   * button as one that is broken.
+   */
+  const reveal = async () => {
+    setError(null);
+    try {
+      const res = await fetch(`${API}/render/reveal`, { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(((await res.json()) as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   useEffect(() => {
     // Detect the service once, so the panel can say why it is unusable.
     void fetch(`${API}/health`)
@@ -301,10 +320,7 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
           </button>
         )}
         {finished && (
-          <button
-            className="link"
-            onClick={() => void fetch(`${API}/render/reveal`, { method: 'POST' })}
-          >
+          <button className="link" onClick={() => void reveal()}>
             Show in folder
           </button>
         )}
