@@ -58,39 +58,34 @@ export const IntroSlide: React.FC<SlideProps> = ({ stats }) => {
     <SafeArea justify="center">
       <Stack gap={16}>
         <Reveal delay={BEAT.first} direction="right" distance={60}>
-          <Float amount={5} period={9}>
-            {/* The year set large: it is half of what this card is telling you. */}
-            <p
-              style={{
-                ...displayFont,
-                fontSize: display * 0.36,
-                color: color.accent,
-                margin: 0,
-                lineHeight: 1,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              {stats.rangeLabel}
-            </p>
-          </Float>
+          {/* The year set large: it is half of what this card is telling you. */}
+          <p
+            style={{
+              ...displayFont,
+              fontSize: display * 0.36,
+              color: color.accent,
+              margin: 0,
+              lineHeight: 1,
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {stats.rangeLabel}
+          </p>
         </Reveal>
 
-        {/* The name drifts on its own. It carries no Reveal: KineticWords already
-            assembles it a word at a time, and a second entrance on top read as a
-            stutter. (The flat bottom edge on a name like "Tina" is the baseline,
-            not a clip — confirmed by rendering a name with descenders.) */}
-        <Float amount={7} period={11} phase={1.4}>
-          <Headline maxLines={2} delay={BEAT.second}>
-            {stats.playerName}
-          </Headline>
-        </Float>
+        {/* No Reveal: KineticWords already assembles the name a word at a
+            time, and a second entrance on top read as a stutter. Once
+            assembled it holds still. (The flat bottom edge on a name like
+            "Tina" is the baseline, not a clip — confirmed by rendering a name
+            with descenders.) */}
+        <Headline maxLines={2} delay={BEAT.second}>
+          {stats.playerName}
+        </Headline>
 
         <Reveal delay={BEAT.third + 4} direction="right" distance={40}>
-          <Float amount={5} period={8} phase={2.6}>
-            <p style={{ ...bodyFont, fontSize: body, color: color.inkMuted, margin: 0 }}>
-              A year at the table
-            </p>
-          </Float>
+          <p style={{ ...bodyFont, fontSize: body, color: color.inkMuted, margin: 0 }}>
+            A year at the table
+          </p>
         </Reveal>
       </Stack>
     </SafeArea>

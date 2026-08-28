@@ -10,7 +10,13 @@ import { mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundle } from '@remotion/bundler';
-import { makeCancelSignal, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
+import {
+  makeCancelSignal,
+  openBrowser,
+  renderMedia,
+  renderStill,
+  selectComposition,
+} from '@remotion/renderer';
 import { withProjectAliases } from '../remotion.webpack';
 import { slugify } from '../src/shared/format';
 import type { Track } from '../src/shared/audio';
@@ -127,6 +133,9 @@ export interface RenderJob {
   done: Promise<void>;
 }
 
+/** The handle `openBrowser` hands back, named without reaching into a deep import. */
+type RenderBrowser = Awaited<ReturnType<typeof openBrowser>>;
+
 const emptyProgress = (): RenderProgress => ({
   phase: 'bundling',
   progress: 0,
@@ -158,19 +167,78 @@ export const startRender = (input: RenderInput): RenderJob => {
     cut: input.slides,
   };
 
-  const done = (async () => {
+  /**
+   * The browser this job renders in.
+   *
+   * Opened here rather than left to `renderMedia`, because a cancelled job has
+   * to be able to close it. Remotion's own instance is not reachable from the
+   * outside, and on the cancel path nothing ever releases it.
+   */
+  let browser: RenderBrowser | null = null;
+  let cancelled = false;
+
+  // Settles the instant cancel is requested. See `cancel` for why `done`
+  // cannot simply wait on the render promise.
+  let releaseCancelled: () => void = () => undefined;
+  const cancelledSettled = new Promise<void>((resolve) => {
+    releaseCancelled = resolve;
+  });
+
+  /**
+   * Stop the render and release the slot at once.
+   *
+   * `cancelSignal.cancel()` does stop Remotion rendering frames — the counter
+   * freezes on the spot — but the `renderMedia` promise then **never settles**:
+   * it neither resolves nor rejects, so the job sat in `rendering` forever.
+   * That is what held the single-render slot until the server was restarted,
+   * and it leaked the headless Chrome along with it.
+   *
+   * So the phase moves here rather than in the catch, `done` is settled here,
+   * and the browser is closed here. Everything after this point checks
+   * `cancelled` before touching `progress`, so a late callback from a render
+   * that is still unwinding cannot move the job back out of `cancelled`.
+   */
+  const cancel = () => {
+    if (cancelled) return;
+    cancelled = true;
+    progress.phase = 'cancelled';
+    progress.error = null;
+    cancelSignal.cancel();
+
+    const closing = browser;
+    browser = null;
+    void closing?.close({ silent: true }).catch(() => undefined);
+
+    releaseCancelled();
+  };
+
+  const work = (async () => {
     try {
       const serveUrl = await getBundle((percent) => {
+        if (cancelled) return;
         // Bundling is the first slice of the job, not a separate wait.
         progress.progress = percent * 0.1;
       });
+      if (cancelled) return;
+
+      browser = await openBrowser('chrome');
+      // Cancel can land while the browser is still opening, and then nothing
+      // else holds a reference with which to close it.
+      if (cancelled) {
+        const opened = browser;
+        browser = null;
+        await opened?.close({ silent: true }).catch(() => undefined);
+        return;
+      }
 
       progress.phase = 'preparing';
       const composition = await selectComposition({
         serveUrl,
         id: 'Wrapped',
         inputProps,
+        puppeteerInstance: browser,
       });
+      if (cancelled) return;
 
       progress.totalFrames = composition.durationInFrames;
       progress.phase = 'rendering';
@@ -188,8 +256,10 @@ export const startRender = (input: RenderInput): RenderJob => {
         colorSpace: RENDER_SETTINGS.colorSpace,
         outputLocation: outputFile,
         inputProps,
+        puppeteerInstance: browser,
         cancelSignal: cancelSignal.cancelSignal,
         onProgress: ({ renderedFrames, encodedFrames, progress: ratio }) => {
+          if (cancelled) return;
           progress.renderedFrames = renderedFrames;
           progress.encodedFrames = encodedFrames;
           // The remaining 90% of the bar belongs to the render itself.
@@ -199,6 +269,7 @@ export const startRender = (input: RenderInput): RenderJob => {
             : 'rendering';
         },
       });
+      if (cancelled) return;
 
       progress.outputFile = outputFile;
       progress.bytes = (await stat(outputFile)).size;
@@ -209,13 +280,19 @@ export const startRender = (input: RenderInput): RenderJob => {
       progress.phase = 'still';
       try {
         const stillFile = outputFile.replace(/\.mp4$/, '.png');
-        const square = await selectComposition({ serveUrl, id: 'Square', inputProps });
+        const square = await selectComposition({
+          serveUrl,
+          id: 'Square',
+          inputProps,
+          puppeteerInstance: browser ?? undefined,
+        });
         await renderStill({
           composition: square,
           serveUrl,
           output: stillFile,
           inputProps,
           imageFormat: 'png',
+          puppeteerInstance: browser ?? undefined,
           cancelSignal: cancelSignal.cancelSignal,
         });
         progress.stillFile = stillFile;
@@ -224,11 +301,15 @@ export const startRender = (input: RenderInput): RenderJob => {
         // the video is what was asked for.
       }
 
+      if (cancelled) return;
+
       progress.progress = 1;
       progress.phase = 'done';
     } catch (err) {
+      // A cancel that does surface as a thrown error is not a failure to
+      // report, and the phase is already right.
+      if (cancelled) return;
       const message = err instanceof Error ? err.message : String(err);
-      // A cancel surfaces as a thrown error; it is not a failure to report.
       if (/cancel/i.test(message)) {
         progress.phase = 'cancelled';
         return;
@@ -237,10 +318,19 @@ export const startRender = (input: RenderInput): RenderJob => {
       // The real message, not a generic one: a webpack error names the file and
       // line, and replacing that with "render failed" throws away the fix.
       progress.error = message;
+    } finally {
+      const opened = browser;
+      browser = null;
+      await opened?.close({ silent: true }).catch(() => undefined);
     }
   })();
 
-  return { id, progress, cancel: () => cancelSignal.cancel(), done };
+  // Whichever comes first. A cancelled render's promise never settles, so
+  // anything awaiting this job — the batch queue above all — would wait on
+  // `work` alone for the life of the process.
+  const done = Promise.race([work, cancelledSettled]);
+
+  return { id, progress, cancel, done };
 };
 
 /* -------------------------------------------------------------------------- */

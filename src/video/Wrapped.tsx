@@ -18,7 +18,6 @@ import { boxArtFor, useBoxArtManifest } from './useBoxArt';
 import {
   DEFAULT_BPM,
   LEAD_IN_FRAMES,
-  leadInFor,
   planTimeline,
   type Timeline,
   type TimelineSlideId,
@@ -68,7 +67,7 @@ const Stage: React.FC<{ stats: WrappedStats; timeline: Timeline; track: Track | 
         {timeline.slides.map((slide) => {
           const Component = SLIDE_COMPONENTS[slide.id];
           if (!Component) return null;
-          const lead = leadInFor(slide.id);
+          const lead = slide.leadIn;
           // The bookends are not data slides; an aside under them would be a
           // remark about nothing.
           const quip =

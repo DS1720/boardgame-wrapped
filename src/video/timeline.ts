@@ -106,25 +106,123 @@ export const buildCut = (enabled: Iterable<SlideId>): TimelineSlideId[] => {
     middle.push(slide);
   }
 
-  return ['intro', ...middle, 'outro'];
+  return ['intro', ...linkPairs(middle), 'outro'];
+};
+
+/**
+ * Pull each linked pair together, first immediately before second.
+ *
+ * Only the leading slide moves; the trailing one keeps whatever position the
+ * arrangement gave it, so someone who has dragged "Played most with" somewhere
+ * particular still gets it there — with its setup now in front of it.
+ */
+const linkPairs = (order: TimelineSlideId[]): TimelineSlideId[] => {
+  let next = order;
+  for (const [first, second] of LINKED_PAIRS) {
+    const at = next.indexOf(first);
+    const to = next.indexOf(second);
+    if (at === -1 || to === -1 || at === to - 1) continue;
+    const without = next.filter((id) => id !== first);
+    const before = without.indexOf(second);
+    next = [...without.slice(0, before), first, ...without.slice(before)];
+  }
+  return next;
+};
+
+/**
+ * Split an arrangement into the blocks that move as one.
+ *
+ * A linked pair is a single unit: its leading slide is pinned in front of its
+ * partner, so stepping the partner one place would otherwise just swap the two
+ * and `buildCut` would undo it — the move would look like nothing happened.
+ *
+ * With no pairs in the list every slide is its own unit, which is why the two
+ * move functions below can be unit-aware without behaving any differently for
+ * everyone who has no pair in their cut.
+ */
+export const unitsOf = (order: SlideId[]): SlideId[][] => {
+  const leads = new Set<SlideId>(
+    LINKED_PAIRS.filter(
+      ([first, second]) =>
+        order.includes(first as SlideId) && order.includes(second as SlideId),
+    ).map(([first]) => first as SlideId),
+  );
+
+  const units: SlideId[][] = [];
+  let pending: SlideId[] = [];
+
+  for (const id of order) {
+    pending.push(id);
+    if (leads.has(id)) continue;
+    units.push(pending);
+    pending = [];
+  }
+  // A lead with nothing after it: not reachable through buildCut, but this is
+  // also called on raw lists from storage.
+  if (pending.length > 0) units.push(pending);
+
+  return units;
 };
 
 /**
  * Move one slide up or down in an ordered selection.
  *
  * Returns the list unchanged when the move would run off either end, so the UI
- * can call it without checking first.
+ * can call it without checking first. A slide in a linked pair carries the
+ * whole pair with it.
  */
 export const moveSlide = (order: SlideId[], id: SlideId, delta: number): SlideId[] => {
-  const from = order.indexOf(id);
+  const units = unitsOf(order);
+  const from = units.findIndex((unit) => unit.includes(id));
   if (from === -1) return order;
-  const to = from + delta;
-  if (to < 0 || to >= order.length) return order;
 
-  const next = [...order];
-  next.splice(from, 1);
-  next.splice(to, 0, id);
-  return next;
+  const to = from + delta;
+  if (to < 0 || to >= units.length) return order;
+
+  const next = [...units];
+  const [moving] = next.splice(from, 1);
+  next.splice(to, 0, moving);
+  return next.flat();
+};
+
+/**
+ * Move one slide to an absolute position.
+ *
+ * The arrows ask "one step that way"; a drop asks "put it *here*". So unlike
+ * `moveSlide` this clamps rather than refusing — a drop past either end is a
+ * clear instruction to put the slide at that end, not a mistake to ignore.
+ *
+ * `index` is the position the slide ends up at in the returned list, which is
+ * what makes `moveSlideTo(order, id, i)` mean "where row i is now".
+ */
+/**
+ * The arrangement as it will actually play, without the bookends.
+ *
+ * `buildCut` can move a slide — it pulls each linked pair together — so the
+ * list someone is looking at has to be this one and not the raw selection.
+ * Otherwise the picker shows one order and the video plays another.
+ *
+ * Idempotent, which is what lets the UI feed its own output back in: the pairs
+ * are already adjacent the second time through.
+ */
+export const arrangementOf = (order: SlideId[]): SlideId[] =>
+  buildCut(order).filter((id): id is SlideId => id !== 'intro' && id !== 'outro');
+
+export const moveSlideTo = (order: SlideId[], id: SlideId, index: number): SlideId[] => {
+  const units = unitsOf(order);
+  const from = units.findIndex((unit) => unit.includes(id));
+  if (from === -1) return order;
+
+  // `index` is a row, and rows are not units — resolve it to the unit that row
+  // belongs to, so dropping on either half of a pair means the same thing.
+  const row = Math.max(0, Math.min(order.length - 1, index));
+  const to = units.findIndex((unit) => unit.includes(order[row]));
+  if (to === -1 || to === from) return order;
+
+  const next = [...units];
+  const [moving] = next.splice(from, 1);
+  next.splice(to, 0, moving);
+  return next.flat();
 };
 
 /**
@@ -172,7 +270,42 @@ export const LEAD_INS: Partial<Record<TimelineSlideId, string>> = {
   highestScore: 'Your best night at the table…',
 };
 
-export const leadInFor = (id: TimelineSlideId): string | null => LEAD_INS[id] ?? null;
+/**
+ * Lines that only appear when one particular slide runs directly before.
+ *
+ * "Played with" counts the people; "Played most with" names one of them. Back
+ * to back they are two halves of the same thought, and the line in between is
+ * what makes them read that way instead of as two unrelated counts. Alone,
+ * either slide is still a perfectly good slide — which is why this is keyed on
+ * what actually precedes it rather than baked into the component.
+ */
+export const PAIRED_LEAD_INS: Partial<
+  Record<TimelineSlideId, { after: TimelineSlideId; line: string }>
+> = {
+  topCoPlayer: {
+    after: 'coPlayerCount',
+    line: 'But one of them was at the table more than anyone…',
+  },
+};
+
+/**
+ * Slide pairs that are kept together, in this order, whenever both are in.
+ *
+ * `buildCut` pulls the first up against the second, so the bridging line above
+ * always has its setup immediately before it.
+ */
+export const LINKED_PAIRS: ReadonlyArray<readonly [TimelineSlideId, TimelineSlideId]> = [
+  ['coPlayerCount', 'topCoPlayer'],
+];
+
+export const leadInFor = (
+  id: TimelineSlideId,
+  previous: TimelineSlideId | null = null,
+): string | null => {
+  const paired = PAIRED_LEAD_INS[id];
+  if (paired && previous === paired.after) return paired.line;
+  return LEAD_INS[id] ?? null;
+};
 
 /**
  * How long each slide runs, in **whole bars**.
@@ -220,6 +353,14 @@ export interface PlannedSlide {
   durationInFrames: number;
   /** The stat this slide renders. Null for intro and outro. */
   stat: Stat | null;
+  /**
+   * The line that introduces this slide, or null.
+   *
+   * Resolved here rather than by the component, because it can depend on what
+   * runs before it and **the slide's length depends on it**. Two places working
+   * that out separately is two places to get it wrong.
+   */
+  leadIn: string | null;
 }
 
 export interface Timeline {
@@ -246,8 +387,8 @@ export const EMPTY_DURATION_FRAMES = VIDEO.fps * 2;
  * Added here rather than baked into `SLIDE_BARS` so the two stay separable: the
  * table says how long the content wants, this says what it actually gets.
  */
-export const slideBars = (id: TimelineSlideId): number =>
-  (SLIDE_BARS[id] ?? 2) + (leadInFor(id) ? LEAD_IN_BARS : 0);
+export const slideBars = (id: TimelineSlideId, previous: TimelineSlideId | null = null): number =>
+  (SLIDE_BARS[id] ?? 2) + (leadInFor(id, previous) ? LEAD_IN_BARS : 0);
 
 export const slideFrames = (id: TimelineSlideId, bpm = DEFAULT_BPM, fps: number = VIDEO.fps): number =>
   Math.round(slideBars(id) * framesPerBar(bpm, fps));
@@ -274,13 +415,17 @@ export const planTimeline = (
 
   let barCursor = 0;
   let frameCursor = 0;
+  // The slide actually emitted before this one, which is not the same as the
+  // one before it in the cut: a stat the player has no data for is skipped.
+  let previous: TimelineSlideId | null = null;
 
   for (const id of cut) {
     const isBookend = id === 'intro' || id === 'outro';
     const stat = isBookend ? null : byId.get(id as SlideId);
     if (!isBookend && !stat) continue;
 
-    barCursor += slideBars(id);
+    const leadIn = leadInFor(id, previous);
+    barCursor += slideBars(id, previous);
     // Each boundary is rounded from its absolute bar position, never
     // accumulated from rounded durations. At 128 BPM a bar is 56.25 frames;
     // rounding every slide to 56 would lose a quarter frame per slide and put
@@ -291,8 +436,10 @@ export const planTimeline = (
       from: frameCursor,
       durationInFrames: Math.max(1, nextFrame - frameCursor),
       stat: stat ?? null,
+      leadIn,
     });
     frameCursor = nextFrame;
+    previous = id;
   }
 
   return {

@@ -283,10 +283,13 @@ Dark themes get a vignette; every theme gets its paper or grain at 3–4%.
 
 ## Movement
 
-**Nothing on screen is ever completely still.** A number that has finished
-counting still drifts; the eyebrow above it and the caption below drift at
-different rates, so the block breathes instead of sliding. Headlines assemble a
-word at a time rather than fading in.
+**Something on screen is always moving — and it is never the thing you are
+reading.** Numbers count up, headlines assemble a word at a time, and then they
+stop. The movement is behind them.
+
+An earlier version drifted the text too, a few pixels each on its own cycle. It
+sounds subtle and it is not: nothing ever settles, and a screen with a number on
+it becomes tiring to look at.
 
 The background never stops. Three soft colour fields drift across the frame on
 different cycles, running on the video's own clock rather than each slide's — so
@@ -298,15 +301,20 @@ other…"*, *"Someone had your number…"*, *"You did not just replay old
 favourites…"*. Only seven of them — a setup before every slide would be a
 narrator.
 
+Two slides are a pair. If you have both "People played with" and "Played most
+with" in the cut, they always play back to back, with *"But one of them was at
+the table more than anyone…"* in between — the count sets up the name. They move
+around the running order together, as one block.
+
 The top five is a **countdown**. Five appears first, then four, then three, and
 the list fills upward until first place lands last, larger and on its own plate.
 
-A beat after a number lands, a small line slides in at the foot of the frame and
-keeps drifting: *"That is 4.5 a week. Every week."*, *"You could have watched all
-of Lord of the Rings 9 times."*, *"99% of your games. At this point it is a
-duo."* Every one is worked out from the number above it, so it is about your
-year rather than being filler that would fit anyone's — and slides whose numbers
-are too small to be worth a remark simply do not get one.
+A beat after a number lands, a line slides up into the lower third and stays
+there: *"That is 4.5 a week. Every week."*, *"You could have watched all of Lord
+of the Rings 9 times."*, *"99% of your games. At this point it is a duo."* Every
+one is worked out from the number above it, so it is about your year rather than
+being filler that would fit anyone's — and slides whose numbers are too small to
+be worth a remark simply do not get one.
 
 Type is set big and tight — the numbers fill the frame the way this kind of
 video should.

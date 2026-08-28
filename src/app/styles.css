@@ -731,6 +731,49 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
   border-radius: 7px;
   background: var(--surface-lift);
   font-size: 14px;
+  /* A transparent edge the drop indicator can fill in, so a row does not
+     change height the moment it becomes a drop target. */
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+}
+
+/* The grip is the affordance; the whole row is the drag target. */
+.slide-grip {
+  flex-shrink: 0;
+  color: var(--ink-muted);
+  opacity: 0.5;
+  cursor: grab;
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.slide-order li:hover .slide-grip {
+  opacity: 1;
+}
+
+.slide-order li:active .slide-grip {
+  cursor: grabbing;
+}
+
+/* The row being carried: faded, so the list reads as the arrangement it will
+   become rather than the one it was. */
+.slide-order li.is-dragging {
+  opacity: 0.4;
+}
+
+/* The leading half of a linked pair: indented under the row it belongs with,
+   and not draggable, because its position is not its own. */
+.slide-order li.is-pinned {
+  margin-left: 16px;
+}
+
+.slide-order li.is-pinned .slide-grip {
+  cursor: default;
+}
+
+.slide-order li.is-over {
+  border-top-color: var(--accent);
 }
 
 /* The intro and outro are shown so the cut reads as a whole sequence, but
@@ -738,6 +781,8 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
 .slide-order li.slide-fixed {
   background: none;
   color: var(--ink-muted);
+  /* Padded to line up with the grip on the movable rows above and below. */
+  padding-left: 23px;
 }
 
 .slide-order li.is-unavailable {

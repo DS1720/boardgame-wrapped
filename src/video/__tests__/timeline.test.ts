@@ -3,12 +3,14 @@ import type { Stat, WrappedStats } from '@/stats/types';
 import { VIDEO } from '../config';
 import { framesPerBar } from '@/shared/audio';
 import {
+  buildCut,
   DEFAULT_BPM,
   DEFAULT_CUT,
   EMPTY_DURATION_FRAMES,
   LEAD_IN_BARS,
   LEAD_IN_FRAMES,
   leadInFor,
+  PAIRED_LEAD_INS,
   planTimeline,
   slideBars,
   slideFrames,
@@ -222,6 +224,74 @@ describe('slide lengths', () => {
     // A lead-in that outlasted the bar it was given would eat into the content
     // it is introducing.
     expect(LEAD_IN_FRAMES).toBeLessThan(framesPerBar(DEFAULT_BPM, VIDEO.fps));
+  });
+});
+
+describe('the linked co-player pair', () => {
+  const BRIDGE = PAIRED_LEAD_INS.topCoPlayer!.line;
+
+  const withCount = (): Stat[] => [
+    ...ALL_CORE,
+    { id: 'coPlayerCount', core: false, count: 26 },
+  ];
+
+  it('pulls the count up against the person, whatever order they were given in', () => {
+    const cut = buildCut(['totalPlays', 'topCoPlayer', 'nemesis', 'coPlayerCount']);
+    expect(cut.indexOf('coPlayerCount')).toBe(cut.indexOf('topCoPlayer') - 1);
+  });
+
+  it('leaves the trailing slide where the arrangement put it', () => {
+    // Only the leading slide moves: someone who dragged "Played most with" to
+    // the end still gets it at the end, with its setup now in front of it.
+    const cut = buildCut(['coPlayerCount', 'totalPlays', 'nemesis', 'topCoPlayer']);
+    expect(cut).toEqual(['intro', 'totalPlays', 'nemesis', 'coPlayerCount', 'topCoPlayer', 'outro']);
+  });
+
+  it('does nothing when only one of the two is in the cut', () => {
+    expect(buildCut(['totalPlays', 'topCoPlayer'])).toEqual([
+      'intro',
+      'totalPlays',
+      'topCoPlayer',
+      'outro',
+    ]);
+    expect(buildCut(['totalPlays', 'coPlayerCount'])).toEqual([
+      'intro',
+      'totalPlays',
+      'coPlayerCount',
+      'outro',
+    ]);
+  });
+
+  it('says the bridging line only when the count actually ran before it', () => {
+    expect(leadInFor('topCoPlayer', 'coPlayerCount')).toBe(BRIDGE);
+    expect(leadInFor('topCoPlayer', 'winRate')).toBeNull();
+    expect(leadInFor('topCoPlayer')).toBeNull();
+  });
+
+  it('gives the paired slide its lead-in bar, so the content keeps its full time', () => {
+    expect(slideBars('topCoPlayer', 'coPlayerCount')).toBe(
+      SLIDE_BARS.topCoPlayer + LEAD_IN_BARS,
+    );
+    expect(slideBars('topCoPlayer', 'winRate')).toBe(SLIDE_BARS.topCoPlayer);
+  });
+
+  it('plans the line onto the slide, and only that slide', () => {
+    const plan = planTimeline(statsWith(withCount()), { cut: buildCut(withCount().map((s) => s.id)) });
+    const paired = plan.slides.find((s) => s.id === 'topCoPlayer')!;
+    const before = plan.slides[plan.slides.indexOf(paired) - 1];
+
+    expect(before.id).toBe('coPlayerCount');
+    expect(paired.leadIn).toBe(BRIDGE);
+    expect(before.leadIn).toBeNull();
+  });
+
+  it('drops the line when the player has no co-player count to set it up', () => {
+    // The stat module returned null, so the slide is never emitted — and the
+    // line that introduces it must not be left stranded on the next slide.
+    const plan = planTimeline(statsWith(ALL_CORE), { cut: buildCut(withCount().map((s) => s.id)) });
+    const paired = plan.slides.find((s) => s.id === 'topCoPlayer')!;
+    expect(paired.leadIn).toBeNull();
+    expect(paired.durationInFrames).toBe(slideFrames('topCoPlayer'));
   });
 });
 

@@ -19,7 +19,14 @@ import type { SlideId } from '@/stats/types';
 import type { Track } from '@/shared/audio';
 import type { DateRange } from '@/shared/types';
 import { VIDEO } from '@/video/config';
-import { buildCut, insertSlide, moveSlide, planTimeline } from '@/video/timeline';
+import {
+  arrangementOf,
+  buildCut,
+  insertSlide,
+  moveSlide,
+  moveSlideTo,
+  planTimeline,
+} from '@/video/timeline';
 import { makeRange } from '@/ingest/select';
 
 /**
@@ -98,26 +105,37 @@ export const App: React.FC = () => {
     [stats, track?.bpm, cut],
   );
 
+  // Every edit is made against the arrangement as it will play, not against
+  // the raw stored list — the two differ wherever a linked pair was pulled
+  // together, and editing the list you cannot see is how a drag ends up
+  // landing somewhere else.
+  const arrangement = useMemo(() => arrangementOf(slides), [slides]);
+
   const toggleSlide = useCallback(
     (id: SlideId, on: boolean) => {
       patch({
-        slides: on ? insertSlide(slides, id) : slides.filter((s) => s !== id),
+        slides: on ? insertSlide(arrangement, id) : arrangement.filter((s) => s !== id),
       });
     },
-    [patch, slides],
+    [arrangement, patch],
   );
 
   const reorderSlide = useCallback(
-    (id: SlideId, delta: number) => patch({ slides: moveSlide(slides, id, delta) }),
-    [patch, slides],
+    (id: SlideId, delta: number) => patch({ slides: moveSlide(arrangement, id, delta) }),
+    [arrangement, patch],
+  );
+
+  const dropSlide = useCallback(
+    (id: SlideId, index: number) => patch({ slides: moveSlideTo(arrangement, id, index) }),
+    [arrangement, patch],
   );
 
   // Adding everything keeps the current arrangement and folds the rest in
   // around it, rather than replacing what someone has already ordered.
   const allAvailable = useCallback(() => {
     const availableIds = (stats?.stats.map((s) => s.id) ?? []) as SlideId[];
-    patch({ slides: availableIds.reduce(insertSlide, slides) });
-  }, [patch, slides, stats]);
+    patch({ slides: availableIds.reduce(insertSlide, arrangement) });
+  }, [arrangement, patch, stats]);
 
   // Never an empty screen: a blank shell tells someone whose storage is slow or
   // blocked nothing at all about what the tool is doing.
@@ -188,9 +206,10 @@ export const App: React.FC = () => {
 
           <SlidePicker
             stats={stats}
-            order={slides}
+            order={arrangement}
             onToggle={toggleSlide}
             onMove={reorderSlide}
+            onReorder={dropSlide}
             onReset={() => patch({ slides: defaultSlideSelection() })}
             onAll={allAvailable}
           />

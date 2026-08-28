@@ -2,15 +2,14 @@ import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } fr
 import { withAlpha } from '@/theme/color';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { VIDEO } from '../config';
-import { Float } from '../motion';
 
 /**
  * The aside that arrives after the number.
  *
  * It lands about a second and a half in — long enough that the stat has been
- * read first, soon enough that it is still on screen for a while. It sits at
- * the foot of the frame, out of the content's way, and drifts the whole time it
- * is up.
+ * read first, soon enough that it is still on screen for a while. It slides up
+ * into place once and then holds: it is a line to be read, not another thing
+ * moving in the frame.
  *
  * Rendered by `Wrapped` for every slide rather than by each slide, so a stat
  * component never has to think about it and one change covers all twenty.
@@ -18,6 +17,16 @@ import { Float } from '../motion';
 
 /** Frames after the slide's content starts before the line appears. */
 export const QUIP_DELAY = 46;
+
+/**
+ * How far above the safe margin the line sits.
+ *
+ * Hard against the bottom margin it was being missed entirely — a phone's own
+ * story UI crowds that edge, and the eye does not travel that far down after
+ * reading a number in the middle of the frame. This lifts it to about the lower
+ * third, close enough to the content to be read as part of the same slide.
+ */
+export const QUIP_LIFT = 190;
 
 export const Quip: React.FC<{ text: string | null }> = ({ text }) => {
   const frame = useCurrentFrame();
@@ -47,29 +56,33 @@ export const Quip: React.FC<{ text: string | null }> = ({ text }) => {
         justifyContent: 'flex-end',
         alignItems: 'flex-start',
         padding: VIDEO.safeMargin,
+        paddingBottom: VIDEO.safeMargin + QUIP_LIFT,
         pointerEvents: 'none',
       }}
     >
-      <Float amount={6} period={7} phase={0.8}>
-        <p
-          style={{
-            ...bodyFont,
-            fontSize: body * 0.78,
-            color: theme.color.inkMuted,
-            margin: 0,
-            lineHeight: 1.3,
-            maxWidth: VIDEO.width - VIDEO.safeMargin * 2,
-            opacity,
-            transform: `translateY(${(1 - enter) * 22}px)`,
-            // A rule to its left, so it reads as an aside rather than as another
-            // caption that got separated from its number.
-            borderLeft: `3px solid ${withAlpha(theme.color.accent, 0.7)}`,
-            paddingLeft: 18,
-          }}
-        >
-          {text}
-        </p>
-      </Float>
+      <p
+        style={{
+          ...bodyFont,
+          // Full body size, in ink rather than muted: at 78% and half-faded it
+          // was decoration. It is the line most likely to be worth reading
+          // twice, so it is set to be read the first time.
+          fontSize: body,
+          color: theme.color.ink,
+          margin: 0,
+          lineHeight: 1.35,
+          maxWidth: VIDEO.width - VIDEO.safeMargin * 2,
+          opacity,
+          // Rises into place once, then holds. No drift: a line of text that
+          // never settles is a line that is harder to read.
+          transform: `translateY(${(1 - enter) * 22}px)`,
+          // A rule to its left, so it reads as an aside rather than as another
+          // caption that got separated from its number.
+          borderLeft: `4px solid ${withAlpha(theme.color.accent, 0.85)}`,
+          paddingLeft: 22,
+        }}
+      >
+        {text}
+      </p>
     </AbsoluteFill>
   );
 };

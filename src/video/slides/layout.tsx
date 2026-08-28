@@ -1,7 +1,7 @@
 import { AbsoluteFill } from 'remotion';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { VIDEO } from '../config';
-import { Float, KineticWords } from '../motion';
+import { KineticWords } from '../motion';
 
 /**
  * Slide layout primitives.
@@ -128,25 +128,24 @@ export const DisplayNumber: React.FC<{ children: React.ReactNode }> = ({ childre
   const { display } = useTypeScale();
   const { color } = useTheme();
   return (
-    // The number keeps a slow drift of its own once it has counted up, so the
-    // biggest thing on the slide is never frozen.
-    <Float amount={5} period={9}>
-      <p
-        style={{
-          ...font,
-          fontSize: display,
-          color: color.accent,
-          margin: 0,
-          // Just under 1: tight enough to look set rather than typed, loose
-          // enough that the caption below is not touching the digits.
-          lineHeight: 0.95,
-          letterSpacing: '-0.035em',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {children}
-      </p>
-    </Float>
+    // No drift. The number counts up and then holds perfectly still: a figure
+    // that keeps sliding is harder to read, and this is the one thing on the
+    // slide the viewer is meant to read. Movement belongs to the background.
+    <p
+      style={{
+        ...font,
+        fontSize: display,
+        color: color.accent,
+        margin: 0,
+        // Just under 1: tight enough to look set rather than typed, loose
+        // enough that the caption below is not touching the digits.
+        lineHeight: 0.95,
+        letterSpacing: '-0.035em',
+        fontVariantNumeric: 'tabular-nums',
+      }}
+    >
+      {children}
+    </p>
   );
 };
 
@@ -186,17 +185,13 @@ export const StatBlock: React.FC<{
   value: React.ReactNode;
   caption?: React.ReactNode;
 }> = ({ eyebrow, value, caption }) => (
+  // The three parts arrive and then stop. They used to drift on offset phases
+  // so the block "breathed"; at this size that is not texture, it is the text
+  // failing to settle, and it made a stat slide tiring to read.
   <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: '100%' }}>
-    {/* Phase-offset from the number, so the block breathes rather than slides. */}
-    <Float amount={4} period={11} phase={1.2}>
-      <Eyebrow>{eyebrow}</Eyebrow>
-    </Float>
+    <Eyebrow>{eyebrow}</Eyebrow>
     <DisplayNumber>{value}</DisplayNumber>
-    {caption ? (
-      <Float amount={4} period={10} phase={2.4}>
-        <Caption>{caption}</Caption>
-      </Float>
-    ) : null}
+    {caption ? <Caption>{caption}</Caption> : null}
   </div>
 );
 

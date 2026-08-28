@@ -7,7 +7,10 @@ import {
   DEFAULT_CUT,
   DEFAULT_SLIDE_IDS,
   insertSlide,
+  arrangementOf,
   moveSlide,
+  moveSlideTo,
+  unitsOf,
   SLIDE_BARS,
   SLIDE_LABELS,
 } from '../timeline';
@@ -114,6 +117,146 @@ describe('moveSlide', () => {
     const original: SlideId[] = [...order];
     moveSlide(original, 'topGame', -1);
     expect(original).toEqual(order);
+  });
+});
+
+describe('moveSlideTo', () => {
+  const order: SlideId[] = ['totalPlays', 'topGame', 'winRate', 'nemesis'];
+
+  it('lands the slide at the position asked for', () => {
+    // The index is where the slide ends up, which is what lets the drop
+    // handler pass the index of the row it was dropped on.
+    expect(moveSlideTo(order, 'nemesis', 0)).toEqual([
+      'nemesis',
+      'totalPlays',
+      'topGame',
+      'winRate',
+    ]);
+    expect(moveSlideTo(order, 'totalPlays', 3)).toEqual([
+      'topGame',
+      'winRate',
+      'nemesis',
+      'totalPlays',
+    ]);
+  });
+
+  it('moves a slide the same way the arrows do', () => {
+    for (const id of order) {
+      const at = order.indexOf(id);
+      for (const delta of [-1, 1]) {
+        if (at + delta < 0 || at + delta >= order.length) continue;
+        expect(moveSlideTo(order, id, at + delta)).toEqual(moveSlide(order, id, delta));
+      }
+    }
+  });
+
+  it('clamps a drop past either end rather than ignoring it', () => {
+    // A drop below the last row means "put it last" — refusing it, the way the
+    // arrows refuse a step off the end, would lose a deliberate gesture.
+    expect(moveSlideTo(order, 'topGame', -5)).toEqual([
+      'topGame',
+      'totalPlays',
+      'winRate',
+      'nemesis',
+    ]);
+    expect(moveSlideTo(order, 'topGame', 99)).toEqual([
+      'totalPlays',
+      'winRate',
+      'nemesis',
+      'topGame',
+    ]);
+  });
+
+  it('is a no-op when the slide is already there', () => {
+    expect(moveSlideTo(order, 'topGame', 1)).toBe(order);
+  });
+
+  it('ignores a slide that is not in the order', () => {
+    expect(moveSlideTo(order, 'nightOwl', 0)).toBe(order);
+  });
+
+  it('does not mutate the list it was given', () => {
+    const original: SlideId[] = [...order];
+    moveSlideTo(original, 'nemesis', 0);
+    expect(original).toEqual(order);
+  });
+
+  it('keeps every slide, whatever the move', () => {
+    for (let i = -1; i <= order.length; i++) {
+      const moved = moveSlideTo(order, 'winRate', i);
+      expect([...moved].sort()).toEqual([...order].sort());
+    }
+  });
+});
+
+describe('a linked pair moves as one', () => {
+  // As laid out by buildCut: the count is pinned in front of the person.
+  const order = (): SlideId[] =>
+    arrangementOf(['totalPlays', 'winRate', 'coPlayerCount', 'topCoPlayer', 'nemesis']);
+
+  it('is arranged with the count in front of the person', () => {
+    expect(order()).toEqual([
+      'totalPlays',
+      'winRate',
+      'coPlayerCount',
+      'topCoPlayer',
+      'nemesis',
+    ]);
+  });
+
+  it('groups the pair into one movable unit', () => {
+    expect(unitsOf(order())).toEqual([
+      ['totalPlays'],
+      ['winRate'],
+      ['coPlayerCount', 'topCoPlayer'],
+      ['nemesis'],
+    ]);
+  });
+
+  it('treats every slide as its own unit when nothing is paired', () => {
+    const plain: SlideId[] = ['totalPlays', 'topGame', 'winRate'];
+    expect(unitsOf(plain)).toEqual([['totalPlays'], ['topGame'], ['winRate']]);
+  });
+
+  it('steps the whole pair past the slide before it, not just the person', () => {
+    // The bug this guards: moving the person one step used to swap it with its
+    // own pinned partner, and buildCut put that straight back — so the arrow
+    // did nothing at all.
+    expect(moveSlide(order(), 'topCoPlayer', -1)).toEqual([
+      'totalPlays',
+      'coPlayerCount',
+      'topCoPlayer',
+      'winRate',
+      'nemesis',
+    ]);
+  });
+
+  it('carries the pair when the pinned half is the one asked to move', () => {
+    expect(moveSlide(order(), 'coPlayerCount', 1)).toEqual([
+      'totalPlays',
+      'winRate',
+      'nemesis',
+      'coPlayerCount',
+      'topCoPlayer',
+    ]);
+  });
+
+  it('never splits the pair, whatever it is asked to do', () => {
+    const ids: SlideId[] = ['totalPlays', 'winRate', 'coPlayerCount', 'topCoPlayer', 'nemesis'];
+    for (const id of ids) {
+      for (let i = -2; i <= 6; i++) {
+        const moved = moveSlideTo(order(), id, i);
+        expect(moved.indexOf('coPlayerCount')).toBe(moved.indexOf('topCoPlayer') - 1);
+        expect([...moved].sort()).toEqual([...ids].sort());
+      }
+    }
+  });
+
+  it('drops onto a pair by either of its rows and lands in the same place', () => {
+    const from = order();
+    const onLead = moveSlideTo(from, 'totalPlays', from.indexOf('coPlayerCount'));
+    const onPartner = moveSlideTo(from, 'totalPlays', from.indexOf('topCoPlayer'));
+    expect(onLead).toEqual(onPartner);
   });
 });
 

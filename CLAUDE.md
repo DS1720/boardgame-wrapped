@@ -349,6 +349,15 @@ it into a cut.
 - **The order given is the order played.** `moveSlide` shifts one slide up or
   down; `insertSlide` folds a newly enabled slide in where the catalogue would
   put it, without resorting an arrangement someone made by hand.
+- **Rows are dragged, and the arrows stay.** A drag is faster across the list, an
+  arrow is exact for one place, and the arrows are the only one of the two that
+  works from a keyboard. Drag is plain HTML5 `draggable` — no dependency — with
+  `moveSlideTo` as the pure move behind it. The move buttons cancel `dragstart`,
+  or pressing one would start a drag instead of clicking.
+- **The picker shows the arrangement that will play**, via `arrangementOf` —
+  `buildCut` can move a slide, and a list that disagrees with the video about
+  the order is worse than no list. It is idempotent, which is what lets the UI
+  feed its own output back in as the base for the next edit.
 - **The bookends are always in, and always at the ends.** A video with no intro
   is not a shorter video, it is a broken one; an outro in the middle is not an
   outro. `buildCut` strips them out of the selection and re-adds them.
@@ -396,6 +405,31 @@ limited range, HD primaries. `pixelFormat` alone did not.
 
 **Errors are surfaced verbatim.** A missing audio file reports the 404 and the
 path; replacing that with "render failed" throws away the fix.
+
+### Cancelling, and why it needs more than the cancel signal
+
+`cancelSignal.cancel()` does stop Remotion rendering frames — the counter
+freezes on the spot — but **the `renderMedia` promise then never settles.** It
+neither resolves nor rejects. Measured: after a cancel the job sat in
+`rendering` indefinitely, so `isRunning` stayed true, `/render` answered 409
+forever, and the headless Chrome stayed alive. The only way out was restarting
+the server.
+
+So `startRender` does three things the cancel signal does not:
+
+- **Moves the phase in `cancel()`, not in the catch.** The slot is free the
+  moment cancel is asked for. Everything after that point checks a `cancelled`
+  flag before touching `progress`, so a late callback from a render still
+  unwinding cannot move the job back out of `cancelled`.
+- **Opens the browser itself** with `openBrowser` and passes it to
+  `selectComposition`/`renderMedia`/`renderStill`, so there is a handle to close.
+  Remotion's own instance is not reachable from outside, and on the cancel path
+  nothing ever releases it.
+- **Settles `done` on cancel**, with `Promise.race`. The batch queue awaits
+  `job.done`; on `work` alone it would wait for the life of the process.
+
+Verified end to end: cancel, `running: false` within a second, a second render
+started on the same server, and no browser left behind.
 
 Two things are deterministic and one is not: the **duration and frame count**
 are identical across runs, the **encoded bytes are not** — x264 is threaded and
@@ -465,11 +499,20 @@ Measured on the real export: 5 players, 4 rendered and 1 skipped, 27.7 MB in
 
 ### Motion
 
-The rule this design works to: **no frame is ever completely still.** Content
-that has finished animating in still sits on something alive, and keeps a slow
-drift of its own.
+The rule this design works to: **the frame is never still, but the content is.**
+Something is always moving; it is never the thing you are trying to read.
 
-Four things keep the frame moving:
+An earlier pass had every element drifting on its own offset phase — the number,
+its eyebrow, its caption, the aside, the player's name. Individually each was a
+few pixels. Together they meant no line of type ever settled, and a stat slide
+became tiring to read. **`Float` is now background-only.** Content arrives on a
+spring and then stops dead.
+
+This is measurable, and worth re-measuring after any change here: across two
+frames twenty apart in the same slide, the big number's 31,402 lit pixels have
+**zero** that differ, while 60% of the background changes.
+
+Things that keep the frame moving:
 
 - **[Ambient.tsx](src/video/Ambient.tsx)** — three colour fields drifting on
   their own periods (23s, 31s, 41s), mounted **above the `<Series>`** so it runs
@@ -477,12 +520,9 @@ Four things keep the frame moving:
   background that restarted per slide would draw attention to the cuts instead
   of covering them.
 - **Hero drift** — `BoxArtHero` floats on a nine-second cycle, longer than the
-  slide, so it never visibly repeats.
-- **`Float`** ([motion/index.tsx](src/video/motion/index.tsx)) — a slow drift
-  that never stops, applied to the number, its eyebrow and its caption at
-  different phases so a stat block breathes rather than sliding as one piece.
-  `Reveal` animates something in and then leaves it frozen; this is what stops a
-  finished slide reading as a paused video.
+  slide, so it never visibly repeats. This is the one piece of *content* that
+  still moves, and it is a picture rather than a number: a cover drifting reads
+  as depth, where a drifting figure reads as a page that will not settle.
 - **The top-five countdown** ([slides/TopFive.tsx](src/video/slides/TopFive.tsx))
   reveals five to one, filling upward, with first place landing last on a plate.
   Rows hold their final positions from the start and are simply invisible until
@@ -492,9 +532,15 @@ Four things keep the frame moving:
   in — the single most recognisable move in this kind of video.
 - **The quip** ([slides/Quip.tsx](src/video/slides/Quip.tsx)) arrives at the
   foot of the frame 46 frames — about a second and a half — after its slide's
-  content, and drifts for as long as it is up. It is rendered by `Wrapped` for
-  every slide rather than by each slide, so a stat component never has to think
-  about it and one change covers all twenty.
+  content. It rises into place once and then holds. It is rendered by `Wrapped`
+  for every slide rather than by each slide, so a stat component never has to
+  think about it and one change covers all twenty.
+
+  It sits `QUIP_LIFT` (190px) **above** the safe margin, at full body size in
+  `ink` rather than 78% in `inkMuted`. Hard against the bottom edge and half
+  faded it was being missed entirely — a phone's own story UI crowds that edge,
+  and the eye does not travel that far after reading a number in the middle of
+  the frame.
 
 ### The quips are data, not filler
 
@@ -565,6 +611,32 @@ slide's own frame still starts at zero and every `BEAT` inside it works
 unchanged. A lead-in is never a slide of its own — turning a slide off can then
 never strand its introduction.
 
+**`planTimeline` resolves the line, not the component.** `PlannedSlide.leadIn`
+carries it, because a line can depend on what ran before it *and* the slide's
+length depends on whether it has one. Two places working that out separately is
+two places to disagree, and they would disagree by exactly one bar.
+
+### Linked slides
+
+`PAIRED_LEAD_INS` holds lines that only appear when one particular slide runs
+directly before. There is one: "Played with" counts the people, "Played most
+with" names one of them, and between them goes *"But one of them was at the table
+more than anyone…"*. Back to back they are two halves of one thought.
+
+`LINKED_PAIRS` is what keeps them back to back — `buildCut` pulls the leading
+slide up against its partner whenever both are in. Three consequences worth
+knowing:
+
+- **Only the leading slide moves.** Someone who dragged "Played most with" to the
+  end still gets it at the end, with its setup in front of it.
+- **The pair moves as one unit.** `unitsOf` groups it, and both `moveSlide` and
+  `moveSlideTo` work on units. Without that, stepping the partner one place just
+  swapped it with its own pinned lead and `buildCut` put it straight back — the
+  arrow appeared to do nothing.
+- **The line is conditional on what was actually emitted**, not on the cut. A
+  player with no co-player count gets no bridging line and no extra bar, rather
+  than an introduction to a slide that never comes.
+
 The default cut is **31 bars, about 62 seconds** at 120 BPM; every slide turned
 on is 52 bars, about 104.
 
@@ -598,7 +670,7 @@ Two details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 353 passing tests. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 374 passing tests. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.
@@ -634,8 +706,9 @@ Known gaps left deliberately:
 - **`boardgame-wrapped/boardgame-wrapped/` is a duplicate** of the entire
   scaffold, byte-for-byte, from a scaffolding accident. The real project is the
   outer directory. Never edit the nested copy; it should be deleted.
-- This directory is **not a git repository** yet, despite having a `.gitignore`.
-  There is no history to fall back on — be careful with destructive edits.
+- This **is** a git repository now (`origin` is `DS1720/boardgame-wrapped`), so
+  there is history to fall back on. It was not one for most of the build; older
+  notes that say otherwise are out of date.
 - `out/`, `public/boxart/*`, `public/audio/*` and `data/` are gitignored —
   generated output and personal data respectively.
 - **Remotion bundles with its own webpack**, so the `@` alias is configured in
