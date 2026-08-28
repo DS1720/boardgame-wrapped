@@ -140,6 +140,20 @@ it shows up.
 
 ## Themes
 
+Six of them. **Punchboard** punches its stats out of the board. **Scorepad**
+strokes tally marks on, crossing every fifth. **Table Light** sits under a
+drifting pool of lamplight. **Felt Table** throws dice that tumble through faces
+in the air and land on their value. **Meadow** lays tiles one at a time, each
+turned a quarter so the roads meet at the joins. **Peg Board** drops pegs into a
+drilled track, with empty holes still ahead of them.
+
+No two share a ground, a display face or a signature — a test says so.
+
+Two slides draw their count rather than just stating it. **The plays slide
+strokes tally marks on in every theme**, in that theme's own colour, because
+that is the slide the whole video is about. **The "played with" slide counts in
+the theme's own hand** — dice, tiles, pegs or strokes.
+
 Themes are data: six colors, three fonts, four type sizes, a motion profile, a
 texture and a signature. No slide component contains a literal color or font.
 

@@ -29,7 +29,17 @@ export type FontId =
 export type TextureId = 'none' | 'grain' | 'paper' | 'lamp';
 
 /** The one element that makes a theme recognizable. Step 7 renders these. */
-export type SignatureId = 'diecut' | 'tally' | 'lamp' | 'none';
+export type SignatureId = 'diecut' | 'tally' | 'lamp' | 'dice' | 'tiles' | 'pegs' | 'none';
+
+/**
+ * Signatures that draw a count as a set of marks, one arriving at a time.
+ *
+ * These four share the timing helpers in `src/video/signature`, so a count of
+ * 233 never outlives its slide whichever theme is on.
+ */
+export type CountSignature = Extract<SignatureId, 'tally' | 'dice' | 'tiles' | 'pegs'>;
+
+export const COUNT_SIGNATURES: CountSignature[] = ['tally', 'dice', 'tiles', 'pegs'];
 
 export interface ThemeColor {
   /** Slide ground. */

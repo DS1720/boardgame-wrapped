@@ -4,7 +4,7 @@ import { avoidMuddy, isMuddy, MUDDY_BAND, paletteFromHue, randomHue, randomTheme
 import { BODY_FONTS, DISPLAY_FONTS, FONTS, fontStack, fontStyle, UTILITY_FONTS, uniqueFontSpecs } from '../fonts';
 import { STARTERS } from '../starters';
 import { clearTheme, isValidTheme, loadTheme, saveTheme } from '../persist';
-import { CONTRAST, type Theme } from '../types';
+import { COUNT_SIGNATURES, CONTRAST, type Theme } from '../types';
 
 /** A Storage that lives in memory, so persistence can be tested without a DOM. */
 const memoryStorage = (): Storage => {
@@ -208,11 +208,27 @@ describe('starter themes', () => {
   });
 
   it('are genuinely different from one another', () => {
-    // The step is done when the three look like three studios' work, so no two
-    // may share a ground or a display face.
+    // The set is done when they look like as many studios' work, so no two may
+    // share a ground, a display face or a signature.
     expect(new Set(STARTERS.map((t) => t.color.bg)).size).toBe(STARTERS.length);
     expect(new Set(STARTERS.map((t) => t.type.display)).size).toBe(STARTERS.length);
     expect(new Set(STARTERS.map((t) => t.signature)).size).toBe(STARTERS.length);
+  });
+
+  it('never leave a signature declared but unused', () => {
+    // The dispatch in src/video/signature falls through to null, so a counting
+    // signature nobody uses would be dead code that looks wired up. Every one
+    // of them has to belong to a theme.
+    const used = new Set(STARTERS.map((t) => t.signature));
+    for (const signature of COUNT_SIGNATURES) {
+      expect(used.has(signature)).toBe(true);
+    }
+  });
+
+  it('give every theme a signature, because that is what makes it one', () => {
+    for (const theme of STARTERS) {
+      expect(theme.signature).not.toBe('none');
+    }
   });
 
   it('name fonts that exist in the registry', () => {

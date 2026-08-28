@@ -201,11 +201,64 @@ Slides read them through `useTheme()`, `useTypeScale()` and `useFont(role)`.
 
 Four ways a theme is arrived at:
 
-- **Starter** — the three hand-specified palettes in
+- **Starter** — the six hand-specified palettes in
   [src/theme/starters.ts](src/theme/starters.ts).
 - **Custom** — any token edited in the picker; persisted to localStorage.
 - **Random** — one hue outside the muddy 45°–65° band, whole palette derived.
 - **Box art** — accent taken from the slide's own cover, rest derived to match.
+
+### Six starters, six signatures
+
+A signature is the thing someone would describe if asked what the video looked
+like, so **every starter owns one and no two share**. A test enforces that, along
+with distinct grounds and distinct display faces — the point of having six is
+that they read as six studios' work, not one palette shuffled.
+
+| Theme | Ground | Signature | What it draws |
+|---|---|---|---|
+| Punchboard | chipboard | `diecut` | stats punch out of the board, leaving a recess |
+| Scorepad | paper | `tally` | marks stroked on, every fifth one crossing the other four |
+| Table Light | near-black | `lamp` | a warm pool drifting behind the subject |
+| Felt Table | green cloth | `dice` | dice tumble through faces in the air and land on their value |
+| Meadow | parchment | `tiles` | tiles dropped in with a quarter turn, roads meeting at the joins |
+| Peg Board | walnut | `pegs` | pegs drop into a drilled track, empty holes ahead of them |
+
+### Two slides count, and they count differently
+
+**The plays slide draws the tally stripes in every theme.** It is the one slide
+whose whole job is "how many", and the marks going down beside the figure are
+what make it land — a bare 233 is a fact; 233 with the count drawn beside it is
+a year. So the tally is not Scorepad's alone: it is what `TotalPlaysSlide` does,
+in whatever accent the theme brings.
+
+**The co-player count is where a theme counts in its own hand** — Scorepad's
+strokes, Felt Table's dice, Meadow's tiles, Peg Board's pegs, and nothing for
+the two whose signature is not a counting one. That slide is what tells the six
+designs apart now that the plays slide is common to all of them.
+
+All four counting marks share the timing helpers in
+[src/video/signature/](src/video/signature/index.tsx) — `markStep` and
+`markFinishFrame` — so a count can never outlive its slide whichever theme is
+on. `draw` is how long a single mark takes, and it differs a lot: a pen stroke
+is 3 frames, a die that has to tumble and land is 9. The window is the same 46
+either way, and the step compresses to fit.
+
+A slide asks `useCountMarks()` once and renders `<CountMarks>`; it never learns
+which theme is on.
+
+Three details worth keeping:
+
+- **The tumbling die shows a cycling face, not its final one.** A die that faded
+  in at its value is a picture of dice; cycling while it is in the air and
+  settling on the real number is what reads as a throw. The cycle is driven by
+  the frame, never `Math.random` — determinism applies to a decorative tumble
+  exactly as much as to a stat.
+- **The peg track is longer than the count.** Drawn exactly as long, thirty
+  filled holes and no empty ones is a row of dots; the empty track ahead is what
+  makes it a position on a board.
+- **Each tile's road is quarter-turned by its own index**, so the finished block
+  is a small mosaic rather than a grid of identical squares — the same reason a
+  tally crosses every fifth mark.
 
 ### Contrast is enforced, and the plan's formulas do not satisfy it
 
@@ -215,13 +268,16 @@ The plan specifies `accent = hsl(h, 72%, 58%)` and requires accent-on-ground
 [src/theme/color.ts](src/theme/color.ts) walks a color's lightness the minimum
 distance needed, keeping hue and saturation. After it, all 720 pass.
 
-The three starters are hand-picked and held to a different, honest bar:
+The starters are hand-picked and held to a different, honest bar:
 
 | Theme | ink on bg | accent on bg | accentAlt on bg |
 |---|---|---|---|
 | Punchboard | 7.76:1 | 3.85:1 | 2.22:1 |
 | Scorepad | 9.95:1 | 4.51:1 | 2.77:1 |
 | Table Light | 15.81:1 | 11.73:1 | 5.95:1 |
+| Felt Table | 13.53:1 | 8.33:1 | 3.60:1 |
+| Meadow | 11.97:1 | 4.08:1 | 3.53:1 |
+| Peg Board | 11.75:1 | 6.45:1 | 4.95:1 |
 
 Their accents are only ever set at display sizes, where WCAG's large-text
 threshold of 3:1 applies — so `CONTRAST.accentOnBgLarge` is the bar they are
@@ -733,7 +789,7 @@ Two details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 394 passing tests. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 397 passing tests. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.

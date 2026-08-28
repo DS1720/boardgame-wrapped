@@ -7,7 +7,7 @@ import { withAlpha } from '@/theme/color';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { BoxArt, BoxArtHero } from '../BoxArt';
 import { CountUp, Float, Reveal, Stagger } from '../motion';
-import { SignaturePlate, TallyMarks, useTally } from '../signature';
+import { SignaturePlate, TallyMarks } from '../signature';
 import { boxArtFor, useBoxArtManifest } from '../useBoxArt';
 import { Caption, Eyebrow, Headline, SafeArea, Stack, StatBlock } from './layout';
 
@@ -93,7 +93,6 @@ export const IntroSlide: React.FC<SlideProps> = ({ stats }) => {
 };
 
 export const TotalPlaysSlide: React.FC<SlideProps> = ({ stat }) => {
-  const tally = useTally();
   if (stat?.id !== 'totalPlays') return null;
 
   return (
@@ -108,11 +107,19 @@ export const TotalPlaysSlide: React.FC<SlideProps> = ({ stat }) => {
             )} different games`}
           />
         </SignaturePlate>
-        {tally ? (
-          <Reveal delay={BEAT.third} distance={0}>
-            <TallyMarks count={stat.plays} delay={BEAT.third} />
-          </Reveal>
-        ) : null}
+        {/*
+          Stripes on every theme, not just Scorepad's.
+
+          This is the one slide whose whole job is "how many", and a drawn count
+          beside the figure is what makes the number land — a bare 233 is a fact,
+          233 with the marks going down beside it is a year. So the tally is not
+          Scorepad's alone any more: it is what the plays slide does, in whatever
+          accent the theme brings. Each theme's own mark still gets a slide of
+          its own, on the co-player count.
+        */}
+        <Reveal delay={BEAT.third} distance={0}>
+          <TallyMarks count={stat.plays} delay={BEAT.third} />
+        </Reveal>
       </Stack>
     </SafeArea>
   );

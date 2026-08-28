@@ -1,6 +1,7 @@
 import { AbsoluteFill, interpolate, useCurrentFrame } from 'remotion';
 import { withAlpha } from '@/theme/color';
 import { useTheme } from '@/theme/ThemeContext';
+import { COUNT_SIGNATURES, type CountSignature, type SignatureId } from '@/theme/types';
 import { BOX_ART } from '../config';
 import { useMotionSpring } from '../motion';
 
@@ -85,8 +86,8 @@ const RuledLines: React.FC = () => {
  * as a texture standing in for the number rather than a countable set, which is
  * the honest way to show it — the exact figure is always beside them.
  */
-/** Frames one mark takes to stroke on. */
-export const TALLY_STROKE_FRAMES = 3;
+/** Frames one mark takes to arrive. A pen stroke; the heavier marks override it. */
+export const MARK_DRAW_FRAMES = 3;
 
 /**
  * Frames between the start of one mark and the next.
@@ -94,27 +95,57 @@ export const TALLY_STROKE_FRAMES = 3;
  * Marks share a fixed window rather than each taking a fixed slot. With a flat
  * 3-frame stagger, 25 marks ran 84 frames and the last strokes were still being
  * drawn as the slide cut away.
+ *
+ * `draw` is how long a single mark takes: a pen stroke is three frames, a die
+ * that has to tumble and land needs more. All four counting signatures go
+ * through here, so none of them can outrun its slide.
  */
-export const tallyStep = (shown: number, windowFrames: number): number =>
-  shown > 1 ? Math.min(TALLY_STROKE_FRAMES, (windowFrames - TALLY_STROKE_FRAMES) / (shown - 1)) : 0;
+export const markStep = (
+  shown: number,
+  windowFrames: number,
+  draw: number = MARK_DRAW_FRAMES,
+): number => (shown > 1 ? Math.min(draw, (windowFrames - draw) / (shown - 1)) : 0);
 
-/** The frame, relative to the tally's start, at which the last mark is complete. */
-export const tallyFinishFrame = (shown: number, windowFrames: number): number =>
-  shown <= 0 ? 0 : (shown - 1) * tallyStep(shown, windowFrames) + TALLY_STROKE_FRAMES;
+/** The frame, relative to the set's start, at which the last mark is complete. */
+export const markFinishFrame = (
+  shown: number,
+  windowFrames: number,
+  draw: number = MARK_DRAW_FRAMES,
+): number => (shown <= 0 ? 0 : (shown - 1) * markStep(shown, windowFrames, draw) + draw);
 
-export const TallyMarks: React.FC<{
+/** How far through its own arrival mark `index` is, from 0 to 1. */
+const markProgress = (
+  frame: number,
+  index: number,
+  shown: number,
+  windowFrames: number,
+  draw: number,
+): number =>
+  interpolate(frame - index * markStep(shown, windowFrames, draw), [0, draw], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+export interface CountMarksProps {
   count: number;
   delay?: number;
   max?: number;
   /** Frames the whole set has to finish in, so it never outlives its slide. */
   windowFrames?: number;
-}> = ({ count, delay = 0, max = 25, windowFrames = 46 }) => {
+}
+
+export const TallyMarks: React.FC<CountMarksProps> = ({
+  count,
+  delay = 0,
+  max = 25,
+  windowFrames = 46,
+}) => {
   const frame = useCurrentFrame();
   const { color } = useTheme();
   const shown = Math.min(count, max);
   const groups = Math.ceil(shown / 5);
 
-  const step = tallyStep(shown, windowFrames);
+  const step = markStep(shown, windowFrames);
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 22, alignItems: 'flex-end' }}>
@@ -124,7 +155,7 @@ export const TallyMarks: React.FC<{
           <svg key={groupIndex} width={68} height={72} viewBox="0 0 68 72" aria-hidden>
             {Array.from({ length: inGroup }, (_, markIndex) => {
               const index = groupIndex * 5 + markIndex;
-              const drawn = interpolate(frame - delay - index * step, [0, TALLY_STROKE_FRAMES], [0, 1], {
+              const drawn = interpolate(frame - delay - index * step, [0, MARK_DRAW_FRAMES], [0, 1], {
                 extrapolateLeft: 'clamp',
                 extrapolateRight: 'clamp',
               });
@@ -189,6 +220,380 @@ const LampPool: React.FC = () => {
 };
 
 /* -------------------------------------------------------------------------- */
+/* Felt Table: dice                                                            */
+/* -------------------------------------------------------------------------- */
+
+/** A die takes longer than a pen stroke: it has to tumble and land. */
+const DIE_ROLL_FRAMES = 9;
+
+/** Pip positions on a 3×3 grid, by face. The layout every die in the world uses. */
+const PIPS: Record<number, ReadonlyArray<readonly [number, number]>> = {
+  1: [[1, 1]],
+  2: [
+    [0, 0],
+    [2, 2],
+  ],
+  3: [
+    [0, 0],
+    [1, 1],
+    [2, 2],
+  ],
+  4: [
+    [0, 0],
+    [2, 0],
+    [0, 2],
+    [2, 2],
+  ],
+  5: [
+    [0, 0],
+    [2, 0],
+    [1, 1],
+    [0, 2],
+    [2, 2],
+  ],
+  6: [
+    [0, 0],
+    [2, 0],
+    [0, 1],
+    [2, 1],
+    [0, 2],
+    [2, 2],
+  ],
+};
+
+/**
+ * The face a die shows while it is still in the air.
+ *
+ * Driven by the frame rather than by `Math.random`, so the same video renders
+ * the same way every time — the plan's determinism rule applies to a decorative
+ * tumble exactly as much as to a stat.
+ */
+const tumblingFace = (index: number, frame: number): number =>
+  1 + ((index * 5 + Math.floor(frame / 2)) % 6);
+
+/**
+ * A count thrown as dice: six pips to a die, each one tumbling in and landing.
+ *
+ * The roll is the detail that makes it. A die that simply faded in at its final
+ * face would be a picture of dice; cycling the face while it is in the air and
+ * settling on the real one is what reads as a throw.
+ */
+export const DiceMarks: React.FC<CountMarksProps> = ({
+  count,
+  delay = 0,
+  max = 36,
+  windowFrames = 46,
+}) => {
+  const frame = useCurrentFrame();
+  const { color } = useTheme();
+  const shown = Math.min(count, max);
+  const dice = Math.ceil(shown / 6);
+  const size = 88;
+  const pip = 8;
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+      {Array.from({ length: dice }, (_, index) => {
+        const value = Math.min(6, shown - index * 6);
+        const landed = markProgress(frame - delay, index, dice, windowFrames, DIE_ROLL_FRAMES);
+        if (landed <= 0) return null;
+
+        const face = landed < 1 ? tumblingFace(index, frame) : value;
+        // Tumbles through most of a turn and settles square.
+        const spin = (1 - landed) * -150;
+        // Lands slightly hard, then sits.
+        const drop = (1 - landed) * -26;
+        const scale = 0.62 + landed * 0.38;
+
+        return (
+          <svg
+            key={index}
+            width={size}
+            height={size}
+            viewBox="0 0 60 60"
+            aria-hidden
+            style={{ transform: `translateY(${drop}px) rotate(${spin}deg) scale(${scale})` }}
+          >
+            <rect
+              x={2}
+              y={2}
+              width={56}
+              height={56}
+              rx={13}
+              fill={color.surface}
+              stroke={withAlpha(color.ink, 0.35)}
+              strokeWidth={1.5}
+            />
+            {PIPS[face].map(([cx, cy], p) => (
+              <circle
+                key={p}
+                cx={13 + cx * 17}
+                cy={13 + cy * 17}
+                r={pip}
+                fill={landed < 1 ? withAlpha(color.accent, 0.55) : color.accent}
+              />
+            ))}
+          </svg>
+        );
+      })}
+    </div>
+  );
+};
+
+/** Stitched edging, like the border of a card table. Drawn on every slide. */
+const FeltNap: React.FC = () => {
+  const { color } = useTheme();
+  return (
+    <AbsoluteFill
+      aria-hidden
+      style={{
+        // The nap of the cloth, and a stitched line inset from the frame.
+        backgroundImage: `repeating-linear-gradient(118deg, ${withAlpha(
+          color.ink,
+          0.05,
+        )} 0 2px, transparent 2px 9px)`,
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          inset: 54,
+          borderRadius: 26,
+          border: `2px dashed ${withAlpha(color.accent, 0.22)}`,
+        }}
+      />
+    </AbsoluteFill>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* Meadow: laid tiles                                                          */
+/* -------------------------------------------------------------------------- */
+
+/** A tile is placed, not stroked: long enough to see it turn and settle. */
+const TILE_LAY_FRAMES = 6;
+
+/**
+ * A count laid out as tiles, one placed at a time.
+ *
+ * Each tile carries a road across it, quarter-turned by its own index, so the
+ * finished block is a little mosaic rather than a grid of identical squares —
+ * the same reason a tally crosses every fifth mark.
+ */
+export const TileMarks: React.FC<CountMarksProps> = ({
+  count,
+  delay = 0,
+  max = 24,
+  windowFrames = 46,
+}) => {
+  const frame = useCurrentFrame();
+  const { color } = useTheme();
+  const shown = Math.min(count, max);
+  const size = 62;
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxWidth: 8 * (size + 10) }}>
+      {Array.from({ length: shown }, (_, index) => {
+        const laid = markProgress(frame - delay, index, shown, windowFrames, TILE_LAY_FRAMES);
+        if (laid <= 0) return null;
+
+        // Dropped in from above with a turn that settles square.
+        const turn = (1 - laid) * (index % 2 === 0 ? 16 : -16);
+        const drop = (1 - laid) * -22;
+        // Which way this tile's road runs. Deterministic, and varied enough
+        // that no two neighbours in a row match.
+        const quarter = (index * 90 + Math.floor(index / 8) * 90) % 360;
+
+        return (
+          <svg
+            key={index}
+            width={size}
+            height={size}
+            viewBox="0 0 40 40"
+            aria-hidden
+            style={{ transform: `translateY(${drop}px) rotate(${turn}deg)`, opacity: laid }}
+          >
+            <rect
+              x={1}
+              y={1}
+              width={38}
+              height={38}
+              rx={4}
+              fill={color.surface}
+              stroke={withAlpha(color.ink, 0.25)}
+              strokeWidth={1.5}
+            />
+            <g transform={`rotate(${quarter} 20 20)`}>
+              <path
+                d="M20 0 L20 20 L40 20"
+                fill="none"
+                stroke={color.accent}
+                strokeWidth={5}
+                strokeLinecap="square"
+              />
+              <circle cx={20} cy={20} r={3.4} fill={color.accentAlt} />
+            </g>
+          </svg>
+        );
+      })}
+    </div>
+  );
+};
+
+/** A faint field of tiles behind everything, so the ground is the same material. */
+const TileField: React.FC = () => {
+  const { color } = useTheme();
+  return (
+    <AbsoluteFill
+      aria-hidden
+      style={{
+        backgroundImage: `repeating-linear-gradient(0deg, ${withAlpha(
+          color.ink,
+          0.06,
+        )} 0 1px, transparent 1px 96px), repeating-linear-gradient(90deg, ${withAlpha(
+          color.ink,
+          0.06,
+        )} 0 1px, transparent 1px 96px)`,
+      }}
+    />
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* Peg Board: a scoring track                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** A peg drops and seats; slower than a stroke, faster than a die. */
+const PEG_SET_FRAMES = 5;
+
+/** Holes to a row on the counting track. */
+const PEGS_PER_ROW = 10;
+
+/**
+ * Rows of holes drilled, whichever count is being shown.
+ *
+ * Deliberately more holes than there are ever pegs. With the track exactly as
+ * long as the count it stopped being a track — thirty filled holes and no empty
+ * ones is a row of dots, and the whole idea is a position on a board.
+ */
+const TRACK_ROWS = 4;
+
+/** Never more pegs than this, so there is always empty track ahead of them. */
+const MAX_PEGS = TRACK_ROWS * PEGS_PER_ROW - PEGS_PER_ROW;
+
+/**
+ * A count pegged out along a drilled track, the way a cribbage board scores.
+ *
+ * Every hole is drilled first and stays drilled — the empty ones are as much
+ * the point as the filled ones, because they are what makes it read as a track
+ * with a position on it rather than a row of dots.
+ */
+export const PegMarks: React.FC<CountMarksProps> = ({
+  count,
+  delay = 0,
+  max = MAX_PEGS,
+  windowFrames = 46,
+}) => {
+  const frame = useCurrentFrame();
+  const { color } = useTheme();
+  const shown = Math.min(count, max);
+  const pitch = 52;
+  const rowHeight = 46;
+  const width = PEGS_PER_ROW * pitch;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {Array.from({ length: TRACK_ROWS }, (_, row) => {
+        const inRow = Math.max(0, Math.min(PEGS_PER_ROW, shown - row * PEGS_PER_ROW));
+        return (
+          <svg
+            key={row}
+            width={width}
+            height={rowHeight}
+            viewBox={`0 0 ${width} ${rowHeight}`}
+            aria-hidden
+          >
+            {/* The routed groove the holes are drilled into. */}
+            <rect
+              x={4}
+              y={rowHeight / 2 - 15}
+              width={width - 8}
+              height={30}
+              rx={15}
+              fill={withAlpha(color.ink, 0.1)}
+            />
+
+            {Array.from({ length: PEGS_PER_ROW }, (_, hole) => {
+              const index = row * PEGS_PER_ROW + hole;
+              const cx = pitch / 2 + hole * pitch;
+              // Every fifth hole is a marked space, as on a real board.
+              const marked = (index + 1) % 5 === 0;
+              return (
+                <circle
+                  key={`hole-${hole}`}
+                  cx={cx}
+                  cy={rowHeight / 2}
+                  r={marked ? 11 : 9}
+                  fill={withAlpha(color.ink, 0.34)}
+                  stroke={withAlpha(color.ink, marked ? 0.45 : 0.24)}
+                  strokeWidth={1.5}
+                />
+              );
+            })}
+
+            {Array.from({ length: inRow }, (_, hole) => {
+              const index = row * PEGS_PER_ROW + hole;
+              const seated = markProgress(frame - delay, index, shown, windowFrames, PEG_SET_FRAMES);
+              if (seated <= 0) return null;
+              const cx = pitch / 2 + hole * pitch;
+              // Falls into the hole and seats; the last of the travel is the
+              // peg settling rather than still dropping.
+              const drop = (1 - seated) * -34;
+              return (
+                <g key={`peg-${hole}`} transform={`translate(0 ${drop})`} opacity={seated}>
+                  <circle cx={cx} cy={rowHeight / 2} r={9.5} fill={color.accent} />
+                  {/* A highlight on the shoulder, so a peg reads as turned wood
+                      rather than a flat dot. */}
+                  <circle
+                    cx={cx - 2.6}
+                    cy={rowHeight / 2 - 3}
+                    r={3}
+                    fill={withAlpha(color.surface, 0.55)}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+        );
+      })}
+    </div>
+  );
+};
+
+/** The board's own tracks, running down both margins on every slide. */
+const PegTracks: React.FC = () => {
+  const { color } = useTheme();
+  const holes = 26;
+  return (
+    <AbsoluteFill aria-hidden>
+      {[54, 1026].map((x) => (
+        <svg key={x} width={28} height={1920} style={{ position: 'absolute', left: x - 14, top: 0 }}>
+          {Array.from({ length: holes }, (_, i) => (
+            <circle
+              key={i}
+              cx={14}
+              cy={70 + i * 70}
+              r={(i + 1) % 5 === 0 ? 5 : 4}
+              fill={withAlpha(color.ink, 0.3)}
+            />
+          ))}
+        </svg>
+      ))}
+    </AbsoluteFill>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
 /* Dispatch                                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -197,6 +602,9 @@ export const SignatureBackdrop: React.FC = () => {
   const { signature } = useTheme();
   if (signature === 'tally') return <RuledLines />;
   if (signature === 'lamp') return <LampPool />;
+  if (signature === 'dice') return <FeltNap />;
+  if (signature === 'tiles') return <TileField />;
+  if (signature === 'pegs') return <PegTracks />;
   return null;
 };
 
@@ -215,5 +623,26 @@ export const SignaturePlate: React.FC<{ children: React.ReactNode; delay?: numbe
   return <>{children}</>;
 };
 
-/** True when the theme wants counts shown as tally marks alongside the figure. */
-export const useTally = (): boolean => useTheme().signature === 'tally';
+/**
+ * The way this theme draws a count, or null if it does not draw one.
+ *
+ * Four of the six starters answer "how many" with something drawn as well as a
+ * figure. A slide asks once and renders `<CountMarks>`; it never needs to know
+ * which theme is on.
+ */
+export const useCountMarks = (): CountSignature | null => {
+  const { signature } = useTheme();
+  return (COUNT_SIGNATURES as SignatureId[]).includes(signature)
+    ? (signature as CountSignature)
+    : null;
+};
+
+/** Whichever counting mark the current theme uses. */
+export const CountMarks: React.FC<CountMarksProps> = (props) => {
+  const kind = useCountMarks();
+  if (kind === 'tally') return <TallyMarks {...props} />;
+  if (kind === 'dice') return <DiceMarks {...props} />;
+  if (kind === 'tiles') return <TileMarks {...props} />;
+  if (kind === 'pegs') return <PegMarks {...props} />;
+  return null;
+};

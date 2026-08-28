@@ -2,7 +2,7 @@ import { formatDay, formatDays, formatDuration, formatNumber } from '@/shared/fo
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { BoxArt } from '../BoxArt';
 import { CountUp, Reveal } from '../motion';
-import { SignaturePlate } from '../signature';
+import { CountMarks, SignaturePlate, useCountMarks } from '../signature';
 import { boxArtFor, useBoxArtManifest } from '../useBoxArt';
 import { Caption, DisplayNumber, Eyebrow, Headline, SafeArea, Stack, StatBlock } from './layout';
 import type { SlideProps } from './Slides';
@@ -40,16 +40,28 @@ export const LongestWinStreakSlide: React.FC<SlideProps> = ({ stat }) => {
 };
 
 export const CoPlayerCountSlide: React.FC<SlideProps> = ({ stat }) => {
+  // Where a theme counts in its own hand: Scorepad's strokes, Felt Table's
+  // dice, Meadow's tiles, Peg Board's pegs. The plays slide is stripes for
+  // everyone, so this is the slide that tells the six designs apart.
+  const marks = useCountMarks();
   if (stat?.id !== 'coPlayerCount') return null;
+
   return (
     <SafeArea>
-      <SignaturePlate delay={BEAT.first}>
-        <StatBlock
-          eyebrow="Played with"
-          value={<CountUp to={stat.count} delay={BEAT.second} />}
-          caption={stat.count === 1 ? 'other person' : 'different people'}
-        />
-      </SignaturePlate>
+      <Stack gap={26}>
+        <SignaturePlate delay={BEAT.first}>
+          <StatBlock
+            eyebrow="Played with"
+            value={<CountUp to={stat.count} delay={BEAT.second} />}
+            caption={stat.count === 1 ? 'other person' : 'different people'}
+          />
+        </SignaturePlate>
+        {marks ? (
+          <Reveal delay={BEAT.third} distance={0}>
+            <CountMarks count={stat.count} delay={BEAT.third} />
+          </Reveal>
+        ) : null}
+      </Stack>
     </SafeArea>
   );
 };
