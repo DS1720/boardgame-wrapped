@@ -1,6 +1,7 @@
 import { AbsoluteFill } from 'remotion';
 import type { Track } from '@/shared/audio';
 import { formatNumber } from '@/shared/format';
+import { outroFactFor } from '@/stats/outroFact';
 import { superlativeFor } from '@/stats/superlative';
 import type { WrappedStats } from '@/stats/types';
 import { FontLoader, ThemeProvider, useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
@@ -45,6 +46,7 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
   const games = topFive?.id === 'topFive' ? topFive.games.slice(0, 6) : [];
   const totals = stats.stats.find((s) => s.id === 'totalPlays');
   const superlative = superlativeFor(stats);
+  const fact = outroFactFor(stats);
 
   return (
     <AbsoluteFill style={{ backgroundColor: theme.color.bg }}>
@@ -95,6 +97,14 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
             <p style={{ ...bodyFont, fontSize: body * 0.8, color: theme.color.inkMuted, margin: 0 }}>
               {formatNumber(totals.plays)} plays · {formatNumber(totals.distinctGames)} games ·{' '}
               {formatNumber(totals.nights)} nights
+            </p>
+          )}
+          {/* The square is the outro as a still, so it carries the same
+              fourth fact. Two cards claiming different things about one year
+              is worse than either. */}
+          {fact && (
+            <p style={{ ...bodyFont, fontSize: body * 0.74, color: theme.color.inkMuted, margin: 0 }}>
+              {fact}
             </p>
           )}
           {superlative && (

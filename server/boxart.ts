@@ -58,7 +58,19 @@ export interface PrefetchOptions {
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const DEFAULT_DIR = path.resolve(here, '..', 'public', 'boxart');
+/**
+ * Where the app's static files live: box art, uploaded audio, mirrored fonts.
+ *
+ * `public/` beside the source in a checkout. The desktop build points this at
+ * the user's AppData instead, because everything under it is either downloaded
+ * or uploaded *after* install — and data a user created does not belong inside
+ * a program's own install directory, which an update is entitled to replace.
+ */
+export const PUBLIC_DIR = process.env.BGW_PUBLIC_DIR
+  ? path.resolve(process.env.BGW_PUBLIC_DIR)
+  : path.resolve(here, '..', 'public');
+
+export const DEFAULT_DIR = path.resolve(PUBLIC_DIR, 'boxart');
 
 const RETRIES = 2;
 const RETRY_DELAY_MS = 400;

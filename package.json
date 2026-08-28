@@ -13,7 +13,11 @@
     "video:studio": "remotion studio src/video/index.ts",
     "video:render": "remotion render src/video/index.ts Wrapped out/test.mp4",
     "prefetch:boxart": "tsx scripts/prefetch-boxart.ts",
-    "prefetch:fonts": "tsx scripts/prefetch-fonts.ts"
+    "prefetch:fonts": "tsx scripts/prefetch-fonts.ts",
+    "build": "vite build",
+    "build:server": "tsx scripts/build-server.ts",
+    "app:build": "tsx scripts/build-app.ts",
+    "app:start": "npm run build && npm run build:server && electron electron/main.cjs"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.0",
@@ -22,6 +26,7 @@
     "@remotion/media-utils": "^4.0.0",
     "@remotion/player": "^4.0.0",
     "@remotion/renderer": "^4.0.0",
+    "electron-updater": "^6.8.9",
     "express": "^4.19.2",
     "idb-keyval": "^6.2.1",
     "node-vibrant": "^4.0.4",
@@ -35,9 +40,67 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
     "tsx": "^4.23.12",
     "typescript": "^5.9.3",
     "vite": "^5.3.4",
     "vitest": "^2.1.9"
+  },
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.boardgamewrapped.app",
+    "productName": "Board Game Wrapped",
+    "directories": {
+      "output": "release",
+      "buildResources": "electron"
+    },
+    "asar": false,
+    "files": [
+      "electron/**",
+      "build/**",
+      "dist/**",
+      "src/**",
+      "public/fonts/**",
+      "remotion.config.ts",
+      "remotion.webpack.ts",
+      "tsconfig.json",
+      "package.json",
+      "node_modules/**",
+      "!**/__tests__/**",
+      "!**/*.test.*",
+      "!out/**",
+      "!release/**",
+      "!data/**"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName} Setup ${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Board Game Wrapped"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "DS1720",
+        "repo": "boardgame-wrapped"
+      }
+    ]
   }
 }

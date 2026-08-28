@@ -7,9 +7,17 @@
  * from the image host and then never needs the network again.
  */
 import express from 'express';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_DIR, prefetchBoxArt, readManifest, type PrefetchProgress, type PrefetchSummary } from './boxart';
+import {
+  DEFAULT_DIR,
+  prefetchBoxArt,
+  PUBLIC_DIR,
+  readManifest,
+  type PrefetchProgress,
+  type PrefetchSummary,
+} from './boxart';
 import {
   AudioError,
   addTrack,
@@ -29,18 +37,67 @@ import {
   type RenderJob,
 } from './render';
 import { startBatch, type BatchJob, type BatchRequestItem } from './batch';
+import { defaultOutDir, getOutDir, isCustomOutDir, setOutDir, SettingsError } from './settings';
 import type { RawGame } from '../src/shared/types';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = path.resolve(dirname, '..', 'out');
-const PORT = 4000;
+const PROJECT_ROOT = path.resolve(dirname, '..');
+
+
+/**
+ * The desktop build hands us a port; the dev service keeps 4000.
+ *
+ * Packaged, the app has to survive somebody already running the dev service on
+ * 4000, so the launcher picks a free port and tells us which.
+ */
+const PORT = Number(process.env.BGW_PORT ?? 4000);
+
+/** The built UI, when there is one. Absent in a dev checkout that never ran `npm run build`. */
+const DIST_DIR = path.resolve(PROJECT_ROOT, 'dist');
+
 
 const app = express();
+
+/**
+ * In dev, Vite proxies `/api/x` here as `/x`. Packaged there is no Vite, so the
+ * same rewrite has to happen for real — otherwise every route in this file
+ * would need to be registered twice.
+ */
+app.use((req, _res, next) => {
+  if (req.url === '/api') req.url = '/';
+  else if (req.url.startsWith('/api/')) req.url = req.url.slice(4);
+  next();
+});
+
 // Covers run to ~1MB each and the games[] array of a large export is chunky.
 app.use(express.json({ limit: '32mb' }));
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, outDir: OUT_DIR });
+  res.json({ ok: true, outDir: getOutDir() });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Settings                                                                    */
+/* -------------------------------------------------------------------------- */
+
+app.get('/settings', (_req, res) => {
+  res.json({ outDir: getOutDir(), defaultOutDir: defaultOutDir(), custom: isCustomOutDir() });
+});
+
+/**
+ * Choose where videos are written. An empty value goes back to the default,
+ * which is why it is not the same as an empty string being rejected.
+ */
+app.post('/settings/output', (req, res) => {
+  const body = req.body as { dir?: string | null } | undefined;
+  try {
+    const dir = setOutDir(body?.dir ?? null);
+    res.json({ outDir: dir, defaultOutDir: defaultOutDir(), custom: isCustomOutDir() });
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof SettingsError ? err.message : 'That folder cannot be used.',
+    });
+  }
 });
 
 /* -------------------------------------------------------------------------- */
@@ -333,6 +390,37 @@ app.post('/render/reveal', async (_req, res) => {
   res.json({ opened: true });
 });
 
-app.listen(PORT, () => {
-  console.log(`Render service on http://localhost:${PORT}`);
+/* -------------------------------------------------------------------------- */
+/* The UI, when it has been built                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Serve the built app from the same origin as the API.
+ *
+ * Registered last, so it can never shadow a route above it. Same origin is the
+ * point: it means the packaged app needs no CORS config and no proxy, and the
+ * components keep calling `/api` exactly as they do under Vite.
+ */
+if (existsSync(DIST_DIR)) {
+  // `public/` first, and it is not copied into `dist/` at build time: a cover
+  // downloaded after the app was installed has to be visible to the preview,
+  // and a stale copy shadowing it would show a gap the render does not have.
+  app.use(express.static(PUBLIC_DIR));
+  app.use(express.static(DIST_DIR));
+  app.get('*', (req, res) => {
+    // A request for something that looks like a file and was not found is a
+    // 404, not the app shell. Returning index.html for /boxart/x.png hands
+    // an <img> a page of HTML and 200 OK, and the failure then shows up as
+    // a blank cover with nothing in the log to explain it.
+    if (path.extname(req.path)) {
+      res.status(404).end();
+      return;
+    }
+    res.sendFile(path.join(DIST_DIR, 'index.html'));
+  });
+}
+
+/** Bound to 127.0.0.1, not 0.0.0.0: this is a local tool and stays on this machine. */
+export const server = app.listen(PORT, '127.0.0.1', () => {
+  console.log(`Board Game Wrapped on http://localhost:${PORT}`);
 });

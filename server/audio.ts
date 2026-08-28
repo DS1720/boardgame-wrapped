@@ -11,8 +11,8 @@ import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/pro
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { fileURLToPath } from 'node:url';
 import { analyzeBeats, type BeatAnalysis } from '../src/audio/analyze';
+import { PUBLIC_DIR } from './boxart';
 import {
   AUDIO_MANIFEST_FILE,
   AUDIO_MANIFEST_VERSION,
@@ -26,8 +26,8 @@ import {
 const execFileAsync = promisify(execFile);
 const require_ = createRequire(import.meta.url);
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-export const AUDIO_DIR = path.resolve(here, '..', 'public', 'audio');
+/** Uploaded tracks, under whichever public directory is in force. */
+export const AUDIO_DIR = path.resolve(PUBLIC_DIR, 'audio');
 
 /** Analysis rate. Plenty for onset detection and four times faster than 44.1k. */
 const ANALYSIS_SAMPLE_RATE = 22050;

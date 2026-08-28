@@ -16,6 +16,25 @@ import type { TimelineSlideId } from '@/video/timeline';
 const API = '/api';
 const POLL_MS = 400;
 
+/**
+ * The desktop shell's native folder picker, when there is one.
+ *
+ * Absent in a browser, where a page cannot be handed a filesystem path — there
+ * the field is typed into instead. Declared rather than imported: this is the
+ * one thing the UI knows about the shell, and it is optional.
+ */
+declare global {
+  interface Window {
+    bgw?: { chooseFolder?: (current: string) => Promise<string | null> };
+  }
+}
+
+interface OutputSettings {
+  outDir: string;
+  defaultOutDir: string;
+  custom: boolean;
+}
+
 interface Progress {
   phase:
     | 'bundling'
@@ -62,6 +81,8 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [output, setOutput] = useState<OutputSettings | null>(null);
+  const [folderError, setFolderError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const timer = useRef<number | null>(null);
 
@@ -123,6 +144,36 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
       .catch(() => setOffline(true));
   }, []);
 
+  useEffect(() => {
+    void fetch(`${API}/settings`)
+      .then((res) => (res.ok ? (res.json() as Promise<OutputSettings>) : null))
+      .then((s) => s && setOutput(s))
+      .catch(() => undefined);
+  }, []);
+
+  /** Send a folder to the service, which is what decides whether it is usable. */
+  const applyFolder = useCallback(async (dir: string | null) => {
+    setFolderError(null);
+    try {
+      const res = await fetch(`${API}/settings/output`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ dir }),
+      });
+      const body = (await res.json()) as OutputSettings & { error?: string };
+      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+      setOutput(body);
+    } catch (err) {
+      setFolderError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  const browseFolder = useCallback(async () => {
+    const chosen = await window.bgw?.chooseFolder?.(output?.outDir ?? '');
+    // Null is a cancelled dialog, not a request to reset.
+    if (chosen) void applyFolder(chosen);
+  }, [applyFolder, output?.outDir]);
+
   if (offline) {
     return (
       <section className="panel">
@@ -147,6 +198,38 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
           ? `${stats.playerName} · ${stats.rangeLabel} · ${theme.name} — ${seconds.toFixed(1)}s, 1080 × 1920`
           : 'Pick a player to render a video.'}
       </p>
+
+      <div className="render-folder">
+        <label htmlFor="out-dir">Save videos to</label>
+        <div className="row">
+          <input
+            id="out-dir"
+            type="text"
+            value={output?.outDir ?? ''}
+            spellCheck={false}
+            placeholder={output?.defaultOutDir ?? ''}
+            onChange={(e) => setOutput((o) => (o ? { ...o, outDir: e.target.value } : o))}
+            // Committed on blur or Enter rather than per keystroke: every commit
+            // creates the folder, and doing that while somebody is halfway
+            // through typing a path would litter their disk.
+            onBlur={(e) => void applyFolder(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+          />
+          {typeof window !== 'undefined' && window.bgw?.chooseFolder && (
+            <button className="secondary" onClick={() => void browseFolder()}>
+              Choose…
+            </button>
+          )}
+        </div>
+        {output?.custom && (
+          <button className="link" onClick={() => void applyFolder(null)}>
+            Use the default ({output.defaultOutDir})
+          </button>
+        )}
+        {folderError && <p className="error">{folderError}</p>}
+      </div>
 
       {running && progress && (
         <div className="render-progress">

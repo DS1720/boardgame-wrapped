@@ -297,6 +297,29 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
   gap: 12px;
 }
 
+.render-folder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.render-folder .row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.render-folder input {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.render-folder .link {
+  align-self: flex-start;
+}
+
 .range-name {
   display: flex;
   flex-direction: column;

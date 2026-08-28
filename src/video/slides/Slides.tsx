@@ -2,6 +2,7 @@
 import type { Stat } from '@/stats/types';
 import type { WrappedStats } from '@/stats/types';
 import { formatDay, formatNumber, formatPercent } from '@/shared/format';
+import { outroFactFor } from '@/stats/outroFact';
 import { superlativeFor } from '@/stats/superlative';
 import { withAlpha } from '@/theme/color';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
@@ -481,6 +482,7 @@ export const OutroSlide: React.FC<SlideProps> = ({ stats }) => {
   const totals = stats.stats.find((s) => s.id === 'totalPlays');
   // Null when nothing about this year was distinctive enough to claim.
   const superlative = superlativeFor(stats);
+  const fact = outroFactFor(stats);
 
   return (
     <SafeArea justify="center">
@@ -505,6 +507,14 @@ export const OutroSlide: React.FC<SlideProps> = ({ stats }) => {
               <p style={{ ...bodyFont, fontSize: body, color: color.inkMuted, margin: 0 }}>
                 {formatNumber(totals.plays)} plays · {formatNumber(totals.distinctGames)} games ·{' '}
                 {formatNumber(totals.nights)} nights
+              </p>
+            ) : null}
+            {/* A fourth fact, deliberately on an axis the three above do not
+                cover: hours, people, how it went, or where. Another count of
+                the same kind would read as a rounding of the first three. */}
+            {fact ? (
+              <p style={{ ...bodyFont, fontSize: body * 0.92, color: color.inkMuted, margin: 0 }}>
+                {fact}
               </p>
             ) : null}
             {superlative ? (

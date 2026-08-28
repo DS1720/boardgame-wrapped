@@ -27,6 +27,8 @@ npm test             # vitest, 342 tests
 npm run typecheck    # tsc --noEmit
 npm run video:studio # Remotion Studio
 npm run video:render # renders out/test.mp4
+npm run app:build    # Windows installer + unpacked app
+npm run app:start    # the desktop shell, unpackaged
 ```
 
 ### Dry-run: check stats without rendering
@@ -703,6 +705,23 @@ Things that keep the frame moving:
   to pass a flag down. It is reserved rather than measured: measuring text needs
   two passes, and Remotion renders each frame once.
 
+### The outro's fourth fact
+
+[src/stats/outroFact.ts](src/stats/outroFact.ts) adds one line under
+"233 plays · 71 games · 73 nights". The rule it is written to: **it has to add
+an axis those three do not have.** Plays, games and nights are one thing seen
+three ways — how often, how varied, how many evenings — so a fourth count of the
+same kind reads as a rounding of the first three.
+
+Candidates in order: hours (a different unit), people (the only social fact),
+win rate (the only one saying how it *went*), place. `gamesLearned` is
+deliberately excluded — "34 new games" beside "71 games" is the same axis twice
+and invites arithmetic the card cannot support. A test asserts the line never
+contains "plays", "games" or "nights", or any of the three numbers.
+
+The square carries the same line, because two cards claiming different things
+about one year is worse than either.
+
 ### The quips are data, not filler
 
 [src/stats/quips.ts](src/stats/quips.ts) is a pure `quipFor(slideId, stats)`.
@@ -853,7 +872,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 406 passing tests. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 415 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.
@@ -883,6 +902,110 @@ Known gaps left deliberately:
 - A **one-play player still gets a ten-slide video**, including a "top five"
   showing one game. It is coherent and never breaks, but step 12's polish pass
   should consider a shorter cut when `stats.thin` is true.
+
+## The desktop build
+
+`npm run app:build` produces a Windows installer. The shape of it:
+
+| Piece | What it is |
+|---|---|
+| [electron/main.cjs](electron/main.cjs) | Picks a free port, spawns the service, points a window at it |
+| [scripts/build-server.ts](scripts/build-server.ts) | esbuild bundles `server/index.ts` → `build/server.cjs` |
+| [scripts/build-app.ts](scripts/build-app.ts) | UI → service → electron-builder, and says where the .exe went |
+| `build` field in package.json | electron-builder config |
+
+**The packaged app runs the same server the dev script does.** It is not a
+reimplementation — the shell starts `build/server.cjs`, which is
+`server/index.ts` with its imports resolved. There is no second code path, so
+there is no class of bug that only appears in the .exe.
+
+Six things here are load-bearing:
+
+- **`asar: false`.** Remotion's `bundle()` runs webpack at *render* time, and
+  webpack resolves modules by walking real directories. Inside an asar archive
+  it does not find them, and the failure surfaces on the first render rather
+  than at build time. This is also why `src/**` ships: the composition is
+  compiled from source when a render starts.
+- **The service is spawned, not imported.** `process.execPath` with
+  `ELECTRON_RUN_AS_NODE=1` is Electron acting as Node, so the app needs no
+  system Node — and a service that dies cannot take the window with it.
+- **The port is picked at runtime, never 4000.** Somebody running
+  `npm run server` in a checkout would otherwise collide with their installed
+  copy, and the symptom would be the app quietly showing the wrong data.
+- **`/api` is rewritten in the server itself.** Vite's proxy does this in dev;
+  packaged there is no Vite, so `server/index.ts` strips the prefix at the top
+  of the middleware stack. The alternative was registering every route twice.
+- **`copyPublicDir: false`.** Vite would copy 133 MB of box art into `dist/`,
+  and — worse than the size — a cover downloaded *after* the build would land in
+  `public/` where the stale `dist/` copy shadowed it. The packaged server serves
+  `public/` directly, ahead of `dist/`, so it is always current.
+- **The output folder is settable, and read fresh on every render.**
+  [server/settings.ts](server/settings.ts) owns it, persisted to
+  `settings.json` beside the user's other data. `render.ts` calls
+  `getOutDir()` inside the job rather than capturing a constant at import —
+  a captured value would keep writing to the old folder until the service was
+  restarted, which is the kind of bug that looks like the setting silently not
+  working. Setting a folder creates it *and writes a probe file*: a path that
+  looks fine and turns out to be read-only should fail now, not after two
+  minutes of rendering. `revealInFolder`'s escape guard reads the same
+  function, so it still refuses anything outside the current output folder.
+- **The folder picker is the only privileged thing the UI can do.**
+  [electron/preload.cjs](electron/preload.cjs) exposes exactly one function over
+  `contextBridge`. A browser cannot hand a page a filesystem path — that is a
+  deliberate rule, not an oversight — so in dev the field is typed into and the
+  **Choose…** button is simply absent. `window.bgw?.chooseFolder` being
+  optional is what makes one component work in both.
+- **Nothing the user accumulates lives in the install directory.**
+  `BGW_OUT_DIR` sends renders to `Videos\Board Game Wrapped` and
+  `BGW_PUBLIC_DIR` sends covers, audio and fonts to
+  `%APPDATA%\boardgame-wrapped\public`. An update is entitled to replace the
+  program's own files, so a 110 MB cover cache beside the .exe is a cache every
+  update destroys, and an uploaded track there is a track the user loses.
+  `bundle({ publicDir })` has to be given the same directory — `staticFile()`
+  resolves against it, and a disagreement means covers present in the preview
+  and missing from the render. The shipped fonts are copied into it on first
+  run, because those ship with the app but are read through `staticFile`.
+
+### Updating
+
+`electron-updater` checks GitHub Releases on startup, downloads in the
+background and installs on quit. `.github/workflows/release.yml` builds and
+uploads a **draft** release when a `v*` tag is pushed.
+
+- **Releases, not pushes.** Only a release carries an installer, and the draft
+  step means a bad build can be deleted rather than shipped.
+- **`electron-updater` is a `dependency`, not a devDependency.** electron-builder
+  ships only production dependencies, so as a devDependency it is absent from
+  the packaged app and the update check silently never runs.
+- **Private repos do not work** without embedding a token in the app. The repo
+  currently answers 404 unauthenticated, so this is untested end to end: the
+  wiring is in place, but no update has actually been installed.
+
+### Two things that will bite
+
+- **Building into `Documents` fails with `EPERM`.** electron-builder renames
+  `win-unpacked.tmp`, and OneDrive holds a handle during the sync. Reproducible:
+  `release/` inside this repo fails every time, the same build to `C:\tmp`
+  succeeds. `build-app.ts` therefore writes to `~/BoardGameWrapped-build` by
+  default; `BGW_RELEASE_DIR` overrides it.
+- **`ELECTRON_RUN_AS_NODE` leaking into the parent** makes `require('electron')`
+  return a string, and the shell dies on `app.isPackaged`. `build-app.ts` strips
+  it from the environment it passes down for exactly this reason.
+
+Measured: **633 MB unpacked, a 169 MB installer**, and a render from inside the
+packaged app produced the same 20.5 MB file the CLI does, covers included, with
+box art resolved from AppData. **The first render downloads Chrome Headless
+Shell (113 MB), once** — Remotion fetches its own browser rather than using
+Electron's.
+
+It was 763 MB and 303 MB before `public/**` in the packaged `files` was narrowed
+to `public/fonts/**`: the installer was carrying a 110 MB cover cache that the
+app no longer reads from there.
+
+**The SPA fallback must not answer for file-shaped paths.** `app.get('*')`
+returning `index.html` gave a missing cover a page of HTML and `200 OK`, which
+an `<img>` reports as a broken image with nothing in the log. Anything with an
+extension now 404s.
 
 ## Repo gotchas
 

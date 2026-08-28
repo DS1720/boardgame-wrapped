@@ -1,0 +1,59 @@
+# Build the Windows app and publish it as a GitHub Release.
+#
+# Triggered by a version tag, not by every push. A push is a change; a release
+# is a decision — and the installed app only ever looks at releases, so tagging
+# is what makes an update reach anybody.
+#
+#   npm version patch      # bumps package.json and creates the tag
+#   git push --follow-tags
+#
+# The release is created as a draft. Nothing reaches an installed copy until it
+# is published, so a build that turns out wrong can be deleted instead of
+# shipped.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Buildable by hand as well, for checking the workflow itself.
+  workflow_dispatch:
+
+permissions:
+  # electron-builder creates the release and uploads to it.
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # A release that fails its own tests is not a release.
+      - name: Test
+        run: npm test
+
+      - name: Mirror the fonts
+        # public/ is gitignored, so a clean checkout has no fonts to ship and
+        # every render would fall back to a system face.
+        run: npm run prefetch:fonts
+
+      - name: Build and publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm run build
+          npm run build:server
+          npx electron-builder --win --publish always

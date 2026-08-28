@@ -18,6 +18,8 @@ import {
   selectComposition,
 } from '@remotion/renderer';
 import { withProjectAliases } from '../remotion.webpack';
+import { PUBLIC_DIR } from './boxart';
+import { getOutDir } from './settings';
 import { slugify } from '../src/shared/format';
 import type { Track } from '../src/shared/audio';
 import type { WrappedStats } from '../src/stats/types';
@@ -26,7 +28,19 @@ import type { TimelineSlideId } from '../src/video/timeline';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(here, '..');
-export const OUT_DIR = path.resolve(PROJECT_ROOT, 'out');
+/**
+ * Where finished videos land, asked fresh every time.
+ *
+ * Not a constant: the folder is settable from the app, so a value captured at
+ * import time would keep sending renders to the old place until the service was
+ * restarted. `out/` in a checkout, the user's Videos folder in the desktop
+ * build, or wherever they have chosen.
+ *
+ * Only the *output* moves. Box art, audio and fonts stay under `public/`,
+ * because `staticFile()` resolves against the bundle's public directory and
+ * moving them would mean every cover was missing from the render.
+ */
+export { getOutDir } from './settings';
 const ENTRY = path.resolve(PROJECT_ROOT, 'src', 'video', 'index.ts');
 
 /**
@@ -109,6 +123,11 @@ export const getBundle = async (onProgress?: (percent: number) => void): Promise
   bundlePromise ??= bundle({
     entryPoint: ENTRY,
     webpackOverride: withProjectAliases,
+    // `staticFile()` resolves against whatever the bundle was given here, so it
+    // has to agree with the directory the service serves and the prefetch
+    // writes to. Disagree and every cover is missing from the render while
+    // being present in the preview.
+    publicDir: PUBLIC_DIR,
     onProgress: (percent) => onProgress?.(percent),
   }).catch((err) => {
     bundlePromise = null;
@@ -243,8 +262,11 @@ export const startRender = (input: RenderInput): RenderJob => {
       progress.totalFrames = composition.durationInFrames;
       progress.phase = 'rendering';
 
-      await mkdir(OUT_DIR, { recursive: true });
-      const outputFile = path.join(OUT_DIR, outputFileName(input));
+      // Read here, not at import: the folder is settable while the service
+      // is running, and a captured value would keep writing to the old one.
+      const outDir = getOutDir();
+      await mkdir(outDir, { recursive: true });
+      const outputFile = path.join(outDir, outputFileName(input));
 
       await renderMedia({
         composition,
@@ -346,8 +368,9 @@ export const startRender = (input: RenderInput): RenderJob => {
 export const revealInFolder = (file: string): Promise<void> =>
   new Promise((resolve) => {
     const target = path.resolve(file);
-    // Refuse anything outside out/: this is reachable from an HTTP route.
-    if (!target.startsWith(OUT_DIR)) {
+    // Refuse anything outside the output folder: this is reachable from an
+    // HTTP route, and the folder is now user-chosen rather than fixed.
+    if (!target.startsWith(getOutDir())) {
       resolve();
       return;
     }

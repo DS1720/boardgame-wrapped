@@ -27,20 +27,128 @@ Steps 1–9 of `boardgame-wrapped-plan.md` are implemented and tested:
 | 11 Batch | Every player in one go, a theme each, skip-on-error |
 | 12 Polish | Vignette, per-player superlative, and a square still to share |
 
-**All twelve steps are done**, plus a motion pass on top. 342 tests pass
+**All twelve steps are done**, plus a motion pass on top. 406 tests pass
 (`npm test`).
 
-## Setup
+## Make it a Windows program
+
+Two commands, from a fresh copy of the repo:
+
+```bash
+npm install
+npm run app:build
+```
+
+That prints where it put the installer — by default
+`C:\Users\<you>\BoardGameWrapped-build\Board Game Wrapped Setup 0.1.0.exe`.
+Run it, and Board Game Wrapped installs like any other Windows app: Start menu
+entry, desktop shortcut, its own window, uninstaller in Settings.
+
+**You do not need Node installed to run it.** The app carries its own. Node is
+only needed on the machine that *builds* it.
+
+A few things worth knowing:
+
+- **It installs for your user, not the whole machine**, so there is no admin
+  prompt.
+- **Your stuff lives outside the app.** Finished videos go to
+  `Videos\Board Game Wrapped` — **or wherever you point them**, with the
+  *Save videos to* box in the Render panel. Downloaded covers and uploaded music
+  go to `%APPDATA%\boardgame-wrapped\public\`. Nothing you accumulate sits
+  inside the install folder, so updating or reinstalling never costs you a 110 MB
+  re-download or the track you uploaded.
+- **The first render downloads Chrome (~113 MB), once.** Remotion renders each
+  frame in a real browser and fetches its own copy the first time. Everything
+  after that is offline, and nothing but that download and the box-art prefetch
+  ever leaves the machine.
+- **It is a big app** — about 630 MB installed, 170 MB for the installer. Most
+  of that is Chromium and the video toolchain. There is no smaller honest
+  version of "renders 1080×1920 video with no other software installed".
+
+Don't want an installer? `win-unpacked` in the same output folder is the app as
+a plain directory — copy it anywhere, run `Board Game Wrapped.exe` inside it.
+
+### If the build fails with `EPERM`
+
+It will not, by default — but this is worth knowing if you change where it
+builds. electron-builder extracts Electron to `win-unpacked.tmp` and renames it,
+and on a folder OneDrive is syncing that rename fails every time. The project's
+own `release/` is inside `Documents`, which is exactly such a folder on a
+default Windows install, so `app:build` deliberately writes outside it. To pick
+your own spot:
+
+```bash
+set BGW_RELEASE_DIR=C:\temp\bgw
+npm run app:build
+```
+
+## Updating an installed copy
+
+**Changing the code does not change an installed app.** The installer is a
+snapshot: it carries its own copy of the UI, the render service and the
+composition source. Editing this repo has no effect on it until you build again.
+
+By hand, that is the same two commands:
+
+```bash
+npm run app:build      # produces a new installer
+```
+
+Run the new installer over the old one. It upgrades in place — same shortcuts,
+same settings, and your videos, covers and music are untouched because they live
+outside the app.
+
+### Letting it update itself
+
+The app checks GitHub for a newer **release** on startup, downloads it quietly,
+and installs it the next time you quit. It never interrupts you; when an update
+is waiting, the title bar says so.
+
+It updates on a *release*, not on a push. A push is a change; a release is a
+decision, and only releases carry an installer. To cut one:
+
+```bash
+npm version patch          # 0.1.0 -> 0.1.1, and tags it
+git push --follow-tags
+```
+
+That tag triggers [.github/workflows/release.yml](.github/workflows/release.yml),
+which typechecks, runs the tests, builds the Windows app and uploads it as a
+**draft** release. Nothing reaches an installed copy until you publish the draft
+on GitHub — so a build that turns out wrong can be deleted instead of shipped.
+
+Three things have to be true for this to work:
+
+1. **The repo must be reachable by the installed app.** A public repo needs no
+   configuration. A private one does not work without embedding a token in the
+   app, which is not worth doing — publish the releases from a public repo, or
+   keep updating by hand.
+2. **The version must go up.** electron-updater compares against
+   `package.json`'s version. `npm version` is the easy way not to forget.
+3. **The release must be published**, not left as a draft.
+
+Windows will warn about an unrecognised publisher on first install, because the
+app is not code-signed. Updates themselves work fine unsigned; signing costs
+money and only removes the warning.
+
+## Setup (development)
 
 ```bash
 npm install
 npm run dev        # UI at http://localhost:5173
 npm run server     # render service at http://localhost:4000
-npm test           # 342 tests
+npm test           # 406 tests
 ```
 
 The dev server proxies `/api` to the render service, so run both if you want to
-download box art from the UI.
+download box art from the UI. Nothing about the desktop build changes this — it
+runs the same two halves, with the service started for you.
+
+To try a change to the desktop shell without packaging:
+
+```bash
+npm run app:start
+```
 
 Drop your export on the page. It parses in the browser and is cached, so a
 reload does not mean re-uploading.
@@ -286,6 +394,21 @@ rather than shown wrong. It also names the game you sank the most *hours* into,
 which is rarely the one you played most often.
 
 The default cut runs about 56 seconds. Every slide turned on runs about 92.
+
+## Where videos are saved
+
+The Render panel has a **Save videos to** box. In the desktop app there is a
+**Choose…** button beside it that opens the normal Windows folder dialog; in a
+browser you type or paste a path, because a web page cannot be handed one.
+
+The folder is checked when you set it, not when a render finishes: it is created
+if it does not exist and then actually written to. A path that looks fine and
+turns out to be read-only is worth discovering immediately rather than at the
+end of a two-minute render.
+
+The choice is remembered in `settings.json`, stored with the rest of your data
+rather than inside the app, so an update never resets it. **Use the default**
+appears once you have changed it, and puts it back.
 
 ## Rendering
 
