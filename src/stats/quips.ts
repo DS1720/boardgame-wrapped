@@ -142,7 +142,11 @@ export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | 
     case 'highestScore': {
       const score = find(stats, 'highestScore');
       if (!score) return null;
-      return 'Still bringing it up at parties.';
+      // A high score in a game you lost is not a boast, so it does not get the
+      // boasting line.
+      return score.won
+        ? 'Still bringing it up at parties.'
+        : 'A lot of points, and somebody else still won.';
     }
 
     case 'gameRecord': {

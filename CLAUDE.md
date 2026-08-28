@@ -466,9 +466,26 @@ Measured on the real export: **19 of 93 players** hold one, so it is a real
 distinction rather than a participation prize. Before the co-op and team rails
 it was 24, and three of those were the same Poetry for Neanderthals team score.
 
-`highestScore` deliberately still reports the largest number rather than the
-best one — "highest score" says what it means. It is the one place the
-`highestWins` flag is knowingly not applied.
+### `highestScore` prefers a score you actually won with
+
+A winning score beats a losing one **however much smaller it is**, and the
+losing high score is only the answer when there is no winning one at all. A big
+number in a game you lost is a fact about the scoring rather than about you:
+plenty of games hand points to everyone, and in some the loser outscores the
+winner on a subtotal.
+
+Measured on the real export: **10 of the top 20 players change**, and all 20
+now show a score they won with. Tina's was 66,000 in La Cosa Nostra — a game
+she lost — and is now 466 in La Cuenta. The old rule reliably picked whichever
+game had the biggest numbers rather than her best night.
+
+`won` travels on the stat so the slide can say which of the two it is showing:
+**"Best winning score"** or **"Highest score"**. One label for two different
+claims would make the honest case sound like the boast.
+
+It still does **not** read `highestWins`, and that is deliberate: "highest
+score" means the largest number, which is what the slide says. `gameRecord` is
+the stat where best has to mean best.
 
 ### Two stats rank by rate, not by count
 
@@ -872,7 +889,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 415 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 423 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.

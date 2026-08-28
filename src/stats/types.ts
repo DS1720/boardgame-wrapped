@@ -97,7 +97,20 @@ export type Stat =
   | (StatBase & { id: 'firstAndLastPlay'; first: { day: string; game: GameRef }; last: { day: string; game: GameRef } })
   | (StatBase & { id: 'nightOwl'; peakHour: number; playsAtPeak: number; lateShare: number })
   | (StatBase & { id: 'groupShare'; ratio: number; attended: number; total: number })
-  | (StatBase & { id: 'highestScore'; score: number; game: GameRef; day: string });
+  | (StatBase & {
+      id: 'highestScore';
+      score: number;
+      game: GameRef;
+      day: string;
+      /**
+       * True when this score came from a game the player won.
+       *
+       * The slide says so, because "your best score" and "your best score in a
+       * game you actually won" are different claims and only one of them is
+       * worth boasting about.
+       */
+      won: boolean;
+    });
 
 export interface WrappedStats {
   playerId: number;

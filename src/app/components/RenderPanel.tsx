@@ -81,7 +81,17 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** What the service last confirmed. */
   const [output, setOutput] = useState<OutputSettings | null>(null);
+  /**
+   * What is in the box.
+   *
+   * Kept apart from `output` on purpose. Editing the confirmed value directly
+   * makes "has this changed?" unanswerable — the comparison is against a value
+   * the keystrokes already moved — and the blur then either always commits or
+   * never does.
+   */
+  const [draft, setDraft] = useState('');
   const [folderError, setFolderError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const timer = useRef<number | null>(null);
@@ -147,11 +157,22 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
   useEffect(() => {
     void fetch(`${API}/settings`)
       .then((res) => (res.ok ? (res.json() as Promise<OutputSettings>) : null))
-      .then((s) => s && setOutput(s))
+      .then((s) => {
+        if (!s) return;
+        setOutput(s);
+        setDraft(s.outDir);
+      })
       .catch(() => undefined);
   }, []);
 
-  /** Send a folder to the service, which is what decides whether it is usable. */
+  /**
+   * Send a folder to the service, which is what decides whether it is usable.
+   *
+   * `committed` is what the service last confirmed. Blurring the field
+   * without having changed anything must not send that value back: it would
+   * store the default *as a choice*, and "Use the default" would then appear
+   * for somebody who had only tabbed through the box.
+   */
   const applyFolder = useCallback(async (dir: string | null) => {
     setFolderError(null);
     try {
@@ -163,6 +184,8 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
       const body = (await res.json()) as OutputSettings & { error?: string };
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
       setOutput(body);
+      // The service may have resolved the path differently from what was typed.
+      setDraft(body.outDir);
     } catch (err) {
       setFolderError(err instanceof Error ? err.message : String(err));
     }
@@ -205,14 +228,20 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
           <input
             id="out-dir"
             type="text"
-            value={output?.outDir ?? ''}
+            value={draft}
             spellCheck={false}
             placeholder={output?.defaultOutDir ?? ''}
-            onChange={(e) => setOutput((o) => (o ? { ...o, outDir: e.target.value } : o))}
+            onChange={(e) => setDraft(e.target.value)}
             // Committed on blur or Enter rather than per keystroke: every commit
             // creates the folder, and doing that while somebody is halfway
             // through typing a path would litter their disk.
-            onBlur={(e) => void applyFolder(e.target.value)}
+            // Unchanged values are not committed at all — see applyFolder.
+            onBlur={() => {
+              const typed = draft.trim();
+              // Unchanged: not a choice, so it is not stored as one.
+              if (typed === (output?.outDir ?? '')) return;
+              void applyFolder(typed);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
             }}
@@ -224,7 +253,7 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
           )}
         </div>
         {output?.custom && (
-          <button className="link" onClick={() => void applyFolder(null)}>
+          <button className="link" onClick={() => void applyFolder(null)} type="button">
             Use the default ({output.defaultOutDir})
           </button>
         )}

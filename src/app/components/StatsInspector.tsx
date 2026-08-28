@@ -59,7 +59,7 @@ const describe = (stat: WrappedStats['stats'][number]): string => {
         .join(' · ');
 
     case 'highestScore':
-      return `${formatNumber(stat.score)} in ${stat.game.name}`;
+      return `${formatNumber(stat.score)} in ${stat.game.name}${stat.won ? ' (won)' : ' (best of any result)'}`;
     default:
       return '';
   }

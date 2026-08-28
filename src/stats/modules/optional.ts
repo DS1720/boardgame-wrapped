@@ -245,20 +245,50 @@ export const gameRecord = (ctx: StatContext): Stat | null => {
   };
 };
 
+/**
+ * The best score on the board, preferring one from a game that was won.
+ *
+ * A big number in a game you lost is a fact about the scoring, not about you —
+ * plenty of games hand out points to everyone, and in some of them the loser
+ * outscores the winner on a subtotal. So a winning score wins outright, however
+ * much larger a losing one is, and the losing high score is only the answer when
+ * there is no winning one at all.
+ *
+ * `won` travels with it so the slide can say which of the two it is showing,
+ * rather than presenting both under one label.
+ *
+ * Ties go to the earlier play: `playerPlays` is oldest first and the comparison
+ * is strict, which is the project's "earlier first appearance" rule and what
+ * keeps the same export producing the same video.
+ *
+ * Scoring direction is deliberately not consulted. "Highest score" means the
+ * largest number, which is what the slide says — see `gameRecord` for the stat
+ * that does read `highestWins`, because "best" there has to mean best.
+ */
 export const highestScore = (ctx: StatContext): Stat | null => {
-  let best: { score: number; play: (typeof ctx.playerPlays)[number] } | null = null;
+  type Candidate = { score: number; play: (typeof ctx.playerPlays)[number] };
+
+  let bestWon: Candidate | null = null;
+  let bestAny: Candidate | null = null;
+
   for (const play of ctx.playerPlays) {
     const me = selfOf(play, ctx.playerId);
     if (!me || me.score === null) continue;
-    if (!best || me.score > best.score) best = { score: me.score, play };
+
+    if (!bestAny || me.score > bestAny.score) bestAny = { score: me.score, play };
+    if (me.won && (!bestWon || me.score > bestWon.score)) bestWon = { score: me.score, play };
   }
+
+  const best = bestWon ?? bestAny;
   if (!best) return null;
+
   return {
     id: 'highestScore',
     core: false,
     score: best.score,
     game: gameRefOf(best.play),
     day: best.play.day,
+    won: bestWon !== null,
   };
 };
 

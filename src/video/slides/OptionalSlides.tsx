@@ -233,7 +233,9 @@ export const HighestScoreSlide: React.FC<SlideProps> = ({ stat }) => {
       <Stack gap={26}>
         <SignaturePlate delay={BEAT.first}>
           <StatBlock
-            eyebrow="Highest score"
+            // Two different claims, said differently. A losing high score is a
+            // fact about the scoring; a winning one is a fact about the player.
+            eyebrow={stat.won ? 'Best winning score' : 'Highest score'}
             value={<CountUp to={stat.score} delay={BEAT.second} />}
             // Sized against the final value: six figures at the full display
             // step ran off the right edge of the frame.
