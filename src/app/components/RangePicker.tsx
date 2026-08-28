@@ -84,7 +84,7 @@ export const RangePicker: React.FC<Props> = ({
         the box would then be the only way back to the default.
       */}
       <label className="range-name">
-        Shown in the video
+        Year Heading
         <input
           type="text"
           value={name}
