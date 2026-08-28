@@ -1,4 +1,5 @@
 import { formatDuration, formatNumber, formatPercent } from '@/shared/format';
+import type { SuperlativeQuantity } from './superlative';
 import type { Stat, WrappedStats } from './types';
 
 /**
@@ -28,28 +29,47 @@ import type { Stat, WrappedStats } from './types';
 const find = <T extends Stat['id']>(stats: WrappedStats, id: T) =>
   stats.stats.find((s) => s.id === id) as Extract<Stat, { id: T }> | undefined;
 
-export const outroFactFor = (stats: WrappedStats | null): string | null => {
+export interface OutroFact {
+  line: string;
+  /**
+   * What this line counts, when it counts something.
+   *
+   * The outro passes it to `superlativeFor` so the line below cannot repeat it
+   * — "Played with 60 different people." under "with 60 people" is the same
+   * sentence twice.
+   */
+  quantity?: SuperlativeQuantity;
+}
+
+export const outroFactFor = (stats: WrappedStats | null): OutroFact | null => {
   if (!stats) return null;
 
   const time = find(stats, 'timePlayed');
-  if (time) return `${formatDuration(time.minutes)} at the table`;
+  if (time) return { line: `${formatDuration(time.minutes)} at the table`, quantity: 'hours' };
 
   const people = find(stats, 'coPlayerCount');
   if (people) {
-    return people.count === 1 ? 'with one other person' : `with ${formatNumber(people.count)} people`;
+    return {
+      line:
+        people.count === 1 ? 'with one other person' : `with ${formatNumber(people.count)} people`,
+      quantity: 'people',
+    };
   }
 
   const rate = find(stats, 'winRate');
   if (rate && rate.wins + rate.losses > 0) {
     // A co-op year's "win rate" is the group's record, not a record against
     // anyone, so it is not called one.
-    return rate.coopOnly
-      ? `${formatPercent(rate.ratio)} of them beaten`
-      : `${formatPercent(rate.ratio)} of them won`;
+    return {
+      line: rate.coopOnly
+        ? `${formatPercent(rate.ratio)} of them beaten`
+        : `${formatPercent(rate.ratio)} of them won`,
+      quantity: 'winrate',
+    };
   }
 
   const where = find(stats, 'topLocation');
-  if (where) return `mostly at ${where.name}`;
+  if (where) return { line: `mostly at ${where.name}`, quantity: 'place' };
 
   return null;
 };

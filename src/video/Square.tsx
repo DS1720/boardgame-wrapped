@@ -45,8 +45,13 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
   const topFive = stats.stats.find((s) => s.id === 'topFive');
   const games = topFive?.id === 'topFive' ? topFive.games.slice(0, 6) : [];
   const totals = stats.stats.find((s) => s.id === 'totalPlays');
-  const superlative = superlativeFor(stats);
   const fact = outroFactFor(stats);
+  // The three numbers above, plus whatever the fact just said, are off the
+  // table for the superlative: a distinction that restates something already
+  // on the card is not a distinction.
+  const superlative = superlativeFor(stats, {
+    avoid: ['plays', 'games', 'nights', 'hours', fact?.quantity],
+  });
 
   return (
     <AbsoluteFill style={{ backgroundColor: theme.color.bg }}>
@@ -104,7 +109,7 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
               is worse than either. */}
           {fact && (
             <p style={{ ...bodyFont, fontSize: body * 0.74, color: theme.color.inkMuted, margin: 0 }}>
-              {fact}
+              {fact.line}
             </p>
           )}
           {superlative && (

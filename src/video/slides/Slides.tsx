@@ -481,8 +481,13 @@ export const OutroSlide: React.FC<SlideProps> = ({ stats }) => {
   const games = topFive?.id === 'topFive' ? topFive.games.slice(0, 6) : [];
   const totals = stats.stats.find((s) => s.id === 'totalPlays');
   // Null when nothing about this year was distinctive enough to claim.
-  const superlative = superlativeFor(stats);
   const fact = outroFactFor(stats);
+  // The three numbers above, plus whatever the fact just said, are off the
+  // table for the superlative: a distinction that restates something already
+  // on the card is not a distinction.
+  const superlative = superlativeFor(stats, {
+    avoid: ['plays', 'games', 'nights', 'hours', fact?.quantity],
+  });
 
   return (
     <SafeArea justify="center">
@@ -514,7 +519,7 @@ export const OutroSlide: React.FC<SlideProps> = ({ stats }) => {
                 the same kind would read as a rounding of the first three. */}
             {fact ? (
               <p style={{ ...bodyFont, fontSize: body * 0.92, color: color.inkMuted, margin: 0 }}>
-                {fact}
+                {fact.line}
               </p>
             ) : null}
             {superlative ? (

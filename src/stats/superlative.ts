@@ -1,18 +1,29 @@
-import { formatNumber } from '@/shared/format';
+import { formatDay, formatNumber } from '@/shared/format';
 import type { Stat, WrappedStats } from './types';
 
 /**
  * One line for the outro that says what was distinctive about this player's
  * year.
  *
- * The thresholds are not invented — they come from the real export, measured
- * across the 50 players with five or more plays, and each sits at roughly the
- * 90th percentile. A superlative everyone earns is not a superlative, it is a
- * caption; if nothing clears its bar this returns null and the outro simply
- * does not show a line.
+ * Two tiers, and the difference between them is the point.
+ *
+ * **Earned** claims clear a threshold measured from the real export — across
+ * the 50 players with five or more plays, each sits at roughly the 90th
+ * percentile. A superlative everyone earns is not a superlative, it is a
+ * caption, so these stay hard to get.
+ *
+ * **Fallback** lines are not claims at all. They state something true and
+ * specific about the year — the game you were hardest to beat at, who you sat
+ * across from, where the regular table was — so that a player who was not
+ * remarkable at anything still gets a sentence about themselves rather than a
+ * blank. They are ordered by how personal they are, and the first available one
+ * wins.
+ *
+ * Only a player with no usable stats at all gets null.
  */
 
 export type SuperlativeId =
+  /* Earned: a claim that clears a threshold measured from the real export. */
   | 'marathon'
   | 'explorer'
   | 'loyalist'
@@ -21,13 +32,47 @@ export type SuperlativeId =
   | 'streaker'
   | 'social'
   | 'haunted'
-  | 'regular';
+  | 'regular'
+  /* Always available: a fact about the year rather than a distinction. */
+  | 'bestAt'
+  | 'partner'
+  | 'favourite'
+  | 'rival'
+  | 'venue'
+  | 'bigDay'
+  | 'bookends';
+
+/**
+ * The quantity a claim is built on.
+ *
+ * A surface that already shows one of these can ask not to be given a
+ * superlative that repeats it: "504 plays. Never off the table." directly under
+ * "504 plays · 106 games · 73 nights" is the same number twice, and the second
+ * time it reads as filler rather than as a distinction.
+ *
+ * Only claims that actually *state* one of these carry a tag. "46% of games
+ * began after dark" is built on the hour, not on a count of games, and
+ * "Half the year was Faraway" names a game rather than counting any.
+ */
+export type SuperlativeQuantity =
+  | 'plays'
+  | 'games'
+  | 'nights'
+  | 'hours'
+  | 'people'
+  | 'winrate'
+  | 'place';
 
 export interface Superlative {
   id: SuperlativeId;
   line: string;
   /** How far into the tail this player sits, 0–1. Used to pick between them. */
   score: number;
+}
+
+export interface SuperlativeOptions {
+  /** Quantities the surface is already showing, so they are not said twice. */
+  avoid?: readonly (SuperlativeQuantity | null | undefined)[];
 }
 
 /**
@@ -49,6 +94,8 @@ interface Candidate {
   /** The observed maximum, used to place a value within the tail. */
   ceiling: number;
   line: string;
+  /** Set only when the line states a number of this quantity. */
+  quantity?: SuperlativeQuantity;
 }
 
 /**
@@ -58,8 +105,12 @@ interface Candidate {
  * are not on the same scale — so each is normalised against the span between
  * its threshold and the highest value seen in the export.
  */
-export const superlativeFor = (stats: WrappedStats | null): Superlative | null => {
+export const superlativeFor = (
+  stats: WrappedStats | null,
+  options: SuperlativeOptions = {},
+): Superlative | null => {
   if (!stats) return null;
+  const avoid = new Set(options.avoid?.filter(Boolean) as SuperlativeQuantity[]);
 
   const total = find(stats, 'totalPlays');
   const topGame = find(stats, 'topGame');
@@ -70,6 +121,10 @@ export const superlativeFor = (stats: WrappedStats | null): Superlative | null =
   const people = find(stats, 'coPlayerCount');
   const nemesis = find(stats, 'nemesis');
   const location = find(stats, 'topLocation');
+  const bestGame = find(stats, 'bestGame');
+  const coPlayer = find(stats, 'topCoPlayer');
+  const busiest = find(stats, 'busiestDay');
+  const bookends = find(stats, 'firstAndLastPlay');
 
   const candidates: Candidate[] = [
     {
@@ -78,6 +133,7 @@ export const superlativeFor = (stats: WrappedStats | null): Superlative | null =
       threshold: 100,
       ceiling: 504,
       line: total ? `${formatNumber(total.plays)} plays. Never off the table.` : '',
+      quantity: 'plays',
     },
     {
       id: 'explorer',
@@ -85,6 +141,7 @@ export const superlativeFor = (stats: WrappedStats | null): Superlative | null =
       threshold: 33,
       ceiling: 89,
       line: learned ? `${formatNumber(learned.count)} games learned in one year.` : '',
+      quantity: 'games',
     },
     {
       id: 'loyalist',
@@ -113,6 +170,7 @@ export const superlativeFor = (stats: WrappedStats | null): Superlative | null =
       threshold: 0.44,
       ceiling: 0.7,
       line: winRate ? `Won ${Math.round(winRate.ratio * 100)}% of the time. Hard to beat.` : '',
+      quantity: 'winrate',
     },
     {
       id: 'streaker',
@@ -127,6 +185,7 @@ export const superlativeFor = (stats: WrappedStats | null): Superlative | null =
       threshold: 23,
       ceiling: 92,
       line: people ? `Played with ${formatNumber(people.count)} different people.` : '',
+      quantity: 'people',
     },
     {
       id: 'haunted',
@@ -143,13 +202,85 @@ export const superlativeFor = (stats: WrappedStats | null): Superlative | null =
       threshold: 1,
       ceiling: 1,
       line: location ? `Every night at ${location.name}.` : '',
+      quantity: 'place',
     },
   ];
 
+  const usable = (c: { line: string; quantity?: SuperlativeQuantity }) =>
+    c.line !== '' && !(c.quantity && avoid.has(c.quantity));
+
   const qualifying = candidates.filter(
-    (c) => c.value !== null && c.value >= c.threshold && c.line !== '',
+    (c) => c.value !== null && c.value >= c.threshold && usable(c),
   );
-  if (qualifying.length === 0) return null;
+
+  if (qualifying.length === 0) {
+    /**
+     * Nothing was remarkable, so say something true instead.
+     *
+     * Ordered by how much it says about the person rather than the calendar:
+     * what they were good at, what they kept coming back to, who they played
+     * it with. `favourite` sits above `partner` for spread as much as for
+     * interest: without it two thirds of a batch ended on the same sentence
+     * shape with only the name changed.
+     */
+    const fallbacks: Array<{ id: SuperlativeId; line: string; quantity?: SuperlativeQuantity }> = [
+      {
+        id: 'bestAt',
+        // "Hardest to beat" is a claim about the record, so it is only said
+        // when the record supports it. `bestGame` is the *best* of their games,
+        // which for plenty of players is still a losing one.
+        line: bestGame
+          ? bestGame.ratio >= 0.5
+            ? `Hardest to beat at ${bestGame.game.name}.`
+            : `Your best record was at ${bestGame.game.name}.`
+          : '',
+      },
+      {
+        id: 'favourite',
+        // One play of everything is not a favourite, it is a tie broken
+        // alphabetically.
+        line: topGame && topGame.plays >= 2 ? `${topGame.game.name} more than anything else.` : '',
+      },
+      {
+        id: 'partner',
+        // Same rule. Somebody who played five games with five different people
+        // has a top co-player they sat with once, and "almost always" would be
+        // plainly false — so the wording follows the share.
+        line:
+          coPlayer && total && total.plays > 0
+            ? coPlayer.shared / total.plays >= 0.6
+              ? `Almost always across the table from ${coPlayer.name}.`
+              : `More games with ${coPlayer.name} than anyone else.`
+            : '',
+      },
+      {
+        id: 'rival',
+        line: nemesis ? `${nemesis.name} had the better of it.` : '',
+      },
+      {
+        id: 'venue',
+        // Tagged: "mostly at Home" is one of the fourth-fact lines, and this
+        // would be the same sentence under it.
+        line: location ? `The regular table was ${location.name}.` : '',
+        quantity: 'place',
+      },
+      {
+        id: 'bigDay',
+        line: busiest ? `${formatDay(busiest.day)} was the busiest of the lot.` : '',
+      },
+      {
+        id: 'bookends',
+        line: bookends
+          ? `Opened with ${bookends.first.game.name}, closed with ${bookends.last.game.name}.`
+          : '',
+      },
+    ];
+
+    const chosen = fallbacks.find(usable);
+    // A fact is not a distinction, so it scores zero — nothing else is ranked
+    // against it, but the field has to mean something.
+    return chosen ? { id: chosen.id, line: chosen.line, score: 0 } : null;
+  }
 
   const scored = qualifying.map((c) => ({
     id: c.id,

@@ -58,7 +58,7 @@ describe('earning a superlative', () => {
 });
 
 describe('claims that have to be earned', () => {
-  it('says nothing for an ordinary year', () => {
+  it('awards no earned claim for an ordinary year', () => {
     const result = superlativeFor(
       statsWith([
         totalPlays(17),
@@ -66,8 +66,9 @@ describe('claims that have to be earned', () => {
         { id: 'longestWinStreak', core: false, length: 2 },
       ]),
     );
-    // The median player in the real export looks like this. A line here would
-    // be a caption, not a superlative.
+    // The median player in the real export looks like this. A *claim* here
+    // would be a caption. With none of the fallback stats present either, there
+    // is nothing truthful left to say.
     expect(result).toBeNull();
   });
 
@@ -77,7 +78,12 @@ describe('claims that have to be earned', () => {
     const result = superlativeFor(
       statsWith([totalPlays(6), { id: 'topGame', core: true, game: game(1, 'Faraway'), plays: 4 }]),
     );
-    expect(result).toBeNull();
+    // The claim is refused. A plain fact about the same game is not the same
+    // sentence: "Faraway more than anything else" is true of four of six plays,
+    // where "Half the year was Faraway" is a statement about the year.
+    expect(result?.id).not.toBe('loyalist');
+    expect(result?.id).toBe('favourite');
+    expect(result?.score).toBe(0);
   });
 
   it('does call it that when the sample is real', () => {
@@ -112,7 +118,10 @@ describe('claims that have to be earned', () => {
         { id: 'nemesis', core: true, name: 'X', playerId: 2, lossesTo: 3, headToHead: 3, lossRate: 1 },
       ]),
     );
-    expect(result).toBeNull();
+    // "had your number all year" needs the sample the threshold asks for. The
+    // fallback still names them, but as a fact rather than a verdict.
+    expect(result?.id).not.toBe('haunted');
+    expect(result?.id).toBe('rival');
   });
 });
 
@@ -159,6 +168,124 @@ describe('degenerate input', () => {
     const result = superlativeFor(
       statsWith([totalPlays(0, 0), { id: 'topGame', core: true, game: game(1, 'X'), plays: 0 }]),
     );
+    // No earned claim, no NaN, and whatever comes back is a real sentence.
+    expect(result?.id).not.toBe('loyalist');
+    expect(Number.isFinite(result?.score ?? 0)).toBe(true);
+    expect(result?.line ?? '').not.toContain('NaN');
+  });
+});
+
+describe('every player gets a sentence', () => {
+  const ORDINARY = [totalPlays(17), { id: 'topGame', core: true, game: game(1, 'Azul'), plays: 4 }] as Stat[];
+
+  it('gives an unremarkable year a fact instead of a blank', () => {
+    const result = superlativeFor(statsWith(ORDINARY));
+    expect(result?.line).toBe('Azul more than anything else.');
+  });
+
+  it('marks a fact as unranked, so it is never compared against a claim', () => {
+    expect(superlativeFor(statsWith(ORDINARY))?.score).toBe(0);
+  });
+
+  it('prefers what a player was good at over what they played most', () => {
+    const result = superlativeFor(
+      statsWith([
+        ...ORDINARY,
+        { id: 'bestGame', core: false, game: game(2, 'Codenames'), ratio: 0.67, plays: 3 },
+      ]),
+    );
+    expect(result?.id).toBe('bestAt');
+    expect(result?.line).toContain('Codenames');
+  });
+
+  it('still prefers an earned claim over any fact', () => {
+    const result = superlativeFor(
+      statsWith([
+        totalPlays(60),
+        { id: 'topGame', core: true, game: game(1, 'Faraway'), plays: 36 },
+        { id: 'bestGame', core: false, game: game(2, 'Codenames'), ratio: 0.9, plays: 10 },
+      ]),
+    );
+    expect(result?.id).toBe('loyalist');
+  });
+
+  it('does not echo the fact printed above it', () => {
+    // "The regular table was Home." under "mostly at Home" is the same sentence
+    // twice, so the place fallback is skipped and the next one is used.
+    const withPlace: Stat[] = [
+      totalPlays(17),
+      { id: 'topLocation', core: true, name: 'Home', nights: 9 },
+      { id: 'busiestDay', core: false, day: '2026-08-25', plays: 5 },
+    ];
+    expect(superlativeFor(statsWith(withPlace))?.id).toBe('venue');
+    expect(superlativeFor(statsWith(withPlace), { avoid: ['place'] })?.id).toBe('bigDay');
+  });
+
+  it('finds something for a player with only bookends to their name', () => {
+    const result = superlativeFor(
+      statsWith([
+        totalPlays(2),
+        {
+          id: 'firstAndLastPlay',
+          core: false,
+          first: { day: '2026-01-01', game: game(1, 'Azul') },
+          last: { day: '2026-12-30', game: game(2, 'Hitster') },
+        },
+      ]),
+    );
+    expect(result?.line).toBe('Opened with Azul, closed with Hitster.');
+  });
+});
+
+describe('not saying what the card already says', () => {
+  const BUSY: Stat = { id: 'totalPlays', core: true, plays: 504, nights: 180, distinctGames: 106 };
+  const LEARNED: Stat = {
+    id: 'gamesLearned',
+    core: true,
+    count: 62,
+    games: [],
+  };
+  const PEOPLE: Stat = { id: 'coPlayerCount', core: false, count: 60 };
+
+  it('offers the plays line when nothing is showing plays', () => {
+    expect(superlativeFor(statsWith([BUSY]))?.id).toBe('marathon');
+  });
+
+  it('refuses it once the surface says it is already showing plays', () => {
+    // The complaint this fixes: "504 plays. Never off the table." printed
+    // directly under "504 plays · 106 games · 180 nights".
+    const result = superlativeFor(statsWith([BUSY]), { avoid: ['plays'] });
     expect(result).toBeNull();
+  });
+
+  it('falls through to a claim on another axis rather than going silent', () => {
+    const result = superlativeFor(statsWith([BUSY, LEARNED]), { avoid: ['plays'] });
+    expect(result?.id).toBe('explorer');
+    // And excluding that one too keeps falling through.
+    expect(superlativeFor(statsWith([BUSY, LEARNED]), { avoid: ['plays', 'games'] })).toBeNull();
+  });
+
+  it('drops the people line when the fact above already counted them', () => {
+    // "Played with 60 different people." under "with 60 people" is the same
+    // sentence twice.
+    expect(superlativeFor(statsWith([BUSY, PEOPLE]), { avoid: ['plays'] })?.id).toBe('social');
+    expect(superlativeFor(statsWith([BUSY, PEOPLE]), { avoid: ['plays', 'people'] })).toBeNull();
+  });
+
+  it('leaves claims that name a thing rather than count one', () => {
+    // "Half the year was X" and "N% began after dark" are not counts of plays,
+    // games or nights, so excluding those quantities must not remove them.
+    const loyal: Stat[] = [
+      { id: 'totalPlays', core: true, plays: 60, nights: 30, distinctGames: 10 },
+      { id: 'topGame', core: true, game: game(1, 'Faraway'), plays: 40 },
+    ];
+    expect(superlativeFor(statsWith(loyal), { avoid: ['plays', 'games', 'nights', 'hours'] })?.id).toBe(
+      'loyalist',
+    );
+  });
+
+  it('ignores blanks in the avoid list, so a missing quantity is harmless', () => {
+    const withNothingToAvoid = superlativeFor(statsWith([BUSY]), { avoid: [undefined, null] });
+    expect(withNothingToAvoid?.id).toBe('marathon');
   });
 });

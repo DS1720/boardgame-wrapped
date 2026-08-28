@@ -739,6 +739,51 @@ contains "plays", "games" or "nights", or any of the three numbers.
 The square carries the same line, because two cards claiming different things
 about one year is worse than either.
 
+### The superlative may not repeat what the card already shows
+
+"504 plays. Never off the table." printed directly under "504 plays · 106
+games · 180 nights" is the same number twice, and the second time it reads as
+filler rather than as a distinction. So `superlativeFor` takes
+`{ avoid: SuperlativeQuantity[] }`, and the outro passes plays, games, nights,
+hours **and whatever quantity its own fourth fact just used** — otherwise
+"Played with 60 different people." can land under "with 60 people".
+
+Only claims that *state a number of* something carry a `quantity` tag:
+`marathon` (plays), `explorer` (games), `social` (people). `loyalist`
+("Half the year was Faraway") names a game rather than counting any, and
+`nightOwl` ("46% of games began after dark") is built on the hour, not on a
+count — tagging those would delete good lines for no gain.
+
+### Two tiers, so nobody gets a blank
+
+Excluding those quantities used to leave players with nothing, because their
+only distinction *was* a count of plays or games. So `superlativeFor` has a
+second tier below the earned claims:
+
+- **Earned** — clears a 90th-percentile threshold. Still hard to get, still
+  scored, still ranked against the others. 8 of 93 players.
+- **Fallback** — not a claim at all, just something true and specific: what
+  they were best at, what they came back to, who they sat across from. Scored
+  `0`, so it is never ranked against a real claim. 85 of 93.
+
+**0 of 93 players get a blank line now.** The spread: `favourite` 36,
+`partner` 24, `bestAt` 22, then the eight earned ones.
+
+Two details that keep the fallbacks honest, both found by reading the output
+rather than the code:
+
+- **`bestGame` is the best of *their* games, which is often still a losing
+  one.** "Hardest to beat at X" is only said at a 50% record or better;
+  below that it is "Your best record was at X".
+- **"Almost always across the table from X" was false for most people it fired
+  for.** Somebody who played five games with five different people has a top
+  co-player they sat with once. The wording now follows the share, dropping to
+  "More games with X than anyone else" under 60%.
+
+`favourite` sits above `partner` for spread as much as for interest: without
+that, two thirds of a batch ended on the same sentence with only the name
+changed.
+
 ### The quips are data, not filler
 
 [src/stats/quips.ts](src/stats/quips.ts) is a pure `quipFor(slideId, stats)`.
@@ -889,7 +934,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 423 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 435 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.

@@ -35,23 +35,23 @@ const WHERE: Stat = { id: 'topLocation', core: true, name: 'Home', nights: 40 };
 
 describe('outroFactFor', () => {
   it('prefers hours, the one unit the three numbers do not use', () => {
-    expect(outroFactFor(statsWith([TOTALS, TIME, PEOPLE, RATE, WHERE]))).toBe('114 h at the table');
+    expect(outroFactFor(statsWith([TOTALS, TIME, PEOPLE, RATE, WHERE]))?.line).toBe('114 h at the table');
   });
 
   it('falls back to people when there are no hours', () => {
-    expect(outroFactFor(statsWith([TOTALS, PEOPLE, RATE, WHERE]))).toBe('with 60 people');
+    expect(outroFactFor(statsWith([TOTALS, PEOPLE, RATE, WHERE]))?.line).toBe('with 60 people');
   });
 
   it('falls back to how the year went, then to where it happened', () => {
-    expect(outroFactFor(statsWith([TOTALS, RATE, WHERE]))).toBe('27% of them won');
-    expect(outroFactFor(statsWith([TOTALS, WHERE]))).toBe('mostly at Home');
+    expect(outroFactFor(statsWith([TOTALS, RATE, WHERE]))?.line).toBe('27% of them won');
+    expect(outroFactFor(statsWith([TOTALS, WHERE]))?.line).toBe('mostly at Home');
   });
 
   it('never repeats plays, games or nights', () => {
     // The whole point. Whatever it says, it must not be one of the three
     // numbers printed directly above it.
     for (const extra of [TIME, PEOPLE, RATE, WHERE]) {
-      const line = outroFactFor(statsWith([TOTALS, extra]))!;
+      const line = outroFactFor(statsWith([TOTALS, extra]))!.line;
       expect(line).not.toMatch(/\bplays\b/);
       expect(line).not.toMatch(/\bgames\b/);
       expect(line).not.toMatch(/\bnights\b/);
@@ -75,7 +75,7 @@ describe('outroFactFor', () => {
 
   it('calls a co-op year something other than a win rate', () => {
     const coop: Stat = { id: 'winRate', core: true, wins: 8, losses: 2, ratio: 0.8, coopOnly: true };
-    expect(outroFactFor(statsWith([TOTALS, coop]))).toBe('80% of them beaten');
+    expect(outroFactFor(statsWith([TOTALS, coop]))?.line).toBe('80% of them beaten');
   });
 
   it('says nothing rather than something empty', () => {
@@ -85,11 +85,11 @@ describe('outroFactFor', () => {
 
   it('skips a win rate with no competitive plays behind it', () => {
     const none: Stat = { id: 'winRate', core: true, wins: 0, losses: 0, ratio: 0, coopOnly: false };
-    expect(outroFactFor(statsWith([TOTALS, none, WHERE]))).toBe('mostly at Home');
+    expect(outroFactFor(statsWith([TOTALS, none, WHERE]))?.line).toBe('mostly at Home');
   });
 
   it('reads naturally for a year with exactly one other person', () => {
     const one: Stat = { id: 'coPlayerCount', core: false, count: 1 };
-    expect(outroFactFor(statsWith([TOTALS, one]))).toBe('with one other person');
+    expect(outroFactFor(statsWith([TOTALS, one]))?.line).toBe('with one other person');
   });
 });
