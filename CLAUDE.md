@@ -498,6 +498,17 @@ Three rules worth not breaking:
   change is a hard snap rather than a transition. A per-slide *effect* is, in the
   plan's words, the clearest tell of an assembled video; one palette cycle
   applied identically to every slide is the opposite of that.
+- **Four slides are centred; the rest are left-aligned.** Best game, worst game,
+  highest score and the record are the ones that are a *verdict* about a single
+  game — a claim, its cover and its record — and a verdict reads as one thing
+  stacked down the middle rather than as a column of facts. `SafeArea`'s `align`
+  centres the text; `Stack`'s new `align` is what centres a cover, which is a
+  block of its own width and would otherwise stay hard against the left margin.
+
+  **The aside stays where it is.** It is a sibling of the slide component under
+  `SlideShell` rather than a child, so it inherits none of this — which is the
+  reason it could be centred without touching twenty other things.
+
 - **Not every slide is eyebrow/number/caption.** `StatBlock` is for content that
   genuinely is one number. The top five is a list, the outro is a grid.
 - **Long names shrink, they do not wrap freely.** `fitText` handles the real
@@ -558,9 +569,12 @@ render restarts the Player and throws away the scrub position.
 
 ### Estimated time played
 
-`timePlayed` is the one stat that is inferred rather than measured, so every
-surface says so: the slide's eyebrow reads "Roughly this long at the table" and
-its caption names where the number came from.
+`timePlayed` is the one stat that is inferred rather than measured, so it says
+so: the slide's eyebrow reads "Roughly this long at the table". The caption used
+to name the method as well — "· estimated from how long these games take" — and
+saying it twice in one block was one caveat too many for a slide that is still
+only claiming "about". The eyebrow is where that honesty lives now, so leave it
+alone.
 
 Two rules keep it honest:
 

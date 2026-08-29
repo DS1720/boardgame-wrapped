@@ -560,11 +560,29 @@ export const StatBlock: React.FC<{
 );
 
 /** Vertical rhythm between blocks on a slide. */
-export const Stack: React.FC<{ children: React.ReactNode; gap?: number }> = ({
-  children,
-  gap = 24,
-}) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap, maxWidth: '100%', width: '100%' }}>
+export const Stack: React.FC<{
+  children: React.ReactNode;
+  gap?: number;
+  /**
+   * How the children sit across the column.
+   *
+   * `stretch` by default, which is what makes a full-width plate or a list fill
+   * the frame. `center` is for the slides that are centred: `SafeArea`'s
+   * `align` centres the *text*, but a cover is a block of its own width and
+   * would stay hard against the left margin without this.
+   */
+  align?: 'stretch' | 'center';
+}> = ({ children, gap = 24, align = 'stretch' }) => (
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: align,
+      gap,
+      maxWidth: '100%',
+      width: '100%',
+    }}
+  >
     {children}
   </div>
 );

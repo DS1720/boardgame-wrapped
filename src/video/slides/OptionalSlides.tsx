@@ -231,8 +231,12 @@ const GameRateSlide: React.FC<{
   );
 
   return (
-    <SafeArea>
-      <Stack gap={RATE_GAP}>
+    // Centred. These are the slides that are a *verdict* about one game — a
+    // claim, its cover and its record — and a verdict reads as one thing
+    // stacked down the middle rather than as a column of facts. The aside
+    // underneath is not part of the slide and stays where it always was.
+    <SafeArea align="center">
+      <Stack gap={RATE_GAP} align="center">
         <Reveal delay={BEAT.first}>
           {/* The claim is the point of the slide, so it is set as a headline
               rather than a label above the real content. */}
@@ -285,8 +289,8 @@ export const HighestScoreSlide: React.FC<SlideProps> = ({ stat }) => {
   const manifest = useBoxArtManifest();
   if (stat?.id !== 'highestScore') return null;
   return (
-    <SafeArea>
-      <Stack gap={26}>
+    <SafeArea align="center">
+      <Stack gap={26} align="center">
         <SignaturePlate delay={BEAT.first}>
           <StatBlock
             // Two different claims, said differently. A losing high score is a
@@ -296,7 +300,6 @@ export const HighestScoreSlide: React.FC<SlideProps> = ({ stat }) => {
             // Sized against the final value: six figures at the full display
             // step ran off the right edge of the frame.
             fit={formatNumber(stat.score)}
-            caption={`${stat.game.name} · ${formatDay(stat.day)}`}
           />
         </SignaturePlate>
         <Reveal delay={BEAT.third} distance={26}>
@@ -306,6 +309,15 @@ export const HighestScoreSlide: React.FC<SlideProps> = ({ stat }) => {
             width={280}
             height={280}
           />
+        </Reveal>
+        {/* Under the cover, not inside the plate above it. The plate holds the
+            claim and the figure; which game and which night is the caption on
+            the picture of that game, and reading it before the cover appeared
+            meant naming something not yet on screen. */}
+        <Reveal delay={BEAT.third + 6}>
+          <Caption>
+            {stat.game.name} · {formatDay(stat.day)}
+          </Caption>
         </Reveal>
       </Stack>
     </SafeArea>
@@ -371,8 +383,8 @@ export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
   if (!record) return null;
 
   return (
-    <SafeArea>
-      <Stack gap={RECORD_GAP}>
+    <SafeArea align="center">
+      <Stack gap={RECORD_GAP} align="center">
         <Reveal delay={BEAT.first} distance={26}>
           {/* Contained, not cropped: the slide names one game, so its box
               should be legible. A square crop took the title off the top. */}
@@ -619,7 +631,10 @@ export const TimePlayedSlide: React.FC<SlideProps> = ({ stat }) => {
             // "114 h" is five characters where "114" is three, and at the full
             // display step the difference is a line break before the h.
             fit={`${formatNumber(Math.round(hours))} h`}
-            caption={`about ${formatDays(stat.minutes)} days · estimated from how long these games take`}
+            // Just the days. The eyebrow above already says "roughly", which is
+            // where the honesty about this being an estimate now lives — naming
+            // the method as well said it twice in one block.
+            caption={`about ${formatDays(stat.minutes)} days`}
           />
         </SignaturePlate>
 
