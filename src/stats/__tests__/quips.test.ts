@@ -94,3 +94,46 @@ describe('quipFor', () => {
     expect(quipFor('topCoPlayer', duo)).toBe('100% of your games. At this point it is a duo.');
   });
 });
+
+describe('the bookends quip', () => {
+  const bookends = (first: string, last: string, sameGame: boolean): WrappedStats => ({
+    ...stats,
+    stats: [
+      ...stats.stats.filter((s) => s.id !== 'firstAndLastPlay'),
+      {
+        id: 'firstAndLastPlay',
+        core: false,
+        first: { day: first, game: { gameId: 1, name: 'Faraway', boxArt: null, bggId: 0 } },
+        last: {
+          day: last,
+          game: { gameId: sameGame ? 1 : 2, name: sameGame ? 'Faraway' : 'Strike', boxArt: null, bggId: 0 },
+        },
+      },
+    ],
+  });
+
+  // The best line the slide has, and the cheapest to check: opening and closing
+  // a year with the same game says more than any number already on screen.
+  it('names the game when the year opened and closed with it', () => {
+    expect(quipFor('firstAndLastPlay', bookends('2026-01-01', '2026-08-25', true))).toContain(
+      'Faraway',
+    );
+  });
+
+  it('says something else when the two ends differ', () => {
+    const line = quipFor('firstAndLastPlay', bookends('2026-01-01', '2026-08-25', false));
+    expect(line).not.toBeNull();
+    expect(line).not.toContain('Faraway');
+  });
+
+  // A single evening in range has no span to remark on, and "0 days" would be
+  // a worse line than none.
+  it('is silent when both ends are the same week', () => {
+    expect(quipFor('firstAndLastPlay', bookends('2026-05-04', '2026-05-06', false))).toBeNull();
+  });
+
+  it('is silent when the stat is not there at all', () => {
+    const without = { ...stats, stats: stats.stats.filter((s) => s.id !== 'firstAndLastPlay') };
+    expect(quipFor('firstAndLastPlay', without)).toBeNull();
+  });
+});

@@ -1,6 +1,7 @@
 import { AbsoluteFill } from 'remotion';
-import { FONTS } from '@/theme/fonts';
+import { useMemo } from 'react';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
+import { ESTIMATED_ADVANCE, measureFor, type Measure } from '../measure';
 import { VIDEO } from '../config';
 import { KineticWords } from '../motion';
 import { useQuipSpace } from './Quip';
@@ -13,19 +14,22 @@ import { useQuipSpace } from './Quip';
  * type only ever comes from the four named scale steps.
  */
 
-/** Rough advance width per character as a fraction of font size, for a bold display face. */
-export const DISPLAY_CHAR_WIDTH = 0.56;
+/** Rough advance width per character, for when nothing can be measured. */
+export const DISPLAY_CHAR_WIDTH = ESTIMATED_ADVANCE;
 
 /**
- * What the display face this theme uses is actually worth per character.
+ * How wide this theme's display face really sets a given string.
  *
- * One constant covered every face while every face was roughly one width. It
- * stopped being true the moment a theme took the far end of Archivo's width
- * axis: fitted at the default, a seven-letter game title overran the right
- * margin by most of a letter. A face states its own advance when it has one.
+ * Measured rather than estimated — see [measure.ts](src/video/measure.ts). One
+ * constant covered every face while every face was roughly one width; it broke
+ * on Archivo at 125%, and again on Syne, and the random generator picks a
+ * display face at random, so any face being wrong made random themes
+ * unreliable rather than just the two.
  */
-const useDisplayAdvance = (): number =>
-  FONTS[useTheme().type.display].advance ?? DISPLAY_CHAR_WIDTH;
+const useMeasure = (role: 'display' | 'utility', fallback?: number): Measure => {
+  const id = useTheme().type[role];
+  return useMemo(() => measureFor(id, fallback), [id, fallback]);
+};
 
 /**
  * The only container slide content is allowed in.
@@ -94,10 +98,13 @@ export const Eyebrow: React.FC<{
   const font = useFont('utility');
   const { caption } = useTypeScale();
   const { color } = useTheme();
+  const measure = useMeasure('utility', LABEL_CHAR_WIDTH);
   // Only a string can be measured. A label built from an expression keeps the
   // base size, which is what every one of them resolves to anyway.
   const size =
-    typeof children === 'string' ? fitLabel(children, caption, width) : caption * LABEL_SCALE;
+    typeof children === 'string'
+      ? fitLabel(children, caption, width, measure)
+      : caption * LABEL_SCALE;
   return (
     <p style={{ ...font, fontSize: size, color: color.ink, margin: 0, lineHeight: 1.2 }}>
       {children}
@@ -136,9 +143,10 @@ export const fitLabel = (
   text: string,
   captionSize: number,
   width: number = VIDEO.width - VIDEO.safeMargin * 2,
+  measure: Measure = (t) => t.length * LABEL_CHAR_WIDTH,
 ): number => {
-  const measure = Math.max(1, text.length * LABEL_CHAR_WIDTH);
-  return Math.max(captionSize, Math.min(captionSize * LABEL_SCALE, width / measure));
+  const ems = Math.max(0.001, measure(text));
+  return Math.max(captionSize, Math.min(captionSize * LABEL_SCALE, width / ems));
 };
 
 /** Sentence-level text below a stat. */
@@ -165,6 +173,30 @@ export const Caption: React.FC<{ children: React.ReactNode; accent?: boolean }> 
 };
 
 /**
+ * Air a slide keeps above its content, whatever the type does.
+ *
+ * Content is anchored to the bottom of its box, so anything that does not fit
+ * spills off the *top* — and on a slide that leads with a cover, the top is the
+ * cover. This is what guarantees it stays on screen.
+ */
+export const SLIDE_TOP_AIR = 56;
+
+/**
+ * The height left over for the one element that is allowed to grow.
+ *
+ * Everything else on these slides is a known quantity: a cover, a label, a
+ * caption, the gaps between them, and the band the aside has already taken.
+ * Pass their total; what comes back is the budget for the headline.
+ *
+ * Needed wherever a headline shares a frame with something tall. A headline
+ * fills the measure it is given, so on a wide display face — Syne Extrabold,
+ * Archivo at 125% — it grows until the frame runs out, and what runs out first
+ * is the cover above it.
+ */
+export const useSpareHeight = (fixed: number, topAir: number = SLIDE_TOP_AIR): number =>
+  VIDEO.height - VIDEO.safeMargin * 2 - useQuipSpace() - topAir - fixed;
+
+/**
  * The headline step: a name, a title, anything that is words rather than a
  * number. Shrinks to fit rather than wrapping into an unreadable block.
  */
@@ -183,7 +215,7 @@ export const Headline: React.FC<{
   const font = useFont('display');
   const { display } = useTypeScale();
   const { color } = useTheme();
-  const advance = useDisplayAdvance();
+  const measure = useMeasure('display');
   /*
     A headline fills the width it is given, rather than being set at one size
     and shrunk only when it overruns.
@@ -204,7 +236,7 @@ export const Headline: React.FC<{
     text: children,
     ceiling: display,
     maxLines,
-    charWidth: advance,
+    measure,
     ...(maxHeight === undefined ? {} : { maxHeight }),
   });
 
@@ -246,11 +278,15 @@ export const Headline: React.FC<{
 export const fitDisplay = (
   text: string,
   baseSize: number,
-  charWidth: number = DISPLAY_CHAR_WIDTH,
+  measure: Measure | number = DISPLAY_CHAR_WIDTH,
 ): number => {
   const available = VIDEO.width - VIDEO.safeMargin * 2;
-  const width = Math.max(1, text.length * charWidth);
-  return Math.max(MIN_DISPLAY_NUMBER_PX, Math.min(baseSize, available / width));
+  // A number for the old call sites, which pass an advance per character.
+  const ems =
+    typeof measure === 'number'
+      ? Math.max(0.001, text.length * measure)
+      : Math.max(0.001, measure(text));
+  return Math.max(MIN_DISPLAY_NUMBER_PX, Math.min(baseSize, available / ems));
 };
 
 /**
@@ -275,8 +311,8 @@ export const DisplayNumber: React.FC<{
   const font = useFont('display');
   const { display } = useTypeScale();
   const { color } = useTheme();
-  const advance = useDisplayAdvance();
-  const size = fit === undefined ? display : fitDisplay(fit, display, advance);
+  const measure = useMeasure('display');
+  const size = fit === undefined ? display : fitDisplay(fit, display, measure);
   return (
     // No drift. The number counts up and then holds perfectly still: a figure
     // that keeps sliding is harder to read, and this is the one thing on the
@@ -326,7 +362,16 @@ export interface FitBlockOptions {
   /** The largest size this text may reach. */
   ceiling: number;
   maxLines?: number;
+  /** Per-character estimate, used when no measurer is given. */
   charWidth?: number;
+  /**
+   * How wide this text really is, in ems, in the face it will be set in.
+   *
+   * Supersedes `charWidth` where it is given, which is everywhere a real font
+   * is on screen. The estimate stays for tests, where there is no canvas and no
+   * loaded font to measure against.
+   */
+  measure?: Measure;
   /** Measure to fit into. Defaults to the frame's safe width. */
   width?: number;
   /**
@@ -361,21 +406,25 @@ export const fitBlock = ({
   ceiling,
   maxLines = 2,
   charWidth = DISPLAY_CHAR_WIDTH,
+  measure,
   width = VIDEO.width - VIDEO.safeMargin * 2,
   maxHeight = Number.POSITIVE_INFINITY,
   lineHeight = HEADLINE_LINE_HEIGHT,
   floor = MIN_HEADLINE_PX,
 }: FitBlockOptions): number => {
-  const chars = Math.max(1, text.length);
+  const ems: Measure = measure ?? ((t) => t.length * charWidth);
+
+  const whole = Math.max(0.001, ems(text));
+  // A single long word cannot be solved by wrapping, so it gets its own budget.
   const longestWord = Math.max(
-    1,
-    text.split(/\s+/).reduce((max, word) => Math.max(max, word.length), 0),
+    0.001,
+    ...text.split(/\s+/).map((word) => ems(word)),
   );
-  const byWord = width / (longestWord * charWidth);
+  const byWord = width / longestWord;
 
   let best = 0;
   for (let lines = 1; lines <= Math.max(1, maxLines); lines += 1) {
-    const byMeasure = (width * lines) / (chars * charWidth);
+    const byMeasure = (width * lines) / whole;
     const byHeight = maxHeight / (lineHeight * lines);
     best = Math.max(best, Math.min(ceiling, byMeasure, byWord, byHeight));
   }

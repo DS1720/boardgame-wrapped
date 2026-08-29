@@ -4,7 +4,6 @@ import { formatNumber } from '@/shared/format';
 import { outroFactFor } from '@/stats/outroFact';
 import { superlativeFor } from '@/stats/superlative';
 import type { WrappedStats } from '@/stats/types';
-import { FONTS } from '@/theme/fonts';
 import { FontLoader, ThemeProvider, useFont, useTheme } from '@/theme/ThemeContext';
 import { themeFromBoxArt } from '@/theme/generate';
 import { DEFAULT_THEME } from '@/theme/starters';
@@ -12,7 +11,8 @@ import type { Theme } from '@/theme/types';
 import { Ambient } from './Ambient';
 import { BoxArt } from './BoxArt';
 import { VIDEO } from './config';
-import { DISPLAY_CHAR_WIDTH, fitBlock } from './slides/layout';
+import { measureFor } from './measure';
+import { fitBlock } from './slides/layout';
 import { Texture, Vignette } from './Texture';
 import { boxArtFor, useBoxArtManifest } from './useBoxArt';
 
@@ -158,12 +158,12 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
     hasSuperlative: superlative !== null,
     hasGames: games.length > 0,
   });
-  // A wide display face runs out of room sooner, exactly as in the video.
+  // Measured in the face it will actually be set in, exactly as in the video.
   const nameSize = fitBlock({
     text: stats.playerName,
     ceiling: SQUARE_TYPE.name,
     maxLines: 1,
-    charWidth: FONTS[theme.type.display].advance ?? DISPLAY_CHAR_WIDTH,
+    measure: measureFor(theme.type.display),
     width: layout.available,
     floor: 40,
   });

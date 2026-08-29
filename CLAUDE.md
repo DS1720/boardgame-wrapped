@@ -933,23 +933,36 @@ Things that keep the frame moving:
   to pass a flag down. It is reserved rather than measured: measuring text needs
   two passes, and Remotion renders each frame once.
 
-### The bookends slide needed a number
+### The bookends slide is three rows, not two and a decoration
 
 "Started the year with / Ended it with" was two covers and a torn calendar, and
 next to slides that all lead with a figure it read as the one with nothing to
-say. It now states **the days between the first play and the last** — the thing
-the calendar is already drawing, so the flourish becomes a caption for something
-rather than decoration. The two rows also arrive from opposite sides, because
-that is what they are: one opened the year and one closed it, and sliding in
-from the same side made them read as two items in a list.
+say. Adding the span helped and was still wrong: set loose on the frame, the
+line under the tear was indented from nothing and aligned to nothing — the one
+piece of text on the slide that belonged to no row.
 
-It is the one slide that overrides the bottom anchor back to centred. Its
-content is a pair being compared rather than a figure with support under it, and
-hung from the bottom it left the top two thirds of the frame empty.
+**The calendar now sits in the same two columns the rows use**: the tear where a
+cover would be, the span where a game's name would be. The slide reads as three
+rows — a game, the gap, a game — and everything lines up because everything is
+in the same grid.
 
-The label there is fitted to **the column beside the cover**, not to the frame —
-`Eyebrow` takes a `width`. At the full label size "Started the year with"
-wrapped onto two lines and pushed the date out from under it.
+- **The span is the figure**, set at a third of the display step in accent, with
+  a second line under it saying the same length a different way: weeks up to a
+  season, then months. Nobody counts 236 days; everybody knows how long eight
+  months is.
+- **Both are fitted to the column, not the frame.** `Eyebrow` and `fitBlock`
+  both take a `width`. At full size "Started the year with" wrapped onto two
+  lines and pushed the date out from under it, and "236 days" broke across two
+  lines in a wide face.
+- **The rows arrive from opposite sides.** One opened the year and one closed
+  it; sliding in from the same side made them read as two items in a list.
+- **It has a quip now**, which is what the slide was really missing — a remark
+  rather than a second reading of the same number. The best case costs nothing
+  to check: if the first game and the last are the same game, it says so, and
+  "You opened and closed with Faraway. Full circle." is a better line than any
+  number the slide is already showing. Otherwise it reaches for what happened in
+  between — the distinct games, or the nights. Under a week apart it says
+  nothing at all.
 
 ### The outro's fourth fact
 
@@ -1071,10 +1084,17 @@ aside — both of which the most-played slide really did. `fitBlock` tries every
 line count it is allowed and keeps the best: more lines buy width and cost
 height, and which way the trade falls depends on the string.
 
-Only the most-played slide passes a `maxHeight`, and it computes the budget from
-what it actually has left — the frame, less the margins, less the aside's band,
-less the cover, the label, the caption and `HERO_TOP_AIR`. That last term is
-what guarantees the cover has visible space above it whatever the title does.
+**Every slide that stacks a cover above its type passes a `maxHeight`.**
+`useSpareHeight(fixed)` is the one place the arithmetic lives: the frame, less
+the margins, less the band the aside has already taken, less `SLIDE_TOP_AIR`
+(56) and whatever the slide states as fixed. What comes back is the budget for
+the one element allowed to grow.
+
+Three slides need it — most played, the record, and best/worst. Content is
+anchored to the bottom of its box, so anything that does not fit spills off the
+*top*, and on those slides the top is the cover. It was Blueprint and Meeple
+that exposed it: a wide display face grew the title, everything above it was
+pushed up, and the box art left the frame entirely.
 
 **A display number never wraps, and every one of them is sized against its own
 string.** `whiteSpace: nowrap` is the backstop; `fit` is the fix. The formatted
@@ -1094,12 +1114,41 @@ unaffected: the measure decides its size, and that has not moved. The ceiling
 stops at the display step because the number is still meant to be the largest
 thing in the video.
 
-**A face states its own advance when it has one.** One constant (0.56em per
-character) covered every display face while every face was roughly one width. It
-stopped being true the moment Neon Night took Archivo at 125%: fitted at 0.56,
-the seven letters of "Faraway" ran past the right margin — visible in a render,
-invisible in a test. `FontSpec.advance` is the per-face override, `fitText` and
-`fitDisplay` take it as an argument, and `archivo-expanded` states 0.72.
+**Text is measured, not estimated.** One constant — 0.56em per character —
+covered every display face while every face was roughly one width. It stopped
+being true the moment Neon Night took Archivo at 125%, and it broke outright
+when Syne and Outfit arrived: a headline in Syne Extrabold is half again as wide
+as the guess. Worse, `randomTheme` picks a display face at random, so *any* face
+being wrong made random themes unreliable rather than just the two.
+
+[measure.ts](src/video/measure.ts) measures instead. `measureText` on a 2D
+canvas is synchronous — no layout pass, no second render — which is what makes
+it usable somewhere that renders each frame exactly once. `fitBlock`,
+`fitDisplay` and `fitLabel` all take a `Measure`, and the per-character estimate
+survives only as the fallback for a unit test with no canvas.
+
+Three details are load-bearing, and all three were found by rendering:
+
+- **Digits are measured as the widest digit.** `measureText` knows nothing about
+  `font-variant-numeric`, and every number in this video is tabular — a figure
+  that changes width while it counts up is worse than one slightly too big. In a
+  face with a narrow 1, measuring the proportional figures understated a score
+  by enough to run it off the frame.
+- **The face is checked with `document.fonts.check` first.** `FontLoader` holds
+  the first frame until the theme's faces have loaded, so in practice it is
+  always ready — but the failure it guards against is silent. Chrome measures
+  whatever it fell back to, the number looks perfectly reasonable, and
+  everything is mis-sized by however much the fallback differs.
+- **The fallback guesses wide** (0.78em), not at the old 0.56. Understating is
+  the direction that runs type off the frame; a fit that comes out slightly
+  small is a slide nobody notices.
+
+Tracking, `font-stretch` and `text-transform: uppercase` are all folded in,
+because they are part of the font *choice* rather than decoration on it —
+`inter-tracked` is Inter set uppercase at 0.16em, and measuring plain lowercase
+Inter understates it by a fifth. Letter-spacing set by a component is
+deliberately *not* subtracted: it is always negative there, so ignoring it
+rounds toward a smaller fit.
 
 **Slide content is anchored to the bottom of its box, not centred in it.**
 Centred, a short stat block floated in the middle of the frame with a third of
@@ -1239,7 +1288,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 491 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 502 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.

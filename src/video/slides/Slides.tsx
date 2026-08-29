@@ -10,10 +10,17 @@ import { BoxArt, BoxArtHero } from '../BoxArt';
 import { CountUp, Float, Reveal, Stagger } from '../motion';
 import { SignaturePlate, TallyMarks } from '../signature';
 import { ChipStacks, DealtHand, HeadToHead, PinDrop } from './details';
-import { VIDEO } from '../config';
 import { boxArtFor, useBoxArtManifest } from '../useBoxArt';
-import { Caption, Eyebrow, Headline, LABEL_SCALE, SafeArea, Stack, StatBlock } from './layout';
-import { useQuipSpace } from './Quip';
+import {
+  Caption,
+  Eyebrow,
+  Headline,
+  LABEL_SCALE,
+  SafeArea,
+  Stack,
+  StatBlock,
+  useSpareHeight,
+} from './layout';
 
 /**
  * The ten slides of the default cut.
@@ -154,22 +161,13 @@ export const TotalPlaysSlide: React.FC<SlideProps> = ({ stat }) => {
 export const TopGameSlide: React.FC<SlideProps> = ({ stat }) => {
   const manifest = useBoxArtManifest();
   const { caption, body } = useTypeScale();
-  // The band the aside has already taken, so the budget is what is actually
-  // left rather than what would be left on a slide with no line under it.
-  const reserved = useQuipSpace();
   if (stat?.id !== 'topGame') return null;
   const entry = boxArtFor(manifest, stat.game.gameId);
 
-  const titleBudget =
-    VIDEO.height -
-    VIDEO.safeMargin * 2 -
-    reserved -
-    HERO_TOP_AIR -
-    HERO_H -
-    HERO_GAP -
-    caption * LABEL_SCALE * 1.2 -
-    TEXT_GAP * 2 -
-    body * 1.3;
+  const titleBudget = useSpareHeight(
+    HERO_H + HERO_GAP + caption * LABEL_SCALE * 1.2 + TEXT_GAP * 2 + body * 1.3,
+    HERO_TOP_AIR,
+  );
 
   return (
     <>

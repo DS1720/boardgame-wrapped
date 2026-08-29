@@ -15,7 +15,19 @@ import {
   StreakChain,
 } from './details';
 import { boxArtFor, useBoxArtManifest } from '../useBoxArt';
-import { Caption, DisplayNumber, Eyebrow, Headline, SafeArea, Stack, StatBlock } from './layout';
+import { measureFor } from '../measure';
+import {
+  Caption,
+  DisplayNumber,
+  Eyebrow,
+  Headline,
+  LABEL_SCALE,
+  fitBlock,
+  SafeArea,
+  Stack,
+  StatBlock,
+  useSpareHeight,
+} from './layout';
 import type { SlideProps } from './Slides';
 
 /**
@@ -177,6 +189,11 @@ export const GroupShareSlide: React.FC<SlideProps> = ({ stat }) => {
 /* -------------------------------------------------------------------------- */
 
 /** Shared by best and worst: the cover leads, the rate follows. */
+const RATE_COVER = 380;
+const RATE_GAP = 24;
+/** Two rows of 40px markers and the gap between them. */
+const RESULT_ROW_HEIGHT = 100;
+
 const GameRateSlide: React.FC<{
   eyebrow: string;
   game: { gameId: number; name: string };
@@ -184,16 +201,30 @@ const GameRateSlide: React.FC<{
   plays: number;
 }> = ({ eyebrow, game, ratio, plays }) => {
   const manifest = useBoxArtManifest();
+  const { body } = useTypeScale();
+  // The headline sits above the cover here, so it is the cover that leaves the
+  // frame when the type outgrows it.
+  const claimBudget = useSpareHeight(
+    RATE_COVER + RATE_GAP * 4 + body * 1.3 * 2 + RESULT_ROW_HEIGHT,
+  );
+
   return (
     <SafeArea>
-      <Stack gap={24}>
+      <Stack gap={RATE_GAP}>
         <Reveal delay={BEAT.first}>
           {/* The claim is the point of the slide, so it is set as a headline
               rather than a label above the real content. */}
-          <Headline maxLines={2}>{eyebrow}</Headline>
+          <Headline maxLines={2} maxHeight={claimBudget}>
+            {eyebrow}
+          </Headline>
         </Reveal>
         <Reveal delay={BEAT.second} distance={30}>
-          <BoxArt entry={boxArtFor(manifest, game.gameId)} name={game.name} width={380} height={380} />
+          <BoxArt
+            entry={boxArtFor(manifest, game.gameId)}
+            name={game.name}
+            width={RATE_COVER}
+            height={RATE_COVER}
+          />
         </Reveal>
         <Reveal delay={BEAT.second + 4}>
           <Caption>{game.name}</Caption>
@@ -267,23 +298,46 @@ export const HighestScoreSlide: React.FC<SlideProps> = ({ stat }) => {
  * turns a number into a claim — "best of five" — and the count of other records
  * is what stops one record reading as a fluke.
  */
+const RECORD_COVER = { width: 300, height: 360 } as const;
+const RECORD_GAP = 22;
+
 export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
   const manifest = useBoxArtManifest();
+  const { caption, body, display } = useTypeScale();
+  const otherRecords = stat?.id === 'gameRecord' ? stat.otherRecords : 0;
+  /*
+    The tallest stack in the video: a cover, a label, a title, a display number
+    and up to two captions. It was also the one that broke first on a wide
+    display face — the title grew, everything above it was pushed up, and the
+    cover left the top of the frame. The number is counted at its full step
+    rather than its fitted one, so the budget never depends on how many digits
+    this player happens to have scored.
+  */
+  const titleBudget = useSpareHeight(
+    RECORD_COVER.height +
+      RECORD_GAP * 3 +
+      caption * LABEL_SCALE * 1.2 +
+      10 +
+      display * 0.95 +
+      body * 1.3 +
+      (otherRecords > 0 ? RECORD_GAP + body * 1.3 : 0),
+  );
+
   if (stat?.id !== 'gameRecord') return null;
 
   const best = stat.highestWins ? 'highest' : 'lowest';
 
   return (
     <SafeArea>
-      <Stack gap={22}>
+      <Stack gap={RECORD_GAP}>
         <Reveal delay={BEAT.first} distance={26}>
           {/* Contained, not cropped: the slide names one game, so its box
               should be legible. A square crop took the title off the top. */}
           <BoxArt
             entry={boxArtFor(manifest, stat.game.gameId)}
             name={stat.game.name}
-            width={300}
-            height={360}
+            width={RECORD_COVER.width}
+            height={RECORD_COVER.height}
             fit="contain"
           />
         </Reveal>
@@ -293,7 +347,9 @@ export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
             <Eyebrow>{stat.shared ? 'You share the record in' : 'You hold the record in'}</Eyebrow>
           </Reveal>
           <Reveal delay={BEAT.second + 4}>
-            <Headline maxLines={2}>{stat.game.name}</Headline>
+            <Headline maxLines={2} maxHeight={titleBudget}>
+              {stat.game.name}
+            </Headline>
           </Reveal>
         </Stack>
 
@@ -327,6 +383,19 @@ export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
  * First and last play of the range: a pair, not a number. It is the one slide
  * that gives the year a shape — where it started and where it ended up.
  */
+/**
+ * The second line under the span, saying the same length a different way.
+ *
+ * A number on its own is a fact; the same number restated in a unit a person
+ * lives in is a length of time. Weeks up to a season, then months — nobody
+ * counts 236 days, but everybody knows how long eight months is.
+ */
+const gapNote = (days: number, months: number): string => {
+  if (days < 14) return 'start to finish';
+  if (days < 100) return `${Math.round(days / 7)} weeks between them`;
+  return `${months} months, end to end`;
+};
+
 /** Cover, gap and the text column beside it, in the bookends slide's rows. */
 const ROW_COVER = 216;
 const ROW_GAP = 24;
@@ -336,7 +405,9 @@ export const FirstAndLastPlaySlide: React.FC<SlideProps> = ({ stat }) => {
   const manifest = useBoxArtManifest();
   const { color } = useTheme();
   const bodyFont = useFont('body');
-  const { body } = useTypeScale();
+  const displayFont = useFont('display');
+  const { body, display } = useTypeScale();
+  const spanMeasure = measureFor(useTheme().type.display);
   if (stat?.id !== 'firstAndLastPlay') return null;
 
   const row = (
@@ -398,12 +469,10 @@ export const FirstAndLastPlaySlide: React.FC<SlideProps> = ({ stat }) => {
     the flourish into a caption for something.
   */
   const days = daysBetween(stat.first.day, stat.last.day) ?? 0;
+  const months = monthOf(stat.last.day) - monthOf(stat.first.day) + 1;
 
   return (
-    // Centred rather than anchored low. This slide is a pair being compared
-    // rather than a figure with support under it, and hung from the bottom it
-    // left the top two thirds of the frame empty.
-    <SafeArea justify="center">
+    <SafeArea>
       <Stack gap={22}>
         {row('Started the year with', stat.first, BEAT.first, 'left')}
         {/*
@@ -411,27 +480,55 @@ export const FirstAndLastPlaySlide: React.FC<SlideProps> = ({ stat }) => {
           between them. It tears exactly the months the range covers — a year
           that ran January to March tears three, not twelve — so the flourish
           is the length of the span rather than a fixed piece of decoration.
+
+          It sits in the *same two columns the rows use*: the tear where a cover
+          would be, the span where a game's name would be. Set loose on the
+          frame the line under it read as an orphan — indented from nothing,
+          aligned to nothing, and the one piece of text on the slide that
+          belonged to no row.
         */}
-        <Reveal delay={BEAT.second} distance={0}>
-          <CalendarTear
-            fromMonth={monthOf(stat.first.day)}
-            toMonth={monthOf(stat.last.day)}
-            delay={BEAT.second}
-          />
-        </Reveal>
-        {/* Nothing to say when both are the same day, which is a real case for
-            a player with one evening in range: "0 days between them" would be
-            a worse slide than no line at all. */}
-        {days > 0 && (
-          <Reveal delay={BEAT.second + 8}>
-            <p style={{ ...bodyFont, fontSize: body, color: color.inkMuted, margin: 0 }}>
-              <span style={{ color: color.accent }}>
-                <CountUp to={days} delay={BEAT.second + 8} />
-              </span>{' '}
-              days between them
-            </p>
-          </Reveal>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: ROW_GAP }}>
+          <div style={{ width: ROW_COVER, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+            <Reveal delay={BEAT.second} distance={0}>
+              <CalendarTear
+                fromMonth={monthOf(stat.first.day)}
+                toMonth={monthOf(stat.last.day)}
+                delay={BEAT.second}
+              />
+            </Reveal>
+          </div>
+          {days > 0 && (
+            <Reveal delay={BEAT.second + 8}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span
+                  style={{
+                    ...displayFont,
+                    // Fitted to the column, not to the frame: at the display
+                    // step a wide face broke "236 days" across two lines and
+                    // pushed the note under it out of the row.
+                    fontSize: fitBlock({
+                      text: `${days} days`,
+                      ceiling: display * 0.34,
+                      maxLines: 1,
+                      measure: spanMeasure,
+                      width: ROW_TEXT_WIDTH,
+                      floor: 40,
+                    }),
+                    color: color.accent,
+                    lineHeight: 1,
+                    letterSpacing: '-0.02em',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <CountUp to={days} delay={BEAT.second + 8} /> days
+                </span>
+                <span style={{ ...bodyFont, fontSize: body * 0.86, color: color.inkMuted }}>
+                  {gapNote(days, months)}
+                </span>
+              </div>
+            </Reveal>
+          )}
+        </div>
         {row('Ended it with', stat.last, BEAT.third + 6, 'right')}
       </Stack>
     </SafeArea>

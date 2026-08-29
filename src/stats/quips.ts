@@ -1,4 +1,4 @@
-import { formatNumber } from '@/shared/format';
+import { daysBetween, formatNumber } from '@/shared/format';
 import type { SlideId } from './types';
 import type { Stat, WrappedStats } from './types';
 
@@ -147,6 +147,32 @@ export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | 
       return score.won
         ? 'Still bringing it up at parties.'
         : 'A lot of points, and somebody else still won.';
+    }
+
+    case 'firstAndLastPlay': {
+      const ends = find(stats, 'firstAndLastPlay');
+      if (!ends) return null;
+      const span = daysBetween(ends.first.day, ends.last.day);
+      // A single evening in range has no span to remark on, and "0 days" is a
+      // worse line than none.
+      if (span === null || span < 7) return null;
+
+      // The best line this slide has, and it costs nothing to check: opening
+      // and closing a year with the same game is a real thing about a person,
+      // and it says more than any number the slide is already showing.
+      if (ends.first.game.gameId === ends.last.game.gameId) {
+        return `You opened and closed with ${ends.first.game.name}. Full circle.`;
+      }
+
+      // Second best: the year had a first game and a last one, and everything
+      // in between is what the rest of the video was about.
+      if (total && total.distinctGames >= 10) {
+        return `${formatNumber(total.distinctGames)} different games happened in between.`;
+      }
+      if (total && total.nights >= 10) {
+        return `${formatNumber(total.nights)} evenings between those two.`;
+      }
+      return `${formatNumber(span)} days, bookended.`;
     }
 
     case 'gameRecord': {
