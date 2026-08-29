@@ -12,7 +12,7 @@
  * a `.cjs` entry works on every version without a flag.
  */
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
-const { spawn } = require('node:child_process');
+const { spawn, execFile } = require('node:child_process');
 const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
@@ -22,6 +22,8 @@ const ROOT = app.isPackaged ? path.join(process.resourcesPath, 'app') : path.joi
 
 let child = null;
 let window = null;
+/** The port the service came up on, so shutdown can ask it to stop. */
+let servicePort = null;
 
 /**
  * Where the app keeps what the *user* accumulates: downloaded covers, uploaded
@@ -88,6 +90,7 @@ const waitForServer = async (port, timeoutMs = 60_000) => {
 };
 
 const startServer = (port) => {
+  servicePort = port;
   // Electron's own binary is a Node runtime when ELECTRON_RUN_AS_NODE is set,
   // so the packaged app needs no system Node installed.
   child = spawn(process.execPath, [path.join(ROOT, 'build', 'server.cjs')], {
@@ -225,16 +228,84 @@ app.whenReady().then(async () => {
   });
 });
 
-// The service is a child process; closing the window has to take it with us or
-// it keeps a port and a Chrome instance for the rest of the session.
-const stopServer = () => {
+/**
+ * Stop the service, and everything it started.
+ *
+ * `child.kill()` alone was not enough. It does end the service — on Windows it
+ * terminates unconditionally — but the headless Chrome a render opens is a
+ * child of the *service*, not of this process, and Windows does not cascade a
+ * kill down the tree. Quitting mid-render left a `headless_shell.exe` behind
+ * holding a few hundred megabytes until somebody found it in Task Manager.
+ *
+ * So this asks first and kills second:
+ *
+ *  1. `POST /shutdown`, which closes the browser the same way Cancel does and
+ *     then exits. A signal would not do: Windows delivers no SIGTERM, and a
+ *     handler for one never runs.
+ *  2. Wait for the process to actually go, briefly.
+ *  3. Kill the whole tree anyway. A service wedged badly enough to ignore step
+ *     one is exactly the case where its children need collecting, and by this
+ *     point there is nothing left to be graceful about.
+ */
+const GRACEFUL_MS = 4000;
+
+const ask = (port) =>
+  fetch(`http://127.0.0.1:${port}/api/shutdown`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(GRACEFUL_MS),
+  }).catch(() => undefined);
+
+const waitForExit = (proc, timeoutMs) =>
+  new Promise((resolve) => {
+    if (proc.exitCode !== null || proc.signalCode !== null) return resolve(true);
+    const timer = setTimeout(() => resolve(false), timeoutMs);
+    proc.once('exit', () => {
+      clearTimeout(timer);
+      resolve(true);
+    });
+  });
+
+const killTree = (proc) =>
+  new Promise((resolve) => {
+    if (process.platform !== 'win32') {
+      proc.kill('SIGKILL');
+      return resolve();
+    }
+    // /T takes the children with it, which is the entire point.
+    execFile('taskkill', ['/pid', String(proc.pid), '/T', '/F'], () => resolve());
+  });
+
+const stopServer = async () => {
   app.isQuitting = true;
-  if (child) {
-    child.kill();
-    child = null;
-  }
+  const proc = child;
+  const port = servicePort;
+  child = null;
+  if (!proc) return;
+
+  if (port) await ask(port);
+  if (await waitForExit(proc, GRACEFUL_MS)) return;
+
+  console.warn('[server] did not stop when asked; killing the process tree');
+  await killTree(proc);
+  await waitForExit(proc, 2000);
 };
 
-app.on('before-quit', stopServer);
-app.on('will-quit', stopServer);
+/*
+  Quit is held open until the service is down.
+
+  `before-quit` is the only hook that can still defer the exit, so the cleanup
+  runs there and `app.exit` finishes the job — it skips the quit events, which
+  is what stops this from re-entering itself.
+*/
+let quitting = false;
+
+app.on('before-quit', (event) => {
+  if (quitting) return;
+  quitting = true;
+  if (!child) return;
+
+  event.preventDefault();
+  stopServer().finally(() => app.exit(0));
+});
+
 app.on('window-all-closed', () => app.quit());

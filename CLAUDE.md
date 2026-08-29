@@ -1422,6 +1422,25 @@ Six things here are load-bearing:
 - **The service is spawned, not imported.** `process.execPath` with
   `ELECTRON_RUN_AS_NODE=1` is Electron acting as Node, so the app needs no
   system Node — and a service that dies cannot take the window with it.
+- **Quitting asks before it kills.** `child.kill()` does end the service — on
+  Windows it terminates unconditionally — but the headless Chrome a render opens
+  is a child of the *service*, and **Windows does not cascade a kill down the
+  process tree**. Quitting mid-render left twelve `chrome-headless-shell`
+  processes behind, holding a few hundred megabytes until somebody found them in
+  Task Manager.
+
+  So `stopServer` posts to `/shutdown` first, waits for the exit, and only then
+  runs `taskkill /T /F`. It has to be an HTTP call and not a signal: **Windows
+  delivers no SIGTERM**, so a `process.on('SIGTERM')` handler in the service
+  would never run — it is there for `npm run server` and for the other two
+  platforms, not for the app. `before-quit` defers the exit with
+  `preventDefault` and finishes with `app.exit`, which skips the quit events and
+  so cannot re-enter itself.
+
+  Measured: 12 browser processes during a render, 0 after the shutdown call, and
+  the port released. The `taskkill` branch is the untested one — it only runs
+  for a service too wedged to answer, which is exactly when its children need
+  collecting anyway.
 - **The port is picked at runtime, never 4000.** Somebody running
   `npm run server` in a checkout would otherwise collide with their installed
   copy, and the symptom would be the app quietly showing the wrong data.

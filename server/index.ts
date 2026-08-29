@@ -437,6 +437,70 @@ if (existsSync(DIST_DIR)) {
   });
 }
 
+/* -------------------------------------------------------------------------- */
+/* Shutting down                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Close everything this process owns, then let it exit.
+ *
+ * The thing worth closing is the headless Chrome a render opens. It is a child
+ * of *this* process, not of the desktop shell, and Windows does not cascade a
+ * kill down the tree — so a shell that simply terminated the service left a
+ * `headless_shell.exe` behind holding a few hundred megabytes until the user
+ * found it in Task Manager.
+ *
+ * `cancel` is what closes that browser, and it is the same path the Cancel
+ * button uses; the only difference here is that the promise is awaited rather
+ * than dropped, because there is no later moment in which to finish.
+ */
+let shuttingDown: Promise<void> | null = null;
+
+const shutdown = (): Promise<void> => {
+  if (shuttingDown) return shuttingDown;
+
+  shuttingDown = (async () => {
+    // The queue first: it starts the next render otherwise, and a job opened
+    // after the browsers were closed is exactly the one that gets orphaned.
+    batch?.cancel();
+    await job?.cancel();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  })();
+
+  return shuttingDown;
+};
+
+/**
+ * Asked for by the desktop shell before it kills this process.
+ *
+ * An HTTP call rather than a signal, because on Windows there is no signal that
+ * would work: `child.kill()` terminates unconditionally and a `SIGTERM` handler
+ * never runs. The shell waits for the reply, then for the exit, then kills the
+ * process tree anyway if either takes too long.
+ *
+ * Reachable only from this machine — the server binds to loopback — and the
+ * worst it can do is stop a local tool the user is looking at.
+ */
+app.post('/shutdown', (_req, res) => {
+  res.json({ stopping: true });
+  // Answer first, exit second: the shell is waiting on this reply to know the
+  // close has begun, and a response written after `process.exit` never arrives.
+  void shutdown().then(() => process.exit(0));
+});
+
+/*
+  Ctrl+C in a terminal, and a signal on macOS or Linux.
+
+  Windows does not deliver SIGTERM at all and only emulates SIGINT, which is why
+  the route above exists rather than this being the whole fix. This is what
+  covers `npm run server`.
+*/
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => {
+    void shutdown().then(() => process.exit(0));
+  });
+}
+
 /** Bound to 127.0.0.1, not 0.0.0.0: this is a local tool and stays on this machine. */
 export const server = app.listen(PORT, '127.0.0.1', () => {
   console.log(`Board Game Wrapped on http://localhost:${PORT}`);

@@ -13,7 +13,7 @@
  * where it put the installer rather than leaving that to be guessed.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,8 +49,19 @@ run('Packaging the Windows app', 'npx', [
   `-c.directories.output=${OUTPUT.replace(/\\/g, '/')}`,
 ]);
 
+/*
+  The newest installer, not the first one alphabetically.
+
+  Earlier versions accumulate in this folder, and `find` returned whichever
+  sorted first — so a fresh 0.2.0 build proudly announced the 0.1.0 installer
+  sitting beside it, which is the one path in this script anybody actually
+  reads.
+*/
 const installer = existsSync(OUTPUT)
-  ? readdirSync(OUTPUT).find((f) => f.endsWith('.exe') && f.includes('Setup'))
+  ? readdirSync(OUTPUT)
+      .filter((f) => f.endsWith('.exe') && f.includes('Setup'))
+      .map((f) => ({ f, at: statSync(path.join(OUTPUT, f)).mtimeMs }))
+      .sort((a, b) => b.at - a.at)[0]?.f
   : undefined;
 
 console.log('\n' + '─'.repeat(64));

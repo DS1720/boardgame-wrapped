@@ -158,7 +158,15 @@ export const invalidateBundle = (): void => {
 export interface RenderJob {
   id: string;
   progress: RenderProgress;
-  cancel: () => void;
+  /**
+   * Stop the render, and resolve once its browser is actually gone.
+   *
+   * The promise matters for shutdown and nowhere else: the two HTTP callers
+   * ignore it, because a person pressing Cancel wants the slot free now and
+   * does not care when Chrome finishes exiting. A process on its way out does
+   * care — it is the last moment anything can close that browser.
+   */
+  cancel: () => Promise<void>;
   done: Promise<void>;
 }
 
@@ -206,6 +214,8 @@ export const startRender = (input: RenderInput): RenderJob => {
    */
   let browser: RenderBrowser | null = null;
   let cancelled = false;
+  /** Set by `cancel`, so a second caller can await the same close. */
+  let closing: Promise<void> | null = null;
 
   // Settles the instant cancel is requested. See `cancel` for why `done`
   // cannot simply wait on the render promise.
@@ -228,18 +238,19 @@ export const startRender = (input: RenderInput): RenderJob => {
    * `cancelled` before touching `progress`, so a late callback from a render
    * that is still unwinding cannot move the job back out of `cancelled`.
    */
-  const cancel = () => {
-    if (cancelled) return;
+  const cancel = (): Promise<void> => {
+    if (cancelled) return closing ?? Promise.resolve();
     cancelled = true;
     progress.phase = 'cancelled';
     progress.error = null;
     cancelSignal.cancel();
 
-    const closing = browser;
+    const open = browser;
     browser = null;
-    void closing?.close({ silent: true }).catch(() => undefined);
+    closing = open ? open.close({ silent: true }).catch(() => undefined) : Promise.resolve();
 
     releaseCancelled();
+    return closing;
   };
 
   const work = (async () => {
