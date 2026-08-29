@@ -21,6 +21,34 @@ export const parseLocalDate = (raw: string): Date => {
   return new Date(+y, +mo - 1, +d, +h, +mi, +s);
 };
 
+/**
+ * A "YYYY-MM-DD" day key as a local date at midnight.
+ *
+ * `parseLocalDate` deliberately refuses this — it parses a play's timestamp,
+ * and a string with no time in it is not one, so it answers an invalid Date
+ * rather than guessing. That is the right behaviour and it is also a trap:
+ * the stats carry *day keys* wherever the time of day is not part of the fact,
+ * and feeding one to the timestamp parser fails silently. It cost the
+ * first-and-last slide its span line, which computed NaN and rendered nothing.
+ */
+export const parseDayKey = (day: string): Date => {
+  const m = day.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return new Date(NaN);
+  const [, y, mo, d] = m;
+  return new Date(+y, +mo - 1, +d);
+};
+
+/** Whole days from one day key to another, or null if either is not one. */
+export const daysBetween = (from: string, to: string): number | null => {
+  const a = parseDayKey(from);
+  const b = parseDayKey(to);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  // Rounded, not floored: the two dates are local midnights, and a daylight
+  // saving change in between makes the difference 23 or 25 hours short of a
+  // whole number of days.
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000);
+};
+
 export const toDayKey = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate(),

@@ -167,6 +167,14 @@ Verified against the real export — these are not guesses:
   `parseLocalDate` in [src/shared/format.ts](src/shared/format.ts), never
   `new Date(string)` — the latter drifts by timezone and silently corrupts
   "game nights" and the night-owl stat.
+- **A day key is not a timestamp, and the two parsers are not interchangeable.**
+  Stats carry `"YYYY-MM-DD"` wherever the time of day is not part of the fact.
+  `parseLocalDate` requires the time and answers an *invalid Date* for a bare
+  day key rather than throwing — correct, and a trap: the first-and-last slide's
+  span line computed `NaN`, failed its own `days > 0` guard and rendered
+  nothing at all, in silence. Use `parseDayKey` / `daysBetween` for day keys.
+  `daysBetween` rounds rather than floors, because a span crossing a daylight
+  saving change is 23 or 25 hours short of a whole number of days.
 
 ## Adding a stat
 
@@ -203,18 +211,18 @@ Slides read them through `useTheme()`, `useTypeScale()` and `useFont(role)`.
 
 Four ways a theme is arrived at:
 
-- **Starter** — the six hand-specified palettes in
+- **Starter** — the seven hand-specified palettes in
   [src/theme/starters.ts](src/theme/starters.ts).
 - **Custom** — any token edited in the picker; persisted to localStorage.
 - **Random** — one hue outside the muddy 45°–65° band, whole palette derived.
 - **Box art** — accent taken from the slide's own cover, rest derived to match.
 
-### Six starters, six signatures
+### Seven starters, seven signatures
 
 A signature is the thing someone would describe if asked what the video looked
 like, so **every starter owns one and no two share**. A test enforces that, along
-with distinct grounds and distinct display faces — the point of having six is
-that they read as six studios' work, not one palette shuffled.
+with distinct grounds and distinct display faces — the point of having seven is
+that they read as seven studios' work, not one palette shuffled.
 
 | Theme | Ground | Signature | What it draws |
 |---|---|---|---|
@@ -224,6 +232,86 @@ that they read as six studios' work, not one palette shuffled.
 | Felt Table | green cloth | `dice` | dice tumble through faces in the air and land on their value |
 | Meadow | parchment | `tiles` | tiles dropped in with a quarter turn, roads meeting at the joins |
 | Peg Board | walnut | `pegs` | pegs drop into a drilled track, empty holes ahead of them |
+| Neon Night | deep violet | `cubes` | big flat cubes drifting at three depths, clear of the middle |
+
+**Neon Night is the odd one out, on purpose.** The other six are named after a
+material and behave like it. This one is named after a look, and it exists
+because six tasteful palettes cannot be arranged into anything resembling a
+Wrapped deck — the ground is the effect, and chipboard is not a colour that
+shouts. It is the only starter that states its own `grounds`, and the only one
+whose texture is `none`: flat colour is the point, and a texture over these
+grounds is a smudge on a poster.
+
+Its display face is **Archivo at 125% width**, the far end of the same variable
+axis Punchboard reads at 75%. Two widths of one family look nothing alike at
+poster size, and `uniqueFontSpecs` dedupes on the Google spec — so the seventh
+face downloaded nothing and the mirror is still the twelve curated families.
+
+### The ground belongs to the slide, not to the video
+
+`Stage` used to paint `theme.color.bg` once, above the `<Series>`, and hold it
+for the whole minute — deliberately, so the cuts disappeared. A Wrapped deck
+does the opposite: every card is its own colour, and **the snap between them is
+the effect.** [src/theme/palette.ts](src/theme/palette.ts) is what changed.
+
+- **`groundCycle(theme)`** is the six grounds a theme moves through. Neon Night
+  states its own; every other theme derives them from the six tokens it already
+  owns — its own colours reused as grounds rather than new ones invented for it,
+  which is what keeps a starter looking like itself. The first is always the
+  theme's own `bg`, so the video opens as the theme people picked.
+- **`paletteForGround`** re-derives all six tokens against that ground. Nothing
+  is carried over, because a colour's job is relative to what it sits on: the
+  theme's ink is the right ink on the theme's own ground and nowhere else.
+- **The cut crossfades, over `CARD_FADE_FRAMES` (9).** It was a hard snap on
+  the argument that the snap *is* the effect; at speed that read as harsh
+  rather than punchy. `blendPalettes` moves every token together — fading a
+  ground under text that had already jumped to its new colour would set the
+  text at whatever contrast the halfway mix happened to give.
+
+  Two details make nine frames enough. The interpolation is **eased in and
+  out**, so it is slow at both ends and quick through the centre: two saturated
+  grounds have a muddy midpoint (lime to magenta passes through amber) and no
+  curve avoids it, but a curve can decline to dwell there. And `SlideShell`
+  now **fades its content in across the same window**, so the ground has
+  settled before there is anything on it to read. That is what keeps the
+  intermediate palette — which nothing holds to a contrast floor — from ever
+  being the thing a number is set on.
+
+  `CARD_FADE_FRAMES` lives in [config.ts](src/video/config.ts) because both
+  halves need it and `Wrapped` imports the slides: a constant in either one
+  would have to be imported back out of the other.
+
+Three things make it safe rather than merely loud:
+
+- **Every ground clears the same bar a whole theme has to.** `ensureContrast`
+  holds ink to 7:1 and the accent to the large-text 3:1 on every card, checked
+  in [palette.test.ts](src/theme/__tests__/palette.test.ts) across all seven
+  starters, both random modes and three seeded batch themes — 60-odd palettes,
+  not a sample.
+- **A mid-tone ground is moved, not accepted.** At L=50 both white and black
+  land near 4.5:1, so no *text* colour can rescue one — `ensureContrast` on the
+  ink cannot help. `legibleGround` walks the ground itself away from the middle,
+  in its own polarity, until the ink clears. Walking to either end of the scale
+  reaches maximum contrast, so it always terminates on something that works.
+- **When neither highlight survives, the accent becomes the ink.** Walking a
+  highlight's lightness until it clears keeps its hue and loses its colour: a
+  neon lime dragged down far enough to sit on hot pink is olive. So a card whose
+  ground is already shouting sets its number in ink with a trace of the
+  highlight mixed back in. On the bright cards this is exactly the Wrapped move
+  — near-black type on orange — and it is why the win-rate chips read as two
+  heights rather than two colours there.
+
+**No slide changed.** Each `Series.Sequence` is wrapped in a `ThemeProvider`
+carrying its own palette, so a slide still asks `useTheme()` and still never
+names a colour. The backdrop layers sit outside the `<Series>` and cannot read
+that provider, so `Stage` looks the current slide up by frame with
+`slideIndexAt` — same array, same index, so the ground under the content and the
+content itself can never disagree about what colour the card is.
+
+**A theme that states `grounds` stops stating them the moment its tokens are
+edited.** Both the picker's `setColor` and `themeFromBoxArt` drop the field.
+Without that, editing Neon Night's accent would appear to do nothing: the six
+cards would keep the colours the starter shipped with.
 
 ### Detail animations belong to a stat, not to a theme
 
@@ -363,9 +451,11 @@ video rather than a gap.
 Three rules worth not breaking:
 
 - **One transition, reused everywhere.** `SlideShell` is it. The ground, texture
-  and signature live in `Wrapped.tsx` above the `<Series>` and never move
-  between slides — only the content changes. A per-slide effect is, in the
-  plan's words, the clearest tell of an assembled video.
+  and signature still live in `Wrapped.tsx` above the `<Series>` and still never
+  *move* between slides — but their colour now changes on every cut, and that
+  change is a hard snap rather than a transition. A per-slide *effect* is, in the
+  plan's words, the clearest tell of an assembled video; one palette cycle
+  applied identically to every slide is the opposite of that.
 - **Not every slide is eyebrow/number/caption.** `StatBlock` is for content that
   genuinely is one number. The top five is a list, the outro is a grid.
 - **Long names shrink, they do not wrap freely.** `fitText` handles the real
@@ -691,6 +781,21 @@ Measured on the real export: 5 players, 4 rendered and 1 skipped, 27.7 MB in
 - **The square** ([src/video/Square.tsx](src/video/Square.tsx)) is a `Still`
   composition, rendered beside every MP4 as `<same-name>.png`. A failure there
   never fails the video.
+
+  **Its layout is derived, not tuned.** It used to size itself from the theme's
+  four-step scale — `display * 0.3` for the range, `display * 0.34` for the
+  name — which works while every theme's display step is around 300. Neon
+  Night's is 340, and the card ran 240px past its own frame: the year was cut
+  off the top and the bottom row of covers lost its titles. A square has no
+  scrollbar and a still has no later frame to correct itself on, so anything
+  that does not fit is simply gone.
+
+  `squareLayout()` is the arithmetic. Type sizes are fixed px, because a 1080
+  square is a fixed canvas; the **cover size is computed from what the header
+  leaves**, because the header is three to five lines depending on whether this
+  player earned a fourth fact and a superlative, and one fixed cover size cannot
+  serve both. [square.test.ts](src/video/__tests__/square.test.ts) checks every
+  combination of those optional lines fits.
 - **`--dry-run`** was already `scripts/dry-run.ts`, from step 4.
 
 ### Motion
@@ -746,6 +851,24 @@ Things that keep the frame moving:
   context `Wrapped` provides, rather than every one of the twenty slides having
   to pass a flag down. It is reserved rather than measured: measuring text needs
   two passes, and Remotion renders each frame once.
+
+### The bookends slide needed a number
+
+"Started the year with / Ended it with" was two covers and a torn calendar, and
+next to slides that all lead with a figure it read as the one with nothing to
+say. It now states **the days between the first play and the last** — the thing
+the calendar is already drawing, so the flourish becomes a caption for something
+rather than decoration. The two rows also arrive from opposite sides, because
+that is what they are: one opened the year and one closed it, and sliding in
+from the same side made them read as two items in a list.
+
+It is the one slide that overrides the bottom anchor back to centred. Its
+content is a pair being compared rather than a figure with support under it, and
+hung from the bottom it left the top two thirds of the frame empty.
+
+The label there is fitted to **the column beside the cover**, not to the frame —
+`Eyebrow` takes a `width`. At the full label size "Started the year with"
+wrapped onto two lines and pushed the date out from under it.
 
 ### The outro's fourth fact
 
@@ -857,6 +980,57 @@ the value will reach — and sizes with `fitDisplay`. It has to be the *final*
 value rather than what `CountUp` is showing, or the type would shrink as the
 number counted up.
 
+**A headline fills the box it is given — width *and* height.** `fitBlock` is
+the fitter; `fitText` is now a thin call into it. Filling the measure was only
+half a rule: "Flip 7" is six characters over two words, so a width fitter is
+delighted to set it at nearly 300px across two lines, and two lines at 300px is
+600px of frame on a slide that has already spent 740 of it on a cover. That
+pushed the cover off the top of the frame and the play count down into the
+aside — both of which the most-played slide really did. `fitBlock` tries every
+line count it is allowed and keeps the best: more lines buy width and cost
+height, and which way the trade falls depends on the string.
+
+Only the most-played slide passes a `maxHeight`, and it computes the budget from
+what it actually has left — the frame, less the margins, less the aside's band,
+less the cover, the label, the caption and `HERO_TOP_AIR`. That last term is
+what guarantees the cover has visible space above it whatever the title does.
+
+**A display number never wraps, and every one of them is sized against its own
+string.** `whiteSpace: nowrap` is the backstop; `fit` is the fix. The formatted
+value is wider than its digits and only the caller knows by how much — "114 h"
+is five characters where "114" is three, and at the full display step the
+difference was a line break that put the unit under the figure. Every
+`StatBlock` now passes `fit`, not just the one that overflowed first: a
+four-digit play count would have been the next.
+
+**A headline fills the width it is given.** `fitText` is unchanged — it still
+returns the largest size that fits — but `Headline` hands it the *display* step
+as a ceiling rather than the headline step. A short name was the case that
+showed why: "Tina" at 132px is four characters in the middle of a 1080px frame
+with two thirds of the line empty, which reads as a caption that lost its
+paragraph. At the display ceiling it fills the measure. A long game title is
+unaffected: the measure decides its size, and that has not moved. The ceiling
+stops at the display step because the number is still meant to be the largest
+thing in the video.
+
+**A face states its own advance when it has one.** One constant (0.56em per
+character) covered every display face while every face was roughly one width. It
+stopped being true the moment Neon Night took Archivo at 125%: fitted at 0.56,
+the seven letters of "Faraway" ran past the right margin — visible in a render,
+invisible in a test. `FontSpec.advance` is the per-face override, `fitText` and
+`fitDisplay` take it as an argument, and `archivo-expanded` states 0.72.
+
+**Slide content is anchored to the bottom of its box, not centred in it.**
+Centred, a short stat block floated in the middle of the frame with a third of
+the card empty above it and a third below — which is what made a slide look like
+a slide rather than a card. Anchored low, every slide starts from the same line
+whatever its height, and a tall one grows upward.
+
+That is also why **`QUIP_BAND` went from 350 to 411**. The reservation always
+included 40px of air, but while content was centred in what was left, the gap
+you saw was half the slack rather than the reservation. Now the margin *is* the
+gap: at 40 the last row of the co-player list sat directly on the aside.
+
 **The label above a stat is a heading, not a footnote.** `Eyebrow` was set at
 the caption step, which lost it the argument with the figure underneath:
 "Longest win streak" at 30px below a 300px number reads as an annotation on the
@@ -942,8 +1116,11 @@ knowing:
   player with no co-player count gets no bridging line and no extra bar, rather
   than an introduction to a slide that never comes.
 
-The default cut is **31 bars, about 62 seconds** at 120 BPM; every slide turned
-on is 52 bars, about 104.
+**The most-played slide is three bars, not four.** Eight seconds is a long time
+to hold one cover and one number, and it read as finished well before it cut.
+The outro keeps its four: that one is the screenshot, and it has to sit still
+long enough to take one. The default cut is **30 bars, exactly 60 seconds** at
+120 BPM.
 
 ### The mirror test found a bug, not an effect
 
@@ -981,7 +1158,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 445 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 482 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.

@@ -594,6 +594,66 @@ const PegTracks: React.FC = () => {
 };
 
 /* -------------------------------------------------------------------------- */
+/* Neon Night: cubes                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Big flat cubes drifting behind the content.
+ *
+ * The wooden cube is the one component every game in this export has a bag of,
+ * and drawn flat and huge it is also the shape a poster is built from — which is
+ * what this theme is. Six of them, at three depths, so the frame has a
+ * foreground and a back without anything crossing the middle where the number
+ * sits.
+ *
+ * They drift on their own long periods rather than entering: the ground snaps
+ * at every cut in this theme, and a signature that re-entered on each snap would
+ * turn a colour change into an animation. This one is simply always there.
+ */
+const CUBES = [
+  { x: -6, y: 8, size: 340, tilt: -12, period: 31, opacity: 0.16 },
+  { x: 72, y: 2, size: 260, tilt: 9, period: 43, opacity: 0.13 },
+  { x: 80, y: 74, size: 420, tilt: -6, period: 37, opacity: 0.15 },
+  { x: -14, y: 66, size: 300, tilt: 14, period: 29, opacity: 0.12 },
+  { x: 58, y: 40, size: 150, tilt: 22, period: 23, opacity: 0.1 },
+  { x: 4, y: 36, size: 120, tilt: -18, period: 19, opacity: 0.09 },
+] as const;
+
+const CubeField: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { color } = useTheme();
+
+  return (
+    <AbsoluteFill aria-hidden style={{ overflow: 'hidden' }}>
+      {CUBES.map((cube, i) => {
+        // Frame-driven, never random: a decorative drift is held to the same
+        // determinism as a stat.
+        const phase = (frame / (cube.period * 30) + i * 0.37) * Math.PI * 2;
+        const drift = Math.sin(phase) * 26;
+        const rock = Math.cos(phase) * 3;
+
+        return (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: `${cube.x}%`,
+              top: `${cube.y}%`,
+              width: cube.size,
+              height: cube.size,
+              // The corner radius a wooden cube actually has, at this size.
+              borderRadius: cube.size * 0.14,
+              backgroundColor: withAlpha(i % 2 === 0 ? color.accent : color.accentAlt, cube.opacity),
+              transform: `translateY(${drift}px) rotate(${cube.tilt + rock}deg)`,
+            }}
+          />
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
 /* Dispatch                                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -605,6 +665,7 @@ export const SignatureBackdrop: React.FC = () => {
   if (signature === 'dice') return <FeltNap />;
   if (signature === 'tiles') return <TileField />;
   if (signature === 'pegs') return <PegTracks />;
+  if (signature === 'cubes') return <CubeField />;
   return null;
 };
 

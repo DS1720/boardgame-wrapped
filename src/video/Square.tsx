@@ -4,13 +4,15 @@ import { formatNumber } from '@/shared/format';
 import { outroFactFor } from '@/stats/outroFact';
 import { superlativeFor } from '@/stats/superlative';
 import type { WrappedStats } from '@/stats/types';
-import { FontLoader, ThemeProvider, useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
+import { FONTS } from '@/theme/fonts';
+import { FontLoader, ThemeProvider, useFont, useTheme } from '@/theme/ThemeContext';
 import { themeFromBoxArt } from '@/theme/generate';
 import { DEFAULT_THEME } from '@/theme/starters';
 import type { Theme } from '@/theme/types';
 import { Ambient } from './Ambient';
 import { BoxArt } from './BoxArt';
 import { VIDEO } from './config';
+import { DISPLAY_CHAR_WIDTH, fitBlock } from './slides/layout';
 import { Texture, Vignette } from './Texture';
 import { boxArtFor, useBoxArtManifest } from './useBoxArt';
 
@@ -26,6 +28,104 @@ import { boxArtFor, useBoxArtManifest } from './useBoxArt';
  */
 export const SQUARE = { width: 1080, height: 1080, margin: 84 } as const;
 
+/**
+ * Type sizes for the square, in px, fixed rather than taken from the theme.
+ *
+ * The square used to size itself from the theme's four-step scale — `display *
+ * 0.3` for the range, `display * 0.34` for the name. That works while every
+ * theme's display step is around 300; Neon Night's is 340 and its body step 46,
+ * which pushed the card 240px past its own frame. The name was cut off at the
+ * top and the bottom row of covers lost its titles.
+ *
+ * A 1080 square is a fixed canvas, so its type is fixed too. The theme still
+ * shows through in the faces and the colours, which is what a theme is for.
+ */
+const SQUARE_TYPE = {
+  range: 56,
+  /** Ceiling. A long name is fitted down from here. */
+  name: 100,
+  totals: 30,
+  fact: 27,
+  superlative: 29,
+  gameName: 26,
+  gameCount: 24,
+} as const;
+
+const SQUARE_GRID = { cols: 3, rows: 2, gap: 16 } as const;
+const SQUARE_GAPS = { headerLine: 6, headerToGrid: 24, tile: 6, tileCount: 4 } as const;
+const GAME_NAME_LINES = 2;
+const GAME_NAME_LINE_HEIGHT = 1.18;
+
+/** Never smaller than this, or the covers stop being the point of the card. */
+const MIN_COVER = 150;
+
+export interface SquareLayout {
+  /** Width and height of the content box, inside the margin. */
+  available: number;
+  /** Column width in the cover grid. */
+  column: number;
+  /** Side of one cover. Derived from what the header leaves, never assumed. */
+  cover: number;
+  /** Total height the card will occupy. */
+  height: number;
+}
+
+/**
+ * Work out the cover size from the space the header actually leaves.
+ *
+ * Derived rather than tuned: the header is three to five lines depending on
+ * whether this player earned a fourth fact and a superlative, and a fixed cover
+ * size that fits the five-line case wastes the three-line one — while one tuned
+ * for three lines overflows on five. This is the arithmetic, and
+ * [Square.test.ts](src/video/__tests__/square.test.ts) checks that every
+ * combination fits inside the frame.
+ */
+export const squareLayout = (lines: {
+  hasTotals: boolean;
+  hasFact: boolean;
+  hasSuperlative: boolean;
+  hasGames: boolean;
+}): SquareLayout => {
+  const available = SQUARE.height - SQUARE.margin * 2;
+  const column =
+    (available - SQUARE_GRID.gap * (SQUARE_GRID.cols - 1)) / SQUARE_GRID.cols;
+
+  const headerLines = [
+    SQUARE_TYPE.range,
+    SQUARE_TYPE.name,
+    ...(lines.hasTotals ? [SQUARE_TYPE.totals] : []),
+    ...(lines.hasFact ? [SQUARE_TYPE.fact] : []),
+    ...(lines.hasSuperlative ? [SQUARE_TYPE.superlative] : []),
+  ];
+  const header =
+    headerLines.reduce((sum, line) => sum + line, 0) +
+    SQUARE_GAPS.headerLine * (headerLines.length - 1);
+
+  if (!lines.hasGames) return { available, column, cover: 0, height: header };
+
+  // Everything in a tile that is not the cover.
+  const tileText =
+    SQUARE_GAPS.tile +
+    SQUARE_TYPE.gameName * GAME_NAME_LINE_HEIGHT * GAME_NAME_LINES +
+    SQUARE_GAPS.tileCount +
+    SQUARE_TYPE.gameCount;
+
+  const gridHeight = available - header - SQUARE_GAPS.headerToGrid;
+  const row = (gridHeight - SQUARE_GRID.gap * (SQUARE_GRID.rows - 1)) / SQUARE_GRID.rows;
+  // Never wider than its column and never below the floor — if the floor wins,
+  // the card is over budget and the test says so rather than a viewer finding
+  // out.
+  const cover = Math.max(MIN_COVER, Math.min(column, row - tileText));
+
+  const height =
+    header +
+    SQUARE_GAPS.headerToGrid +
+    (cover + tileText) * SQUARE_GRID.rows +
+    SQUARE_GRID.gap * (SQUARE_GRID.rows - 1);
+
+  return { available, column, cover, height };
+};
+
 export interface SquareProps {
   stats?: WrappedStats | null;
   theme?: Theme | null;
@@ -40,7 +140,6 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
   const displayFont = useFont('display');
   const bodyFont = useFont('body');
   const utilityFont = useFont('utility');
-  const { caption, body, display } = useTypeScale();
 
   const topFive = stats.stats.find((s) => s.id === 'topFive');
   const games = topFive?.id === 'topFive' ? topFive.games.slice(0, 6) : [];
@@ -51,6 +150,22 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
   // on the card is not a distinction.
   const superlative = superlativeFor(stats, {
     avoid: ['plays', 'games', 'nights', 'hours', fact?.quantity],
+  });
+
+  const layout = squareLayout({
+    hasTotals: totals?.id === 'totalPlays',
+    hasFact: fact !== null,
+    hasSuperlative: superlative !== null,
+    hasGames: games.length > 0,
+  });
+  // A wide display face runs out of room sooner, exactly as in the video.
+  const nameSize = fitBlock({
+    text: stats.playerName,
+    ceiling: SQUARE_TYPE.name,
+    maxLines: 1,
+    charWidth: FONTS[theme.type.display].advance ?? DISPLAY_CHAR_WIDTH,
+    width: layout.available,
+    floor: 40,
   });
 
   return (
@@ -67,16 +182,15 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          gap: 26,
+          gap: SQUARE_GAPS.headerToGrid,
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: SQUARE_GAPS.headerLine }}>
           <p
             style={{
               ...displayFont,
-              // Smaller than the video's display step: this frame is square and
-              // has to hold a grid as well as a name.
-              fontSize: display * 0.3,
+              // Fixed, not scaled from the theme: see SQUARE_TYPE.
+              fontSize: SQUARE_TYPE.range,
               color: theme.color.accent,
               margin: 0,
               lineHeight: 1,
@@ -87,10 +201,10 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
           <h1
             style={{
               ...displayFont,
-              fontSize: display * 0.34,
+              fontSize: nameSize,
               color: theme.color.ink,
               margin: 0,
-              lineHeight: 1.02,
+              lineHeight: 1,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -99,7 +213,15 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
             {stats.playerName}
           </h1>
           {totals?.id === 'totalPlays' && (
-            <p style={{ ...bodyFont, fontSize: body * 0.8, color: theme.color.inkMuted, margin: 0 }}>
+            <p
+              style={{
+                ...bodyFont,
+                fontSize: SQUARE_TYPE.totals,
+                lineHeight: 1,
+                color: theme.color.inkMuted,
+                margin: 0,
+              }}
+            >
               {formatNumber(totals.plays)} plays · {formatNumber(totals.distinctGames)} games ·{' '}
               {formatNumber(totals.nights)} nights
             </p>
@@ -108,42 +230,80 @@ const SquareInner: React.FC<{ stats: WrappedStats }> = ({ stats }) => {
               fourth fact. Two cards claiming different things about one year
               is worse than either. */}
           {fact && (
-            <p style={{ ...bodyFont, fontSize: body * 0.74, color: theme.color.inkMuted, margin: 0 }}>
+            <p
+              style={{
+                ...bodyFont,
+                fontSize: SQUARE_TYPE.fact,
+                lineHeight: 1,
+                color: theme.color.inkMuted,
+                margin: 0,
+              }}
+            >
               {fact.line}
             </p>
           )}
           {superlative && (
-            <p style={{ ...bodyFont, fontSize: body * 0.8, color: theme.color.accent, margin: 0 }}>
+            <p
+              style={{
+                ...bodyFont,
+                fontSize: SQUARE_TYPE.superlative,
+                lineHeight: 1,
+                color: theme.color.accent,
+                margin: 0,
+              }}
+            >
               {superlative.line}
             </p>
           )}
         </div>
 
         {games.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(' + SQUARE_GRID.cols + ', 1fr)',
+              gap: SQUARE_GRID.gap,
+            }}
+          >
             {games.map((game) => (
-              <div key={game.gameId} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <div
+                key={game.gameId}
+                style={{ display: 'flex', flexDirection: 'column', gap: SQUARE_GAPS.tile }}
+              >
                 <BoxArt
                   entry={boxArtFor(manifest, game.gameId)}
                   name={game.name}
-                  width={288}
-                  height={288}
+                  width={layout.cover}
+                  height={layout.cover}
                 />
+                {/* Exactly the two lines the layout budgeted for, reserved
+                    whether the title needs them or not. A third line would come
+                    out of the row below, which is the row that used to fall off
+                    the bottom of the card. */}
                 <span
                   style={{
                     ...bodyFont,
-                    fontSize: caption * 0.86,
+                    fontSize: SQUARE_TYPE.gameName,
                     color: theme.color.ink,
-                    lineHeight: 1.18,
+                    lineHeight: GAME_NAME_LINE_HEIGHT,
+                    height: SQUARE_TYPE.gameName * GAME_NAME_LINE_HEIGHT * GAME_NAME_LINES,
                     display: '-webkit-box',
-                    WebkitLineClamp: 2,
+                    WebkitLineClamp: GAME_NAME_LINES,
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
                   }}
                 >
                   {game.name}
                 </span>
-                <span style={{ ...utilityFont, fontSize: caption * 0.8, color: theme.color.accent }}>
+                <span
+                  style={{
+                    ...utilityFont,
+                    fontSize: SQUARE_TYPE.gameCount,
+                    lineHeight: 1,
+                    marginTop: SQUARE_GAPS.tileCount - SQUARE_GAPS.tile,
+                    color: theme.color.accent,
+                  }}
+                >
                   {formatNumber(game.plays)}×
                 </span>
               </div>

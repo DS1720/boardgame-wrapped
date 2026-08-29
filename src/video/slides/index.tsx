@@ -1,5 +1,6 @@
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { useTheme } from '@/theme/ThemeContext';
+import { CARD_FADE_FRAMES } from '../config';
 import type { TimelineSlideId } from '../timeline';
 import {
   GamesLearnedSlide,
@@ -88,10 +89,27 @@ export const SlideShell: React.FC<{ durationInFrames: number; children: React.Re
     durationInFrames: EXIT_FRAMES,
   });
 
+  /*
+    A short fade on the way in, matched to the ground's own crossfade.
+
+    The entrance used to be entirely per-element springs, which was right while
+    the ground was a constant. Now the card travels to its new colour over
+    `CARD_FADE_FRAMES`, and this is what keeps a number from being set on a
+    halfway-mixed palette: by the time content is fully opaque, the ground it
+    sits on has arrived. It costs nothing anywhere else — the springs still do
+    all the visible work.
+  */
+  const enter = interpolate(frame, [0, CARD_FADE_FRAMES], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
   return (
     <AbsoluteFill
       style={{
-        opacity: interpolate(exit, [0, 1], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+        opacity:
+          enter *
+          interpolate(exit, [0, 1], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
         transform: `translateY(${-exit * 34}px)`,
       }}
     >

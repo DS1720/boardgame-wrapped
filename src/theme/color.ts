@@ -119,6 +119,25 @@ export const lift = (color: string, delta: number): string => {
   return hsl(h, s, clamp(l + delta, 0, 100));
 };
 
+/**
+ * Blend two colors in sRGB, `t` of the way from `a` to `b`.
+ *
+ * Channel-wise rather than through HSL: mixing a red and a green in HSL walks
+ * the long way round the wheel through yellow, which is not what "half way
+ * between these two" means to anyone looking at the result.
+ */
+export const mix = (a: string, b: string, t: number): string => {
+  const from = parseHex(a);
+  const to = parseHex(b);
+  if (!from || !to) return a;
+  const k = clamp(t, 0, 1);
+  return toHex({
+    r: Math.round(from.r + (to.r - from.r) * k),
+    g: Math.round(from.g + (to.g - from.g) * k),
+    b: Math.round(from.b + (to.b - from.b) * k),
+  });
+};
+
 export const withAlpha = (color: string, alpha: number): string => {
   const rgb = parseHex(color);
   if (!rgb) return color;

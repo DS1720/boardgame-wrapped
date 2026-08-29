@@ -13,6 +13,7 @@ import {
   PAIRED_LEAD_INS,
   planTimeline,
   slideAt,
+  slideIndexAt,
   slideBars,
   slideFrames,
   SLIDE_BARS,
@@ -225,6 +226,23 @@ describe('slide lengths', () => {
     // A lead-in that outlasted the bar it was given would eat into the content
     // it is introducing.
     expect(LEAD_IN_FRAMES).toBeLessThan(framesPerBar(DEFAULT_BPM, VIDEO.fps));
+  });
+});
+
+describe('slideIndexAt', () => {
+  const plan = planTimeline(statsWith(ALL_CORE));
+
+  it('agrees with slideAt on every frame of the video', () => {
+    for (let f = 0; f < plan.durationInFrames; f += 1) {
+      expect(plan.slides[slideIndexAt(plan, f)].id).toBe(slideAt(plan, f));
+    }
+  });
+
+  // The ground is painted from this, and there is no frame that may have no
+  // colour — so unlike `slideAt` it answers outside the video too.
+  it('clamps rather than answering nothing outside the video', () => {
+    expect(slideIndexAt(plan, -50)).toBe(0);
+    expect(slideIndexAt(plan, plan.durationInFrames + 500)).toBe(plan.slides.length - 1);
   });
 });
 

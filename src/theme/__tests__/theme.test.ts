@@ -295,9 +295,19 @@ describe('fonts', () => {
   });
 
   it('offers the curated counts the plan asks for', () => {
-    expect(DISPLAY_FONTS).toHaveLength(6);
+    // Seven display faces for seven starters. The seventh is the other end of
+    // Archivo's width axis rather than a seventh family, so the mirror is still
+    // the twelve families the plan curated — see the dedupe test below.
+    expect(DISPLAY_FONTS).toHaveLength(7);
     expect(BODY_FONTS).toHaveLength(4);
     expect(UTILITY_FONTS).toHaveLength(3);
+  });
+
+  it('gets the second Archivo width for free', () => {
+    // Both widths name the same variable file, so adding the expanded cut
+    // downloaded nothing: the offline guarantee costs the same as before.
+    expect(FONTS['archivo-expanded'].googleSpec).toBe(FONTS['archivo-condensed'].googleSpec);
+    expect(fontStyle('archivo-expanded').fontStretch).toBe('125%');
   });
 
   it('does not mirror the same family twice', () => {

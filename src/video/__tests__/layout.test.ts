@@ -3,9 +3,11 @@ import { formatNumber, formatPercent } from '@/shared/format';
 import { STARTERS } from '@/theme/starters';
 import { VIDEO } from '../config';
 import {
+  fitBlock,
   fitDisplay,
   fitLabel,
   fitText,
+  HEADLINE_LINE_HEIGHT,
   LABEL_SCALE,
   MIN_DISPLAY_NUMBER_PX,
   MIN_HEADLINE_PX,
@@ -224,5 +226,64 @@ describe('fitLabel', () => {
   // The floor is the old size, so making labels bigger cannot make one smaller.
   it('never goes below the caption step', () => {
     expect(fitLabel('x'.repeat(400), 30)).toBe(30);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('fitBlock', () => {
+  /** The advance of the widest display face, which is where this bit first. */
+  const WIDE = 0.72;
+
+  it('is what fitText is, when nothing constrains the height', () => {
+    for (const text of ['Tina', 'Flip 7', LONGEST_GAME, 'Sarah Schelmbauer']) {
+      expect(fitBlock({ text, ceiling: 300, maxLines: 2 })).toBe(fitText(text, 300, 2));
+    }
+  });
+
+  /*
+    The case that broke the most-played slide.
+
+    "Flip 7" is six characters over two words, so a width fitter is delighted to
+    set it at nearly 300px across two lines — and two lines at 300px is 600px of
+    frame, on a slide that has already spent 740 of it on a cover. Given a
+    height budget it takes one line at a smaller size instead.
+  */
+  it('prefers one smaller line to two that do not fit the height', () => {
+    const budget = 300;
+    const size = fitBlock({
+      text: 'Flip 7',
+      ceiling: 340,
+      maxLines: 2,
+      charWidth: WIDE,
+      maxHeight: budget,
+    });
+    expect(size * HEADLINE_LINE_HEIGHT).toBeLessThanOrEqual(budget);
+    // On one line, which is only possible below the two-line size.
+    expect('Flip 7'.length * WIDE * size).toBeLessThanOrEqual(SAFE_WIDTH + 0.001);
+  });
+
+  it('never returns a block taller than its budget, for any real title', () => {
+    const titles = ['Tina', 'Flip 7', 'Codenames', 'Terraforming Mars', LONGEST_GAME];
+    for (const budget of [200, 300, 420, 700]) {
+      for (const text of titles) {
+        const size = fitBlock({ text, ceiling: 340, maxLines: 2, charWidth: WIDE, maxHeight: budget });
+        const lines = Math.min(2, Math.ceil((text.length * WIDE * size) / SAFE_WIDTH));
+        // The floor can win on an impossible budget; nothing else may.
+        if (size > MIN_HEADLINE_PX) {
+          expect(size * HEADLINE_LINE_HEIGHT * lines).toBeLessThanOrEqual(budget + 0.001);
+        }
+      }
+    }
+  });
+
+  it('fits a narrower measure when it is given one', () => {
+    const wide = fitBlock({ text: 'Terraforming Mars', ceiling: 300, width: SAFE_WIDTH });
+    const narrow = fitBlock({ text: 'Terraforming Mars', ceiling: 300, width: SAFE_WIDTH / 2 });
+    expect(narrow).toBeLessThan(wide);
+  });
+
+  it('never grows past its ceiling however much room there is', () => {
+    expect(fitBlock({ text: 'X', ceiling: 120, maxHeight: 5000 })).toBe(120);
   });
 });

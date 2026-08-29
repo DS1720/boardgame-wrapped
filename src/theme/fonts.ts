@@ -23,6 +23,16 @@ export interface FontSpec {
   weight: number;
   /** Width axis, for variable families that have one. */
   stretch?: string;
+  /**
+   * Rough advance width per character, as a fraction of the font size.
+   *
+   * What the fitters in `slides/layout` size against. Absent means the default
+   * — every face here is within a few percent of it — and it is stated only
+   * where a face is genuinely a different width, which so far means the far
+   * end of Archivo's width axis. Getting this wrong is visible: too small and
+   * a headline runs off the right edge of the frame.
+   */
+  advance?: number;
   /** Utility faces are often set tracked-out and uppercase; this is part of the choice. */
   tracking?: string;
   uppercase?: boolean;
@@ -43,6 +53,24 @@ export const FONTS: Record<FontId, FontSpec> = {
     weight: 700,
     // Archivo is variable on width; 75% is the condensed cut the theme wants.
     stretch: '75%',
+    role: 'display',
+  },
+  'archivo-expanded': {
+    id: 'archivo-expanded',
+    label: 'Archivo Expanded',
+    family: 'Archivo',
+    fallback: SANS,
+    // The same variable file the condensed cut reads. `uniqueFontSpecs` dedupes
+    // on this string, so a second Archivo width costs no extra download and
+    // nothing new has to be mirrored.
+    googleSpec: 'Archivo:wdth,wght@62..125,400..700',
+    weight: 700,
+    // The far end of the same width axis: 125% is a poster face, and next to
+    // the 75% cut it reads as a different family altogether.
+    stretch: '125%',
+    // Measurably wider than the default, and the reason this field exists:
+    // fitted at 0.56 the seven letters of "Faraway" ran past the right margin.
+    advance: 0.72,
     role: 'display',
   },
   bricolage: {

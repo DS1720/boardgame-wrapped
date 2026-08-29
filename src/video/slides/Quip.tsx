@@ -33,15 +33,20 @@ export const QUIP_LIFT = 190;
  * Vertical space a slide gives up when it has an aside under it.
  *
  * The lift (190), plus two lines of body text at the largest starter scale
- * (44px at 1.35 = 119), plus 40px of air. Without this the
+ * (46px at 1.35 = 125), plus 96px of air. Without this the
  * aside is absolutely positioned over content that is centred in the full
  * frame, and on the most-played slide it landed on top of the play count — the
  * taller the title, the worse the collision.
  *
+ * The air used to be 40px, which was enough while slide content was centred in
+ * what was left: the gap you saw was half the slack, not the reservation. Now
+ * that content is anchored to the bottom of the box, this margin *is* the gap —
+ * at 40 the last row of the co-player list sat directly on the aside.
+ *
  * Reserved rather than measured: a layout that depends on measuring text needs
  * two passes, and Remotion renders each frame once.
  */
-export const QUIP_BAND = 350;
+export const QUIP_BAND = 411;
 
 /**
  * How much bottom space the current slide owes its aside. Zero when it has none.

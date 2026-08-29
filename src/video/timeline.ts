@@ -324,7 +324,11 @@ export const SLIDE_BARS: Record<TimelineSlideId, number> = {
   intro: 2,
   totalPlays: 2,
   timePlayed: 2,
-  topGame: 4,
+  // Three, not four. Eight seconds is a long time to hold one cover and one
+  // number, and this slide has read as finished well before it cut for as long
+  // as it has been four. The outro keeps its four: that one is the screenshot,
+  // and it has to sit still long enough to take one.
+  topGame: 3,
   // Long enough to count down from five, one at a time, and still hold the
   // finished list for a moment.
   topFive: 3,
@@ -373,6 +377,24 @@ export interface Timeline {
   bars: number;
   bpm: number;
 }
+
+/**
+ * The index of the slide showing at `frame`, clamped into the video.
+ *
+ * Separate from `slideAt` because the ground needs the *position*, not the id:
+ * the palette cycle is indexed, and two different slides are meant to be two
+ * different colours even when they would answer the same id.
+ */
+export const slideIndexAt = (timeline: Timeline, frame: number): number => {
+  for (let i = 0; i < timeline.slides.length; i += 1) {
+    const slide = timeline.slides[i];
+    if (frame >= slide.from && frame < slide.from + slide.durationInFrames) return i;
+  }
+  // Before the first frame, and on the very last one, the answer is still a
+  // slide: the ground is painted from this, and there is no frame of the video
+  // that is allowed to have no colour.
+  return frame < 0 ? 0 : Math.max(0, timeline.slides.length - 1);
+};
 
 /**
  * The slide showing at `frame`, or null if the frame is outside the video.

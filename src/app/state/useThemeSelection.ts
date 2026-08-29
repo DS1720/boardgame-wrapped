@@ -54,6 +54,11 @@ export const useThemeSelection = () => {
       ...current,
       id: current.id.startsWith('custom-') ? current.id : `custom-${current.id}`,
       name: 'Custom',
+      // A theme that states its own per-slide grounds stops doing so the moment
+      // someone edits a token: otherwise the six cards keep the colours the
+      // starter shipped with and changing the accent appears to do nothing.
+      // Dropped, so the cycle is derived from what is now in the picker.
+      grounds: undefined,
       color: { ...current.color, [key]: value },
     }));
     setMode('custom');

@@ -10,8 +10,10 @@ import { BoxArt, BoxArtHero } from '../BoxArt';
 import { CountUp, Float, Reveal, Stagger } from '../motion';
 import { SignaturePlate, TallyMarks } from '../signature';
 import { ChipStacks, DealtHand, HeadToHead, PinDrop } from './details';
+import { VIDEO } from '../config';
 import { boxArtFor, useBoxArtManifest } from '../useBoxArt';
-import { Caption, Eyebrow, Headline, SafeArea, Stack, StatBlock } from './layout';
+import { Caption, Eyebrow, Headline, LABEL_SCALE, SafeArea, Stack, StatBlock } from './layout';
+import { useQuipSpace } from './Quip';
 
 /**
  * The ten slides of the default cut.
@@ -40,6 +42,20 @@ const BEAT = { first: 0, second: 6, third: 12 } as const;
  */
 const HERO_W = 620;
 const HERO_H = 740;
+
+/**
+ * Air the cover is guaranteed above it, whatever the title does.
+ *
+ * The title shares this frame with a 740px cover, and since a headline grew to
+ * fill its measure a short two-word one — "Flip 7" — could take two lines at
+ * nearly 300px each. That pushed the cover hard against the top of the frame
+ * and the play count down into the aside. The fix is a real budget rather than
+ * a smaller ceiling: the type gets whatever is left once the cover, the label,
+ * the caption and this much air have been taken out.
+ */
+const HERO_TOP_AIR = 56;
+const HERO_GAP = 30;
+const TEXT_GAP = 12;
 
 /* -------------------------------------------------------------------------- */
 
@@ -111,6 +127,7 @@ export const TotalPlaysSlide: React.FC<SlideProps> = ({ stat }) => {
           <StatBlock
             eyebrow="Plays"
             value={<CountUp to={stat.plays} delay={BEAT.second} />}
+            fit={formatNumber(stat.plays)}
             caption={`across ${formatNumber(stat.nights)} game nights · ${formatNumber(
               stat.distinctGames,
             )} different games`}
@@ -136,8 +153,23 @@ export const TotalPlaysSlide: React.FC<SlideProps> = ({ stat }) => {
 
 export const TopGameSlide: React.FC<SlideProps> = ({ stat }) => {
   const manifest = useBoxArtManifest();
+  const { caption, body } = useTypeScale();
+  // The band the aside has already taken, so the budget is what is actually
+  // left rather than what would be left on a slide with no line under it.
+  const reserved = useQuipSpace();
   if (stat?.id !== 'topGame') return null;
   const entry = boxArtFor(manifest, stat.game.gameId);
+
+  const titleBudget =
+    VIDEO.height -
+    VIDEO.safeMargin * 2 -
+    reserved -
+    HERO_TOP_AIR -
+    HERO_H -
+    HERO_GAP -
+    caption * LABEL_SCALE * 1.2 -
+    TEXT_GAP * 2 -
+    body * 1.3;
 
   return (
     <>
@@ -154,7 +186,7 @@ export const TopGameSlide: React.FC<SlideProps> = ({ stat }) => {
       <BoxArtHero entry={entry} name={stat.game.name} width={HERO_W} height={HERO_H} showCover={false} />
 
       <SafeArea justify="center" align="center">
-        <Stack gap={30}>
+        <Stack gap={HERO_GAP}>
           <Reveal delay={BEAT.first} distance={26}>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <Float amount={9} period={9}>
@@ -169,12 +201,14 @@ export const TopGameSlide: React.FC<SlideProps> = ({ stat }) => {
             </div>
           </Reveal>
 
-          <Stack gap={12}>
+          <Stack gap={TEXT_GAP}>
             <Reveal delay={BEAT.second}>
               <Eyebrow>Most played</Eyebrow>
             </Reveal>
             <Reveal delay={BEAT.second + 4}>
-              <Headline maxLines={2}>{stat.game.name}</Headline>
+              <Headline maxLines={2} maxHeight={titleBudget}>
+                {stat.game.name}
+              </Headline>
             </Reveal>
             <Reveal delay={BEAT.third}>
               <Caption accent>
@@ -199,6 +233,7 @@ export const WinRateSlide: React.FC<SlideProps> = ({ stat }) => {
           <StatBlock
             eyebrow={stat.coopOnly ? 'Co-op record' : 'Win rate'}
             value={<CountUp to={Math.round(stat.ratio * 100)} delay={BEAT.second} format={(v) => `${v}%`} />}
+            fit={`${Math.round(stat.ratio * 100)}%`}
             caption={
               stat.coopOnly
                 ? `${formatNumber(stat.wins)} wins in ${formatNumber(total)} co-op plays`
@@ -380,6 +415,7 @@ export const GamesLearnedSlide: React.FC<SlideProps> = ({ stat }) => {
           <StatBlock
             eyebrow="Learned this year"
             value={<CountUp to={stat.count} delay={BEAT.second} />}
+            fit={formatNumber(stat.count)}
             caption={stat.count === 1 ? 'new game' : 'new games'}
           />
         </SignaturePlate>

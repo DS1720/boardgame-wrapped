@@ -1,4 +1,5 @@
 import { AbsoluteFill } from 'remotion';
+import { FONTS } from '@/theme/fonts';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { VIDEO } from '../config';
 import { KineticWords } from '../motion';
@@ -13,7 +14,18 @@ import { useQuipSpace } from './Quip';
  */
 
 /** Rough advance width per character as a fraction of font size, for a bold display face. */
-const DISPLAY_CHAR_WIDTH = 0.56;
+export const DISPLAY_CHAR_WIDTH = 0.56;
+
+/**
+ * What the display face this theme uses is actually worth per character.
+ *
+ * One constant covered every face while every face was roughly one width. It
+ * stopped being true the moment a theme took the far end of Archivo's width
+ * axis: fitted at the default, a seven-letter game title overran the right
+ * margin by most of a letter. A face states its own advance when it has one.
+ */
+const useDisplayAdvance = (): number =>
+  FONTS[useTheme().type.display].advance ?? DISPLAY_CHAR_WIDTH;
 
 /**
  * The only container slide content is allowed in.
@@ -26,10 +38,18 @@ export const SafeArea: React.FC<{
   children: React.ReactNode;
   justify?: React.CSSProperties['justifyContent'];
   align?: React.CSSProperties['alignItems'];
-}> = ({ children, justify = 'center', align = 'flex-start' }) => {
-  // Content is centred in what is left after the aside's band is taken out, so
-  // a slide with a long name or a two-line title rides up instead of running
-  // into the line at the bottom.
+}> = ({ children, justify = 'flex-end', align = 'flex-start' }) => {
+  /*
+    Content sits at the *bottom* of what is left once the aside's band is taken
+    out, not in the middle of it.
+
+    Centred, a short stat block floated in the middle of the frame with a third
+    of the card empty under it and a third empty above — which is what makes a
+    slide look like a slide rather than a card. Anchored low, every slide starts
+    from the same line whatever its height, and a tall one grows upward into the
+    space it needs. The band below is still reserved, so nothing has moved any
+    closer to the aside than it was.
+  */
   const reserved = useQuipSpace();
   return (
     <AbsoluteFill
@@ -66,13 +86,18 @@ export const SafeArea: React.FC<{
  * It is still unmistakably a label and not a headline: the utility face is
  * uppercase and tracked, and the display step above it is six times its size.
  */
-export const Eyebrow: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const Eyebrow: React.FC<{
+  children: React.ReactNode;
+  /** Measure to fit into. Narrower than the frame when the label sits in a column. */
+  width?: number;
+}> = ({ children, width }) => {
   const font = useFont('utility');
   const { caption } = useTypeScale();
   const { color } = useTheme();
   // Only a string can be measured. A label built from an expression keeps the
   // base size, which is what every one of them resolves to anyway.
-  const size = typeof children === 'string' ? fitLabel(children, caption) : caption * LABEL_SCALE;
+  const size =
+    typeof children === 'string' ? fitLabel(children, caption, width) : caption * LABEL_SCALE;
   return (
     <p style={{ ...font, fontSize: size, color: color.ink, margin: 0, lineHeight: 1.2 }}>
       {children}
@@ -107,10 +132,13 @@ const LABEL_CHAR_WIDTH = 0.78;
  *
  * Pure and exported so the fit can be tested without a browser.
  */
-export const fitLabel = (text: string, captionSize: number): number => {
-  const available = VIDEO.width - VIDEO.safeMargin * 2;
-  const width = Math.max(1, text.length * LABEL_CHAR_WIDTH);
-  return Math.max(captionSize, Math.min(captionSize * LABEL_SCALE, available / width));
+export const fitLabel = (
+  text: string,
+  captionSize: number,
+  width: number = VIDEO.width - VIDEO.safeMargin * 2,
+): number => {
+  const measure = Math.max(1, text.length * LABEL_CHAR_WIDTH);
+  return Math.max(captionSize, Math.min(captionSize * LABEL_SCALE, width / measure));
 };
 
 /** Sentence-level text below a stat. */
@@ -146,11 +174,39 @@ export const Headline: React.FC<{
   /** Assemble a word at a time. Off for headlines that are already in motion. */
   kinetic?: boolean;
   delay?: number;
-}> = ({ children, maxLines = 2, kinetic = true, delay = 0 }) => {
+  /**
+   * Vertical budget, for a headline that shares its frame with something tall.
+   * Unset means the only limit is the measure.
+   */
+  maxHeight?: number;
+}> = ({ children, maxLines = 2, kinetic = true, delay = 0, maxHeight }) => {
   const font = useFont('display');
-  const { headline } = useTypeScale();
+  const { display } = useTypeScale();
   const { color } = useTheme();
-  const size = fitText(children, headline, maxLines);
+  const advance = useDisplayAdvance();
+  /*
+    A headline fills the width it is given, rather than being set at one size
+    and shrunk only when it overruns.
+
+    `fitText` is unchanged — it still returns the largest size that fits — but
+    the ceiling handed to it is the display step rather than the headline step.
+    A short name was the case that showed why: "Tina" at the headline step is
+    four characters in the middle of a 1080px frame with two thirds of the line
+    empty, which reads as a caption that lost its paragraph. At the display
+    ceiling it fills the measure, which is what a title card does.
+
+    The ceiling is the display step and not more, because the number is still
+    meant to be the largest thing in the video. A long game title is unaffected:
+    the measure, not the ceiling, is what decides its size, and that has not
+    moved.
+  */
+  const size = fitBlock({
+    text: children,
+    ceiling: display,
+    maxLines,
+    charWidth: advance,
+    ...(maxHeight === undefined ? {} : { maxHeight }),
+  });
 
   const style: React.CSSProperties = {
     ...font,
@@ -159,7 +215,7 @@ export const Headline: React.FC<{
     margin: 0,
     // Just over 1. At 0.98 the line box was shorter than the glyphs and the
     // baseline of a 136px name came out shaved off at the bottom.
-    lineHeight: 1.04,
+    lineHeight: HEADLINE_LINE_HEIGHT,
     // Tight tracking at display sizes: loose letterspacing on a 130px headline
     // is what makes big type look like a document rather than a title card.
     letterSpacing: '-0.025em',
@@ -187,9 +243,13 @@ export const Headline: React.FC<{
  *
  * Pure and exported so the sizing can be tested without a browser.
  */
-export const fitDisplay = (text: string, baseSize: number): number => {
+export const fitDisplay = (
+  text: string,
+  baseSize: number,
+  charWidth: number = DISPLAY_CHAR_WIDTH,
+): number => {
   const available = VIDEO.width - VIDEO.safeMargin * 2;
-  const width = Math.max(1, text.length * DISPLAY_CHAR_WIDTH);
+  const width = Math.max(1, text.length * charWidth);
   return Math.max(MIN_DISPLAY_NUMBER_PX, Math.min(baseSize, available / width));
 };
 
@@ -215,7 +275,8 @@ export const DisplayNumber: React.FC<{
   const font = useFont('display');
   const { display } = useTypeScale();
   const { color } = useTheme();
-  const size = fit === undefined ? display : fitDisplay(fit, display);
+  const advance = useDisplayAdvance();
+  const size = fit === undefined ? display : fitDisplay(fit, display, advance);
   return (
     // No drift. The number counts up and then holds perfectly still: a figure
     // that keeps sliding is harder to read, and this is the one thing on the
@@ -231,6 +292,11 @@ export const DisplayNumber: React.FC<{
         lineHeight: 0.95,
         letterSpacing: '-0.035em',
         fontVariantNumeric: 'tabular-nums',
+        // A number is one thing and never two lines. Without this, "114 h"
+        // broke at its own space and put the unit under the figure — the
+        // formatted value is wider than its digits, and only the caller knows
+        // by how much, which is what `fit` is for.
+        whiteSpace: 'nowrap',
       }}
     >
       {children}
@@ -245,15 +311,76 @@ export const DisplayNumber: React.FC<{
  * at the theme's headline size either would run off the frame. Pure and
  * exported so the fit can be tested without a browser.
  */
-export const fitText = (text: string, baseSize: number, maxLines = 2): number => {
-  const available = (VIDEO.width - VIDEO.safeMargin * 2) * maxLines;
-  const longestWord = text.split(/\s+/).reduce((max, word) => Math.max(max, word.length), 0);
+export const fitText = (
+  text: string,
+  baseSize: number,
+  maxLines = 2,
+  charWidth: number = DISPLAY_CHAR_WIDTH,
+): number => fitBlock({ text, ceiling: baseSize, maxLines, charWidth });
 
-  const byTotal = available / Math.max(1, text.length * DISPLAY_CHAR_WIDTH);
-  // A single long word cannot be solved by wrapping, so it gets its own budget.
-  const byWord = (VIDEO.width - VIDEO.safeMargin * 2) / Math.max(1, longestWord * DISPLAY_CHAR_WIDTH);
+/** The line height a headline is set at, and so what a line of one costs. */
+export const HEADLINE_LINE_HEIGHT = 1.04;
 
-  return Math.max(MIN_HEADLINE_PX, Math.min(baseSize, byTotal, byWord));
+export interface FitBlockOptions {
+  text: string;
+  /** The largest size this text may reach. */
+  ceiling: number;
+  maxLines?: number;
+  charWidth?: number;
+  /** Measure to fit into. Defaults to the frame's safe width. */
+  width?: number;
+  /**
+   * Vertical budget for the whole block, lines included.
+   *
+   * Unlimited by default, because most headlines are the only thing on their
+   * slide. It matters where a headline shares the frame with something tall: on
+   * the most-played slide a short two-word title like "Flip 7" wrapped to two
+   * lines at nearly 300px each, which pushed the cover off the top of the frame
+   * and the play count down into the aside. Width alone cannot catch that —
+   * wrapping is what a width fitter does to *succeed*.
+   */
+  maxHeight?: number;
+  lineHeight?: number;
+  /** Never smaller than this, whatever the budget says. */
+  floor?: number;
+}
+
+/**
+ * The largest size at which `text` fits a box, in width *and* height.
+ *
+ * Tries each line count it is allowed and keeps the best: more lines buy width
+ * but cost height, and which way that trade falls depends on the string. A
+ * single long word cannot be solved by wrapping at all, so it gets its own
+ * budget — that is the 56-character game title in this dataset.
+ *
+ * Pure and exported, because every interesting case here is arithmetic that a
+ * test can check and a rendered frame cannot.
+ */
+export const fitBlock = ({
+  text,
+  ceiling,
+  maxLines = 2,
+  charWidth = DISPLAY_CHAR_WIDTH,
+  width = VIDEO.width - VIDEO.safeMargin * 2,
+  maxHeight = Number.POSITIVE_INFINITY,
+  lineHeight = HEADLINE_LINE_HEIGHT,
+  floor = MIN_HEADLINE_PX,
+}: FitBlockOptions): number => {
+  const chars = Math.max(1, text.length);
+  const longestWord = Math.max(
+    1,
+    text.split(/\s+/).reduce((max, word) => Math.max(max, word.length), 0),
+  );
+  const byWord = width / (longestWord * charWidth);
+
+  let best = 0;
+  for (let lines = 1; lines <= Math.max(1, maxLines); lines += 1) {
+    const byMeasure = (width * lines) / (chars * charWidth);
+    const byHeight = maxHeight / (lineHeight * lines);
+    best = Math.max(best, Math.min(ceiling, byMeasure, byWord, byHeight));
+  }
+
+  return Math.max(floor, Math.min(ceiling, best));
 };
 
 /** Below this a headline stops reading at arm's length on a phone. */

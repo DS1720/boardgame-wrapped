@@ -147,6 +147,11 @@ export const themeFromBoxArt = (base: Theme, dominant: string | null | undefined
   return {
     ...base,
     id: `${base.id}-boxart-${Math.round(h)}`,
+    // Whatever grounds the base theme stated were chosen for *its* palette, and
+    // this mode has just replaced that palette wholesale. Carrying them over
+    // would leave the cards coloured for a theme that is no longer on; without
+    // them the cycle is derived from the tokens actually in force.
+    grounds: undefined,
     color: {
       ...color,
       // The box's own color is the point of this mode, so it wins the accent

@@ -179,6 +179,58 @@ export const pegBoard: Theme = {
   signature: 'pegs',
 };
 
+/**
+ * G — Neon Night. Grounded in nothing on the table: this one is a poster.
+ *
+ * The other six are named after a material and behave like it. This one is
+ * named after a look, and it exists because six tasteful palettes could not get
+ * anywhere near a Wrapped deck however they were arranged. It is the only
+ * starter that states its own `grounds`: six saturated cards nobody would
+ * derive from a formula, which is the whole point of them.
+ *
+ * Signature: cubes — the one component every game in the export has in a bag
+ * somewhere, drawn flat and huge.
+ */
+export const neonNight: Theme = {
+  id: 'neon-night',
+  name: 'Neon Night',
+  color: {
+    bg: '#150A2E',
+    surface: '#241246',
+    ink: '#FFFFFF',
+    inkMuted: '#A79BC8',
+    accent: '#D6FF3E',
+    accentAlt: '#FF3D9A',
+  },
+  type: {
+    // The far end of Archivo's width axis. Next to Punchboard's 75% cut it
+    // reads as a different family, and it costs no extra font to mirror.
+    display: 'archivo-expanded',
+    body: 'inter',
+    utility: 'inter-tracked',
+    // A step larger than any other starter: this theme is set to be shouted.
+    scale: [32, 46, 150, 340],
+  },
+  // Nothing here eases. A card lands and the next one is already there.
+  motion: { stiffness: 210, damping: 20, stagger: 3 },
+  // Flat colour, deliberately. A texture over these grounds is a smudge on a
+  // poster, and the grounds are doing the work a texture normally does.
+  texture: 'none',
+  signature: 'cubes',
+  /*
+    Two deep cards, three bright ones and a magenta, in an order that never puts
+    two of the same weight together — the snap between cards is the effect, and
+    two dark cards in a row is a gap in it.
+
+    Each one is chosen so the palette that comes out of it stays saturated:
+    a ground that cannot carry legible ink gets walked toward the light by
+    `paletteForGround`, and a hot pink walked far enough to hold dark text is a
+    pale pink. The magenta is deep enough to take white instead, so it keeps its
+    colour and gets the lime for a number.
+  */
+  grounds: ['#150A2E', '#D6FF3E', '#B00050', '#00E5C0', '#3B1E8F', '#FF8A3D'],
+};
+
 export const STARTERS: Theme[] = [
   punchboard,
   scorepad,
@@ -186,6 +238,7 @@ export const STARTERS: Theme[] = [
   feltTable,
   meadow,
   pegBoard,
+  neonNight,
 ];
 
 export const DEFAULT_THEME = tableLight;

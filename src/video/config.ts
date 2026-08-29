@@ -16,6 +16,21 @@ export const VIDEO = {
   safeMargin: 120,
 } as const;
 
+/**
+ * Frames a card takes to become the next one.
+ *
+ * Short enough to still read as a cut rather than a dissolve, long enough that
+ * it is a move rather than a jolt. Both halves of the transition use it: the
+ * ground travels between two palettes over this window and the slide's content
+ * fades in across the same one, so the ground has settled before there is
+ * anything on it to read.
+ *
+ * It lives here rather than beside either half because both need it, and
+ * `Wrapped` imports the slides — a constant in one of them would have to be
+ * imported back out of the other.
+ */
+export const CARD_FADE_FRAMES = 9;
+
 export const barsToFrames = (bars: number, bpm: number, fps: number = VIDEO.fps): number =>
   Math.round((60 / bpm) * 4 * fps * bars);
 

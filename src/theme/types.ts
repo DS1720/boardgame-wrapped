@@ -16,6 +16,7 @@ export type FontId =
   | 'anton'
   | 'fraunces'
   | 'space-grotesk'
+  | 'archivo-expanded'
   // body
   | 'plex-sans'
   | 'inter'
@@ -29,7 +30,15 @@ export type FontId =
 export type TextureId = 'none' | 'grain' | 'paper' | 'lamp';
 
 /** The one element that makes a theme recognizable. Step 7 renders these. */
-export type SignatureId = 'diecut' | 'tally' | 'lamp' | 'dice' | 'tiles' | 'pegs' | 'none';
+export type SignatureId =
+  | 'diecut'
+  | 'tally'
+  | 'lamp'
+  | 'dice'
+  | 'tiles'
+  | 'pegs'
+  | 'cubes'
+  | 'none';
 
 /**
  * Signatures that draw a count as a set of marks, one arriving at a time.
@@ -79,6 +88,15 @@ export interface Theme {
   motion: ThemeMotion;
   texture: TextureId;
   signature: SignatureId;
+  /**
+   * The grounds this theme cycles through, one per slide.
+   *
+   * Optional, and normally absent: a theme without them has its cycle derived
+   * from the six tokens it already owns, so it still looks like itself. Only a
+   * theme whose point *is* the colours — the loud starter — states them, because
+   * six saturated grounds are not something a formula would arrive at.
+   */
+  grounds?: string[];
 }
 
 /** Which of the four ways a theme was arrived at. Drives the picker UI. */

@@ -1,5 +1,5 @@
 import { AbsoluteFill } from 'remotion';
-import { formatDay, formatDays, formatDuration, formatNumber } from '@/shared/format';
+import { daysBetween, formatDay, formatDays, formatDuration, formatNumber } from '@/shared/format';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { BoxArt } from '../BoxArt';
 import { VIDEO } from '../config';
@@ -44,6 +44,7 @@ export const LongestWinStreakSlide: React.FC<SlideProps> = ({ stat }) => {
           <StatBlock
             eyebrow="Longest win streak"
             value={<CountUp to={stat.length} delay={BEAT.second} />}
+            fit={formatNumber(stat.length)}
             caption={stat.length === 1 ? 'win' : 'wins in a row'}
           />
         </SignaturePlate>
@@ -65,6 +66,7 @@ export const CoPlayerCountSlide: React.FC<SlideProps> = ({ stat }) => {
           <StatBlock
             eyebrow="Played with"
             value={<CountUp to={stat.count} delay={BEAT.second} />}
+            fit={formatNumber(stat.count)}
             caption={stat.count === 1 ? 'other person' : 'different people'}
           />
         </SignaturePlate>
@@ -153,6 +155,7 @@ export const GroupShareSlide: React.FC<SlideProps> = ({ stat }) => {
                 format={(v) => `${v}%`}
               />
             }
+          fit={`${Math.round(stat.ratio * 100)}%`}
           caption={`${formatNumber(stat.attended)} of ${formatNumber(stat.total)} game nights`}
           />
         </SignaturePlate>
@@ -324,6 +327,11 @@ export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
  * First and last play of the range: a pair, not a number. It is the one slide
  * that gives the year a shape — where it started and where it ended up.
  */
+/** Cover, gap and the text column beside it, in the bookends slide's rows. */
+const ROW_COVER = 216;
+const ROW_GAP = 24;
+const ROW_TEXT_WIDTH = VIDEO.width - VIDEO.safeMargin * 2 - ROW_COVER - ROW_GAP;
+
 export const FirstAndLastPlaySlide: React.FC<SlideProps> = ({ stat }) => {
   const manifest = useBoxArtManifest();
   const { color } = useTheme();
@@ -331,17 +339,28 @@ export const FirstAndLastPlaySlide: React.FC<SlideProps> = ({ stat }) => {
   const { body } = useTypeScale();
   if (stat?.id !== 'firstAndLastPlay') return null;
 
-  const row = (label: string, entry: { day: string; game: { gameId: number; name: string } }, delay: number) => (
-    <Reveal delay={delay} distance={34}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+  const row = (
+    label: string,
+    entry: { day: string; game: { gameId: number; name: string } },
+    delay: number,
+    // The two bookends arrive from opposite sides, because that is what they
+    // are: one opened the year and one closed it, and having them slide in the
+    // same direction made them read as two items in a list.
+    direction: 'left' | 'right',
+  ) => (
+    <Reveal delay={delay} distance={56} direction={direction}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: ROW_GAP }}>
         <BoxArt
           entry={boxArtFor(manifest, entry.game.gameId)}
           name={entry.game.name}
-          width={180}
-          height={180}
+          width={ROW_COVER}
+          height={ROW_COVER}
         />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-          <Eyebrow>{label}</Eyebrow>
+          {/* Fitted to the column beside the cover, not to the frame: at the
+              full label size "Started the year with" wrapped onto two lines and
+              pushed the date out from under it. */}
+          <Eyebrow width={ROW_TEXT_WIDTH}>{label}</Eyebrow>
           <span
             style={{
               ...bodyFont,
@@ -369,10 +388,24 @@ export const FirstAndLastPlaySlide: React.FC<SlideProps> = ({ stat }) => {
     return year * 12 + (month - 1);
   };
 
+  /*
+    The span, which is the one number this slide has.
+
+    Two covers and a torn calendar was a picture of a year without a fact in it,
+    and next to slides that all lead with a figure it read as the one that had
+    nothing to say. The days between the first play and the last is the thing
+    the calendar is already drawing — saying it out loud costs a line and turns
+    the flourish into a caption for something.
+  */
+  const days = daysBetween(stat.first.day, stat.last.day) ?? 0;
+
   return (
-    <SafeArea>
-      <Stack gap={26}>
-        {row('Started the year with', stat.first, BEAT.first)}
+    // Centred rather than anchored low. This slide is a pair being compared
+    // rather than a figure with support under it, and hung from the bottom it
+    // left the top two thirds of the frame empty.
+    <SafeArea justify="center">
+      <Stack gap={22}>
+        {row('Started the year with', stat.first, BEAT.first, 'left')}
         {/*
           The calendar sits between the two, because what it draws is the gap
           between them. It tears exactly the months the range covers — a year
@@ -386,7 +419,20 @@ export const FirstAndLastPlaySlide: React.FC<SlideProps> = ({ stat }) => {
             delay={BEAT.second}
           />
         </Reveal>
-        {row('Ended it with', stat.last, BEAT.third)}
+        {/* Nothing to say when both are the same day, which is a real case for
+            a player with one evening in range: "0 days between them" would be
+            a worse slide than no line at all. */}
+        {days > 0 && (
+          <Reveal delay={BEAT.second + 8}>
+            <p style={{ ...bodyFont, fontSize: body, color: color.inkMuted, margin: 0 }}>
+              <span style={{ color: color.accent }}>
+                <CountUp to={days} delay={BEAT.second + 8} />
+              </span>{' '}
+              days between them
+            </p>
+          </Reveal>
+        )}
+        {row('Ended it with', stat.last, BEAT.third + 6, 'right')}
       </Stack>
     </SafeArea>
   );
@@ -435,6 +481,10 @@ export const TimePlayedSlide: React.FC<SlideProps> = ({ stat }) => {
                 format={(v) => `${formatNumber(v)} h`}
               />
             }
+            // The unit is part of the value, so it is part of what gets sized:
+            // "114 h" is five characters where "114" is three, and at the full
+            // display step the difference is a line break before the h.
+            fit={`${formatNumber(Math.round(hours))} h`}
             caption={`about ${formatDays(stat.minutes)} days · estimated from how long these games take`}
           />
         </SignaturePlate>
