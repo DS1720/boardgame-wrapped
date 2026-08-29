@@ -3,10 +3,15 @@ import type { SlideId, WrappedStats } from '@/stats/types';
 import { CORE_SLIDES } from '@/stats/index';
 import {
   ALL_SLIDES,
+  barsFor,
   DEFAULT_SLIDE_IDS,
   LINKED_PAIRS,
+  MAX_SLIDE_BARS,
+  MIN_SLIDE_BARS,
+  SLIDE_BARS,
   SLIDE_LABELS,
   unitsOf,
+  type SlideBarOverrides,
   type TimelineSlideId,
 } from '@/video/timeline';
 
@@ -42,6 +47,10 @@ interface Props {
   onReorder: (id: SlideId, index: number) => void;
   /** The slide the preview is currently showing, marked in the list. */
   playing?: TimelineSlideId | null;
+  /** Lengths chosen by hand. Absent ids are at their default. */
+  bars: SlideBarOverrides;
+  /** Set one slide's length in bars, or null to put it back to the default. */
+  onBars: (id: TimelineSlideId, value: number | null) => void;
   onReset: () => void;
   onAll: () => void;
 }
@@ -56,6 +65,69 @@ const LINKED_TO = new Map(
   LINKED_PAIRS.map(([first, second]) => [first as SlideId, second as SlideId]),
 );
 
+/**
+ * How long one slide runs, in bars.
+ *
+ * Bars rather than seconds because the video is cut to a track: a slide lasting
+ * a whole number of bars lands on a downbeat, and one lasting 3.4 seconds
+ * cannot. The seconds it works out to depend on the tempo, which is why they
+ * are not what you set — the readout under the player says what the whole video
+ * came to.
+ *
+ * Two steppers rather than a free number field: the useful range is 1 to 8, and
+ * every value in it is one or two clicks away. A row at its default says so
+ * rather than showing a number that looks chosen.
+ */
+const BarStepper: React.FC<{
+  id: TimelineSlideId;
+  label: string;
+  bars: SlideBarOverrides;
+  onBars: (id: TimelineSlideId, value: number | null) => void;
+}> = ({ id, label, bars, onBars }) => {
+  const value = barsFor(id, bars);
+  const isDefault = bars[id] === undefined;
+
+  return (
+    <span
+      className="slide-bars"
+      // Inside a draggable row: without this a press on a stepper starts a drag.
+      draggable
+      onDragStart={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+    >
+      <button
+        className="icon"
+        onClick={() => onBars(id, value - 1)}
+        disabled={value <= MIN_SLIDE_BARS}
+        aria-label={`Shorten ${label}`}
+        title="One bar shorter"
+      >
+        −
+      </button>
+      <button
+        className={`slide-bars-value${isDefault ? ' is-default' : ''}`}
+        onClick={() => onBars(id, null)}
+        disabled={isDefault}
+        aria-label={`${label} is ${value} bars. Reset to the default.`}
+        title={isDefault ? `Default: ${SLIDE_BARS[id]} bars` : 'Back to the default length'}
+      >
+        {value}
+      </button>
+      <button
+        className="icon"
+        onClick={() => onBars(id, value + 1)}
+        disabled={value >= MAX_SLIDE_BARS}
+        aria-label={`Lengthen ${label}`}
+        title="One bar longer"
+      >
+        +
+      </button>
+    </span>
+  );
+};
+
 export const SlidePicker: React.FC<Props> = ({
   stats,
   order,
@@ -63,6 +135,8 @@ export const SlidePicker: React.FC<Props> = ({
   onMove,
   onReorder,
   playing = null,
+  bars,
+  onBars,
   onReset,
   onAll,
 }) => {
@@ -97,15 +171,19 @@ export const SlidePicker: React.FC<Props> = ({
 
       <p className="panel-note">
         {stats
-          ? `${inCut.length + 2} in the cut, including the intro and outro. Drag a row to reorder, or use the arrows.`
+          ? `${inCut.length + 2} in the cut, including the intro and outro. Drag a row to reorder, or use the arrows. The number on the right is how many bars a slide runs for.`
           : 'Pick a player to see which stats they have.'}
       </p>
 
       <ol className="slide-order">
+        {/* The bookends are not part of the selection and never move, but they
+            are slides with a length like any other — and the outro is the one
+            people most often want longer, because it is the screenshot. */}
         <li className={`slide-fixed${playing === 'intro' ? ' is-playing' : ''}`}>
           <span className="slide-index">1</span>
           <span className="slide-name">Intro</span>
           <span className="slide-tag is-muted">always</span>
+          <BarStepper id="intro" label="the intro" bars={bars} onBars={onBars} />
         </li>
 
         {order.map((id, index) => {
@@ -204,6 +282,8 @@ export const SlidePicker: React.FC<Props> = ({
                   ✕
                 </button>
               </span>
+
+              <BarStepper id={id} label={SLIDE_LABELS[id]} bars={bars} onBars={onBars} />
             </li>
           );
         })}
@@ -212,6 +292,7 @@ export const SlidePicker: React.FC<Props> = ({
           <span className="slide-index">{inCut.length + 2}</span>
           <span className="slide-name">Outro</span>
           <span className="slide-tag is-muted">always</span>
+          <BarStepper id="outro" label="the outro" bars={bars} onBars={onBars} />
         </li>
       </ol>
 

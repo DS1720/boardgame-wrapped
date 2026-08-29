@@ -295,10 +295,10 @@ describe('fonts', () => {
   });
 
   it('offers the curated counts the plan asks for', () => {
-    // Seven display faces for seven starters. The seventh is the other end of
-    // Archivo's width axis rather than a seventh family, so the mirror is still
-    // the twelve families the plan curated — see the dedupe test below.
-    expect(DISPLAY_FONTS).toHaveLength(7);
+    // Nine display faces for nine starters. One of them is the other end of
+    // Archivo’s width axis rather than a new family, so the mirror is
+    // fourteen families rather than fifteen — see the dedupe test below.
+    expect(DISPLAY_FONTS).toHaveLength(9);
     expect(BODY_FONTS).toHaveLength(4);
     expect(UTILITY_FONTS).toHaveLength(3);
   });

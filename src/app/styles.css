@@ -850,6 +850,43 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
   flex-shrink: 0;
 }
 
+/* How many bars a slide runs for. Last in the row, after the move buttons,
+   because it is the thing you set once rather than the thing you fiddle with
+   while arranging. `margin-left: auto` on the move group would fight the tags,
+   so the two groups simply sit at the end in order. */
+.slide-bars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+.slide-bars-value {
+  min-width: 26px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* A slide at its default length says so by not looking chosen. */
+.slide-bars-value.is-default {
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: default;
+}
+
+.slide-bars-value:not(.is-default):hover {
+  background: var(--bg);
+}
+
 button.icon {
   padding: 2px 8px;
   font-size: 13px;

@@ -2,11 +2,39 @@ import { AbsoluteFill, interpolate, useCurrentFrame } from 'remotion';
 import { withAlpha } from '@/theme/color';
 import { useTheme } from '@/theme/ThemeContext';
 import { COUNT_SIGNATURES, type CountSignature, type SignatureId } from '@/theme/types';
-import { BOX_ART } from '../config';
+import { BOX_ART, VIDEO } from '../config';
 import { useMotionSpring } from '../motion';
 
 /**
+ * A seamless offset for a repeating pattern.
+ *
+ * Returns a value in [0, pitch) that advances one whole pitch every
+ * `framesPerPitch` frames. Translating a tiled layer by it moves forever
+ * without the tiling ever showing a seam: at the moment the offset wraps back
+ * to zero, the pattern is exactly one tile along and looks identical.
+ *
+ * Frame-driven, never `Math.random`. Determinism applies to a background
+ * exactly as much as to a stat.
+ */
+const useTileDrift = (pitch: number, framesPerPitch: number): number =>
+  ((useCurrentFrame() % framesPerPitch) / framesPerPitch) * pitch;
+
+/**
+ * Enough overhang that a drifting layer never shows its own edge.
+ *
+ * A tiled fill translated by up to one pitch exposes a strip of nothing at the
+ * trailing edge unless the layer is bigger than the frame it sits in.
+ */
+const BLEED = 160;
+
+/**
  * Theme signatures — the one element that makes each theme recognizable.
+
+ * Every one of them moves. A still signature under a video whose ground now
+ * travels between colours read as a printed sheet with a light show behind it —
+ * and the plan's rule that the frame is never still was only ever half kept by
+ * the ambient fields. The content is what holds still; the room it sits in
+ * does not.
  *
  * Step 6 declared these in the tokens; this is where they are drawn. A
  * signature is the thing a person would describe if asked what the video looked
@@ -59,23 +87,85 @@ const DieCut: React.FC<{ children: React.ReactNode; delay: number }> = ({ childr
   );
 };
 
+/**
+ * The board these stats are punched out of, drifting past.
+ *
+ * Punchboard was the one theme with no backdrop at all: its signature acts on
+ * the plate a stat sits in and nowhere else, which left the ground bare. These
+ * are the cut lines of the shapes *not* yet punched out — the rest of the
+ * sheet — so the die-cut plate reads as one piece taken from a board rather
+ * than a card floating on a colour.
+ */
+const SPRUE_PITCH = 260;
+
+const SprueField: React.FC = () => {
+  const { color } = useTheme();
+  const drift = useTileDrift(SPRUE_PITCH, 900);
+  const rows = Math.ceil((VIDEO.height + BLEED * 2) / SPRUE_PITCH) + 1;
+  const cols = Math.ceil((VIDEO.width + BLEED * 2) / SPRUE_PITCH) + 1;
+
+  return (
+    <AbsoluteFill aria-hidden style={{ overflow: 'hidden' }}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: -BLEED,
+          transform: `translate(${-drift * 0.35}px, ${-drift}px)`,
+        }}
+      >
+        {Array.from({ length: rows * cols }, (_, i) => {
+          const row = Math.floor(i / cols);
+          const col = i % cols;
+          // Every other row is offset half a pitch, the way a real sheet nests
+          // its shapes to waste less board.
+          const x = col * SPRUE_PITCH + (row % 2 ? SPRUE_PITCH / 2 : 0);
+          const size = (row + col) % 3 === 0 ? 150 : 108;
+          return (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                left: x,
+                top: row * SPRUE_PITCH,
+                width: size,
+                height: size,
+                borderRadius: size * 0.16,
+                border: `2px solid ${withAlpha(color.ink, 0.13)}`,
+              }}
+            />
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 /* -------------------------------------------------------------------------- */
 /* Scorepad: tally marks and ruled lines                                       */
 /* -------------------------------------------------------------------------- */
 
 /** Faint ruled lines running through every slide, like a score sheet. */
+const RULE_PITCH = 89;
+
 const RuledLines: React.FC = () => {
   const { color } = useTheme();
+  // One rule every ten seconds: slow enough to read as a page being filled
+  // rather than as a scroll, fast enough to be motion rather than a still.
+  const drift = useTileDrift(RULE_PITCH, 300);
+
   return (
-    <AbsoluteFill
-      aria-hidden
-      style={{
-        backgroundImage: `repeating-linear-gradient(180deg, transparent 0 87px, ${withAlpha(
-          color.accentAlt,
-          0.28,
-        )} 87px 89px)`,
-      }}
-    />
+    <AbsoluteFill aria-hidden style={{ overflow: 'hidden' }}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: -BLEED,
+          transform: `translateY(${-drift}px)`,
+          backgroundImage: `repeating-linear-gradient(180deg, transparent 0 ${
+            RULE_PITCH - 2
+          }px, ${withAlpha(color.accentAlt, 0.28)} ${RULE_PITCH - 2}px ${RULE_PITCH}px)`,
+        }}
+      />
+    </AbsoluteFill>
   );
 };
 
@@ -202,15 +292,19 @@ const LampPool: React.FC = () => {
   const { color } = useTheme();
 
   // A slow, unsynchronised drift — the two axes use different periods so the
-  // motion never repeats visibly inside one slide.
-  const x = 50 + Math.sin(frame / 96) * 2.2;
-  const y = 38 + Math.cos(frame / 71) * 1.8;
+  // motion never repeats visibly inside one slide. Wider than it was: at ±2%
+  // the lamp was technically moving and visibly still.
+  const x = 50 + Math.sin(frame / 96) * 6;
+  const y = 38 + Math.cos(frame / 71) * 4.5;
+  // The pool breathes as well as drifts, so the light has a source rather than
+  // being a shape that slides.
+  const spread = 58 + Math.sin(frame / 121) * 5;
 
   return (
     <AbsoluteFill
       aria-hidden
       style={{
-        backgroundImage: `radial-gradient(58% 38% at ${x}% ${y}%, ${withAlpha(
+        backgroundImage: `radial-gradient(${spread}% ${spread * 0.66}% at ${x}% ${y}%, ${withAlpha(
           color.accent,
           0.24,
         )} 0%, ${withAlpha(color.accent, 0.08)} 45%, transparent 72%)`,
@@ -341,19 +435,40 @@ export const DiceMarks: React.FC<CountMarksProps> = ({
 };
 
 /** Stitched edging, like the border of a card table. Drawn on every slide. */
+const NAP_PITCH = 9;
+
 const FeltNap: React.FC = () => {
+  const frame = useCurrentFrame();
   const { color } = useTheme();
+  // The nap itself creeps along its own angle. At a 9px pitch the individual
+  // lines are far too fine to follow, which is the point: what you see is the
+  // cloth breathing, not stripes moving.
+  const nap = useTileDrift(NAP_PITCH, 150);
+  // A sheen crossing the table, the way light moves over felt when someone
+  // leans over it. Twenty-three seconds for a full pass.
+  const sweep = ((frame % 690) / 690) * 240 - 70;
+
   return (
-    <AbsoluteFill
-      aria-hidden
-      style={{
-        // The nap of the cloth, and a stitched line inset from the frame.
-        backgroundImage: `repeating-linear-gradient(118deg, ${withAlpha(
-          color.ink,
-          0.05,
-        )} 0 2px, transparent 2px 9px)`,
-      }}
-    >
+    <AbsoluteFill aria-hidden style={{ overflow: 'hidden' }}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: -BLEED,
+          transform: `translate(${nap}px, ${nap}px)`,
+          backgroundImage: `repeating-linear-gradient(118deg, ${withAlpha(
+            color.ink,
+            0.05,
+          )} 0 2px, transparent 2px ${NAP_PITCH}px)`,
+        }}
+      />
+      <AbsoluteFill
+        style={{
+          backgroundImage: `linear-gradient(118deg, transparent ${sweep - 26}%, ${withAlpha(
+            color.ink,
+            0.05,
+          )} ${sweep}%, transparent ${sweep + 26}%)`,
+        }}
+      />
       <div
         style={{
           position: 'absolute',
@@ -441,21 +556,33 @@ export const TileMarks: React.FC<CountMarksProps> = ({
 };
 
 /** A faint field of tiles behind everything, so the ground is the same material. */
+const TILE_PITCH = 96;
+
 const TileField: React.FC = () => {
   const { color } = useTheme();
+  // Diagonally, and on two different periods, so the field never looks like it
+  // is sliding in one direction — a landscape being laid out rather than a
+  // texture being dragged.
+  const x = useTileDrift(TILE_PITCH, 640);
+  const y = useTileDrift(TILE_PITCH, 430);
+
   return (
-    <AbsoluteFill
-      aria-hidden
-      style={{
-        backgroundImage: `repeating-linear-gradient(0deg, ${withAlpha(
-          color.ink,
-          0.06,
-        )} 0 1px, transparent 1px 96px), repeating-linear-gradient(90deg, ${withAlpha(
-          color.ink,
-          0.06,
-        )} 0 1px, transparent 1px 96px)`,
-      }}
-    />
+    <AbsoluteFill aria-hidden style={{ overflow: 'hidden' }}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: -BLEED,
+          transform: `translate(${x}px, ${-y}px)`,
+          backgroundImage: `repeating-linear-gradient(0deg, ${withAlpha(
+            color.ink,
+            0.06,
+          )} 0 1px, transparent 1px ${TILE_PITCH}px), repeating-linear-gradient(90deg, ${withAlpha(
+            color.ink,
+            0.06,
+          )} 0 1px, transparent 1px ${TILE_PITCH}px)`,
+        }}
+      />
+    </AbsoluteFill>
   );
 };
 
@@ -571,18 +698,38 @@ export const PegMarks: React.FC<CountMarksProps> = ({
 };
 
 /** The board's own tracks, running down both margins on every slide. */
+const HOLE_PITCH = 70;
+
 const PegTracks: React.FC = () => {
   const { color } = useTheme();
-  const holes = 26;
+  // The board travelling past, one hole every four seconds. Every fifth hole is
+  // larger, so the drift is countable rather than a texture sliding — which is
+  // what a scoring track is for.
+  const drift = useTileDrift(HOLE_PITCH * 5, 600);
+  // Two extra holes beyond the frame at each end, so the ends never arrive.
+  const holes = Math.ceil(VIDEO.height / HOLE_PITCH) + 6;
+
   return (
-    <AbsoluteFill aria-hidden>
-      {[54, 1026].map((x) => (
-        <svg key={x} width={28} height={1920} style={{ position: 'absolute', left: x - 14, top: 0 }}>
+    <AbsoluteFill aria-hidden style={{ overflow: 'hidden' }}>
+      {[54, 1026].map((x, track) => (
+        <svg
+          key={x}
+          width={28}
+          height={VIDEO.height + HOLE_PITCH * 6}
+          style={{
+            position: 'absolute',
+            left: x - 14,
+            top: -HOLE_PITCH * 3,
+            // The two tracks run opposite ways, so the frame reads as depth
+            // rather than as one sheet sliding behind the type.
+            transform: `translateY(${track === 0 ? drift : -drift}px)`,
+          }}
+        >
           {Array.from({ length: holes }, (_, i) => (
             <circle
               key={i}
               cx={14}
-              cy={70 + i * 70}
+              cy={HOLE_PITCH + i * HOLE_PITCH}
               r={(i + 1) % 5 === 0 ? 5 : 4}
               fill={withAlpha(color.ink, 0.3)}
             />
@@ -654,19 +801,188 @@ const CubeField: React.FC = () => {
 };
 
 /* -------------------------------------------------------------------------- */
+/* Blueprint: a drafting grid                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Fine grid, and the heavier rule every fifth line. */
+const GRID_FINE = 54;
+const GRID_COARSE = GRID_FINE * 5;
+
+/**
+ * A drafting sheet sliding under the frame.
+ *
+ * Two grids at a five-to-one ratio, the way squared paper and a drawing board
+ * both work, plus a pair of measurement rules with ticks along them. It travels
+ * diagonally and slowly: a plan being pulled across a table rather than a
+ * pattern scrolling.
+ *
+ * The ticks are what make it a *drawing* rather than graph paper. Somebody
+ * measured something here.
+ */
+const DraftingGrid: React.FC = () => {
+  const { color } = useTheme();
+  const x = useTileDrift(GRID_COARSE, 1100);
+  const y = useTileDrift(GRID_COARSE, 780);
+
+  const fine = withAlpha(color.ink, 0.07);
+  const coarse = withAlpha(color.accent, 0.16);
+
+  return (
+    <AbsoluteFill aria-hidden style={{ overflow: 'hidden' }}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: -BLEED,
+          transform: `translate(${-x}px, ${y}px)`,
+          backgroundImage: [
+            `repeating-linear-gradient(0deg, ${coarse} 0 1px, transparent 1px ${GRID_COARSE}px)`,
+            `repeating-linear-gradient(90deg, ${coarse} 0 1px, transparent 1px ${GRID_COARSE}px)`,
+            `repeating-linear-gradient(0deg, ${fine} 0 1px, transparent 1px ${GRID_FINE}px)`,
+            `repeating-linear-gradient(90deg, ${fine} 0 1px, transparent 1px ${GRID_FINE}px)`,
+          ].join(', '),
+        }}
+      />
+      {/* Two rules with ticks, one down each margin, drifting against the grid
+          so the sheet has a near and a far layer. */}
+      {[72, VIDEO.width - 72].map((left, i) => (
+        <svg
+          key={left}
+          width={22}
+          height={VIDEO.height + GRID_COARSE * 2}
+          style={{
+            position: 'absolute',
+            left: left - 11,
+            top: -GRID_COARSE,
+            transform: `translateY(${i === 0 ? y * 2 : -y * 2}px)`,
+          }}
+        >
+          <line
+            x1={11}
+            y1={0}
+            x2={11}
+            y2={VIDEO.height + GRID_COARSE * 2}
+            stroke={withAlpha(color.accent, 0.3)}
+            strokeWidth={1}
+          />
+          {Array.from(
+            { length: Math.ceil((VIDEO.height + GRID_COARSE * 2) / GRID_FINE) },
+            (_, tick) => (
+              <line
+                key={tick}
+                x1={tick % 5 === 0 ? 0 : 6}
+                y1={tick * GRID_FINE}
+                x2={tick % 5 === 0 ? 22 : 16}
+                y2={tick * GRID_FINE}
+                stroke={withAlpha(color.accent, tick % 5 === 0 ? 0.32 : 0.16)}
+                strokeWidth={1}
+              />
+            ),
+          )}
+        </svg>
+      ))}
+    </AbsoluteFill>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* Meeple: the pieces themselves                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The meeple outline, in a 100x100 box.
+ *
+ * Head as a circle and body as a polygon rather than one traced path: the shape
+ * is recognisable from its proportions — wide shoulders, a notch between the
+ * legs — and two primitives get there without a curve nobody can adjust later.
+ */
+const MEEPLE_BODY =
+  '50,34 62,44 88,54 88,68 66,64 70,96 56,96 50,80 44,96 30,96 34,64 12,68 12,54 38,44';
+
+/** Position, size, tilt and period. Spread wide of the middle, like the cubes. */
+const MEEPLES = [
+  { x: -4, y: 6, size: 300, tilt: -14, period: 33, opacity: 0.15 },
+  { x: 74, y: 1, size: 230, tilt: 11, period: 41, opacity: 0.13 },
+  { x: 78, y: 70, size: 340, tilt: -7, period: 37, opacity: 0.14 },
+  { x: -10, y: 64, size: 260, tilt: 16, period: 27, opacity: 0.12 },
+  { x: 62, y: 38, size: 130, tilt: 24, period: 21, opacity: 0.1 },
+  { x: 8, y: 34, size: 110, tilt: -20, period: 17, opacity: 0.09 },
+] as const;
+
+/**
+ * Meeples drifting behind the content.
+ *
+ * The one piece that says "board game" without naming a game — and the only
+ * component in the box shaped like a person, which is why this theme is the
+ * warm one. Same arrangement as Neon Night's cubes: three depths, clear of the
+ * middle where the number sits, always there rather than entering on the cut.
+ */
+const MeepleField: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { color } = useTheme();
+
+  return (
+    <AbsoluteFill aria-hidden style={{ overflow: 'hidden' }}>
+      {MEEPLES.map((meeple, i) => {
+        const phase = (frame / (meeple.period * 30) + i * 0.41) * Math.PI * 2;
+        const drift = Math.sin(phase) * 30;
+        const rock = Math.cos(phase) * 4;
+        const fill = withAlpha(i % 2 === 0 ? color.accent : color.accentAlt, meeple.opacity);
+
+        return (
+          <svg
+            key={i}
+            width={meeple.size}
+            height={meeple.size}
+            viewBox="0 0 100 100"
+            style={{
+              position: 'absolute',
+              left: `${meeple.x}%`,
+              top: `${meeple.y}%`,
+              transform: `translateY(${drift}px) rotate(${meeple.tilt + rock}deg)`,
+            }}
+          >
+            <circle cx={50} cy={20} r={16} fill={fill} />
+            <polygon points={MEEPLE_BODY} fill={fill} />
+          </svg>
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
 /* Dispatch                                                                    */
 /* -------------------------------------------------------------------------- */
 
 /** The full-frame part of a signature, drawn behind slide content. */
+const BACKDROPS: Partial<Record<SignatureId, React.FC>> = {
+  diecut: SprueField,
+  tally: RuledLines,
+  lamp: LampPool,
+  dice: FeltNap,
+  tiles: TileField,
+  pegs: PegTracks,
+  cubes: CubeField,
+  grid: DraftingGrid,
+  meeples: MeepleField,
+};
+
+/**
+ * The signatures that draw a full-frame backdrop.
+ *
+ * A map rather than a chain of ifs, so the set is a value a test can read.
+ * Every starter's signature has to be in it: the point of a signature is that
+ * the ground is recognisably this theme's, and one that fell through to `null`
+ * would leave a theme sitting on a flat colour with only the ambient fields
+ * moving — which is what Punchboard did until it got its sprue field.
+ */
+export const BACKDROP_SIGNATURES: ReadonlySet<SignatureId> = new Set(
+  Object.keys(BACKDROPS) as SignatureId[],
+);
+
 export const SignatureBackdrop: React.FC = () => {
-  const { signature } = useTheme();
-  if (signature === 'tally') return <RuledLines />;
-  if (signature === 'lamp') return <LampPool />;
-  if (signature === 'dice') return <FeltNap />;
-  if (signature === 'tiles') return <TileField />;
-  if (signature === 'pegs') return <PegTracks />;
-  if (signature === 'cubes') return <CubeField />;
-  return null;
+  const Component = BACKDROPS[useTheme().signature];
+  return Component ? <Component /> : null;
 };
 
 /**

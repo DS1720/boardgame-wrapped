@@ -31,12 +31,14 @@ import {
 } from './audio';
 import {
   outputFileName,
+  openOutputFolder,
   revealInFolder,
   startRender,
   type RenderInput,
   type RenderJob,
 } from './render';
 import { startBatch, type BatchJob, type BatchRequestItem } from './batch';
+import { parseBarOverrides } from '../src/video/timeline';
 import { defaultOutDir, getOutDir, isCustomOutDir, setOutDir, SettingsError } from './settings';
 import type { RawGame } from '../src/shared/types';
 
@@ -304,6 +306,9 @@ app.post('/render', (req, res) => {
     theme: body.theme ?? null,
     track: body.track ?? null,
     slides: body.slides ?? null,
+    // Validated here rather than trusted: a fractional or negative length would
+    // put every cut after it off the beat, and this arrives over HTTP.
+    bars: parseBarOverrides(body.bars),
   };
 
   job = startRender(input);
@@ -382,8 +387,12 @@ app.post('/render/reveal', async (_req, res) => {
     job?.progress.outputFile ??
     [...(batch?.state.items ?? [])].reverse().find((i) => i.file)?.file ??
     null;
+  // No file yet is not an error: the button is on screen from the start, and
+  // "where do my videos go" is a question people have before they have any. The
+  // folder is created if this is the first time anyone has asked.
   if (!file) {
-    res.status(409).json({ error: 'Nothing has been rendered yet.' });
+    await openOutputFolder();
+    res.json({ opened: true, folderOnly: true });
     return;
   }
   // Reported rather than swallowed. This used to answer `{ opened: true }`

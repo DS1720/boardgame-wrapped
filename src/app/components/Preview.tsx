@@ -4,7 +4,12 @@ import type { Track } from '@/shared/audio';
 import type { WrappedStats } from '@/stats/types';
 import type { Theme } from '@/theme/types';
 import { VIDEO } from '@/video/config';
-import { planTimeline, slideAt, type TimelineSlideId } from '@/video/timeline';
+import {
+  planTimeline,
+  slideAt,
+  type SlideBarOverrides,
+  type TimelineSlideId,
+} from '@/video/timeline';
 import { Wrapped } from '@/video/Wrapped';
 
 /**
@@ -24,6 +29,8 @@ interface Props {
   track: Track | null;
   boxArtMode: boolean;
   cut: TimelineSlideId[];
+  /** Per-slide lengths chosen in the picker. */
+  bars: SlideBarOverrides;
   playerName: string | null;
   /**
    * Called when the slide under the playhead changes.
@@ -41,6 +48,7 @@ export const Preview: React.FC<Props> = ({
   track,
   boxArtMode,
   cut,
+  bars,
   playerName,
   onSlideChange,
 }) => {
@@ -48,13 +56,13 @@ export const Preview: React.FC<Props> = ({
   // A fresh object identity on every render restarts the Player, which would
   // throw away the scrub position on every keystroke elsewhere in the UI.
   const inputProps = useMemo(
-    () => ({ stats, theme, track, boxArtMode, cut }),
-    [stats, theme, track, boxArtMode, cut],
+    () => ({ stats, theme, track, boxArtMode, cut, bars }),
+    [stats, theme, track, boxArtMode, cut, bars],
   );
 
   const timeline = useMemo(
-    () => planTimeline(stats, { bpm: track?.bpm, cut }),
-    [stats, track?.bpm, cut],
+    () => planTimeline(stats, { bpm: track?.bpm, cut, bars }),
+    [stats, track?.bpm, cut, bars],
   );
 
   const seconds = timeline.durationInFrames / VIDEO.fps;

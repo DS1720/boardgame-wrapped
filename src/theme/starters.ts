@@ -231,6 +231,78 @@ export const neonNight: Theme = {
   grounds: ['#150A2E', '#D6FF3E', '#B00050', '#00E5C0', '#3B1E8F', '#FF8A3D'],
 };
 
+/**
+ * H — Blueprint. Grounded in the drawing a game gets designed from.
+ *
+ * The cool one. Six of the nine are warm — cardboard, paper, lamplight, wood,
+ * parchment — and Neon Night is loud rather than cool, so this is the only
+ * theme that reads as calm and technical. Its ground cycle is derived like
+ * everything but Neon Night's: navy, teal, the drafting cyan itself.
+ *
+ * Signature: grid — two grids at a five-to-one ratio and a measured rule down
+ * each margin, sliding diagonally under the frame.
+ */
+export const blueprint: Theme = {
+  id: 'blueprint',
+  name: 'Blueprint',
+  color: {
+    bg: '#0B2038',
+    surface: '#153050',
+    ink: '#E8F2FF',
+    inkMuted: '#8FA8C4',
+    accent: '#5FD4FF',
+    // Deliberately below the cyan on this ground. `paletteForGround` gives the
+    // accent slot to whichever highlight reads better, so an accentAlt with
+    // more contrast than the accent would quietly demote the colour the theme
+    // is named for.
+    accentAlt: '#E58B3C',
+  },
+  type: {
+    display: 'syne',
+    body: 'inter',
+    utility: 'plex-mono',
+    scale: [30, 44, 134, 300],
+  },
+  // Drawn with an instrument: quick, exact, and stops where it was put.
+  motion: { stiffness: 190, damping: 24, stagger: 4 },
+  // The grid is the texture. A second one over it is a smudge on a drawing.
+  texture: 'none',
+  signature: 'grid',
+};
+
+/**
+ * I — Meeple. Grounded in the piece itself.
+ *
+ * The one component in the box shaped like a person, which is why this is the
+ * warm one: a year of games is a year of people, and every other theme is named
+ * after a material.
+ *
+ * Signature: meeples — the same arrangement Neon Night gives its cubes, three
+ * depths and clear of the middle, in a shape you can name.
+ */
+export const meeple: Theme = {
+  id: 'meeple',
+  name: 'Meeple',
+  color: {
+    bg: '#F3E2C7',
+    surface: '#FFF6E7',
+    ink: '#2E2013',
+    inkMuted: '#7C6249',
+    accent: '#B23A2E',
+    accentAlt: '#2F7D6B',
+  },
+  type: {
+    display: 'outfit',
+    body: 'work-sans',
+    utility: 'inter-tracked',
+    scale: [30, 44, 132, 300],
+  },
+  // A piece is placed by hand and then let go of.
+  motion: { stiffness: 150, damping: 20, stagger: 5 },
+  texture: 'paper',
+  signature: 'meeples',
+};
+
 export const STARTERS: Theme[] = [
   punchboard,
   scorepad,
@@ -239,6 +311,8 @@ export const STARTERS: Theme[] = [
   meadow,
   pegBoard,
   neonNight,
+  blueprint,
+  meeple,
 ];
 
 export const DEFAULT_THEME = tableLight;

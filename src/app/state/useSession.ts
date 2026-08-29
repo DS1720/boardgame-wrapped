@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SlideId } from '@/stats/types';
-import { ALL_SLIDES, DEFAULT_SLIDE_IDS } from '@/video/timeline';
+import {
+  ALL_SLIDES,
+  DEFAULT_SLIDE_IDS,
+  parseBarOverrides,
+  type SlideBarOverrides,
+} from '@/video/timeline';
 
 /**
  * Everything the app should still know after a reload.
@@ -35,6 +40,14 @@ export interface Session {
   rangeName: string | null;
   /** Ordered — this is the arrangement, not just the selection. */
   slides: SlideId[];
+  /**
+   * Slide lengths chosen by hand, in bars. Absent ids keep the default.
+   *
+   * Sparse on purpose: storing every slide's length would freeze today's
+   * defaults into everyone's session, so a later change to `SLIDE_BARS` would
+   * reach nobody who had ever opened the app.
+   */
+  bars: SlideBarOverrides;
   trackId: string | null;
   boxArtMode: boolean;
 }
@@ -47,6 +60,7 @@ export const defaultSession = (): Session => ({
   rangeLabel: null,
   rangeName: null,
   slides: [...DEFAULT_SLIDE_IDS],
+  bars: {},
   trackId: null,
   boxArtMode: false,
 });
@@ -87,6 +101,9 @@ export const parseSession = (raw: unknown): Session => {
     // An empty stored list is a real choice (everything switched off), but a
     // missing or malformed one is not.
     slides: Array.isArray(value.slides) ? slides : base.slides,
+    // Shared with the render route, so a length is validated the same way
+    // whether it came from storage or from an HTTP body.
+    bars: parseBarOverrides(value.bars),
     trackId: typeof value.trackId === 'string' ? value.trackId : null,
     boxArtMode: typeof value.boxArtMode === 'boolean' ? value.boxArtMode : false,
   };

@@ -412,11 +412,57 @@ export const slideAt = (timeline: Timeline, frame: number): TimelineSlideId | nu
   return null;
 };
 
+/**
+ * Per-slide lengths chosen by hand, overriding `SLIDE_BARS`.
+ *
+ * Bars rather than seconds, for the same reason the table is: the video is cut
+ * to a track, and a slide lasting a whole number of bars can land on the beat
+ * where one lasting 87 frames never can. Someone dragging a length around in
+ * the UI is choosing how many bars, not how many seconds — the seconds follow
+ * from the tempo.
+ */
+export type SlideBarOverrides = Partial<Record<TimelineSlideId, number>>;
+
+/** Shortest a slide can be and still be watchable. */
+export const MIN_SLIDE_BARS = 1;
+
+/**
+ * Longest. Eight bars is sixteen seconds at 120 BPM, which is already twice the
+ * longest slide in the default cut — past this the number is not a design
+ * choice, it is a typo.
+ */
+export const MAX_SLIDE_BARS = 8;
+
+/**
+ * A chosen bar count, made safe.
+ *
+ * Whole bars only, and inside the range. This runs on values that arrive from
+ * localStorage and from an HTTP request as much as from a stepper, so it is the
+ * boundary rather than a convenience: a fractional or negative length would put
+ * every cut after it off the beat, and a huge one would hang a render.
+ */
+export const clampBars = (bars: number): number =>
+  Math.min(MAX_SLIDE_BARS, Math.max(MIN_SLIDE_BARS, Math.round(bars)));
+
+/** Whole bars only, and only ids that exist. Used on stored and posted values. */
+export const parseBarOverrides = (raw: unknown): SlideBarOverrides => {
+  if (!raw || typeof raw !== 'object') return {};
+  const known = new Set<string>(ALL_SLIDES);
+  const out: SlideBarOverrides = {};
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!known.has(id) || typeof value !== 'number' || !Number.isFinite(value)) continue;
+    out[id as TimelineSlideId] = clampBars(value);
+  }
+  return out;
+};
+
 export interface PlanOptions {
   bpm?: number;
   fps?: number;
   /** Overrides the default cut. Used by tests and, later, by the preview UI. */
   cut?: TimelineSlideId[];
+  /** Per-slide lengths chosen in the UI. Absent ids keep their default. */
+  bars?: SlideBarOverrides;
 }
 
 /** A composition still needs a positive duration when there is nothing to show. */
@@ -428,11 +474,22 @@ export const EMPTY_DURATION_FRAMES = VIDEO.fps * 2;
  * Added here rather than baked into `SLIDE_BARS` so the two stay separable: the
  * table says how long the content wants, this says what it actually gets.
  */
-export const slideBars = (id: TimelineSlideId, previous: TimelineSlideId | null = null): number =>
-  (SLIDE_BARS[id] ?? 2) + (leadInFor(id, previous) ? LEAD_IN_BARS : 0);
+export const slideBars = (
+  id: TimelineSlideId,
+  previous: TimelineSlideId | null = null,
+  overrides: SlideBarOverrides = {},
+): number =>
+  // The override replaces the table's content length, not the total: a slide
+  // with a lead-in still gets its extra bar, so setting a length to 2 means the
+  // same amount of content time wherever the slide happens to sit.
+  clampBars(overrides[id] ?? SLIDE_BARS[id] ?? 2) + (leadInFor(id, previous) ? LEAD_IN_BARS : 0);
 
 export const slideFrames = (id: TimelineSlideId, bpm = DEFAULT_BPM, fps: number = VIDEO.fps): number =>
   Math.round(slideBars(id) * framesPerBar(bpm, fps));
+
+/** The length a row in the picker is showing, override or default. */
+export const barsFor = (id: TimelineSlideId, overrides: SlideBarOverrides = {}): number =>
+  clampBars(overrides[id] ?? SLIDE_BARS[id] ?? 2);
 
 /**
  * Build the timeline for one player's stats.
@@ -444,7 +501,7 @@ export const slideFrames = (id: TimelineSlideId, bpm = DEFAULT_BPM, fps: number 
  */
 export const planTimeline = (
   stats: WrappedStats | null,
-  { bpm = DEFAULT_BPM, fps = VIDEO.fps as number, cut = DEFAULT_CUT }: PlanOptions = {},
+  { bpm = DEFAULT_BPM, fps = VIDEO.fps as number, cut = DEFAULT_CUT, bars = {} }: PlanOptions = {},
 ): Timeline => {
   if (!stats) {
     return { slides: [], durationInFrames: EMPTY_DURATION_FRAMES, bars: 0, bpm };
@@ -466,7 +523,7 @@ export const planTimeline = (
     if (!isBookend && !stat) continue;
 
     const leadIn = leadInFor(id, previous);
-    barCursor += slideBars(id, previous);
+    barCursor += slideBars(id, previous, bars);
     // Each boundary is rounded from its absolute bar position, never
     // accumulated from rounded durations. At 128 BPM a bar is 56.25 frames;
     // rounding every slide to 56 would lose a quarter frame per slide and put

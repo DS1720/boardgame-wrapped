@@ -8,15 +8,22 @@ import {
   DEFAULT_CUT,
   EMPTY_DURATION_FRAMES,
   LEAD_IN_BARS,
+  LEAD_INS,
   LEAD_IN_FRAMES,
   leadInFor,
   PAIRED_LEAD_INS,
   planTimeline,
+  barsFor,
+  clampBars,
+  MAX_SLIDE_BARS,
+  MIN_SLIDE_BARS,
+  parseBarOverrides,
   slideAt,
   slideIndexAt,
   slideBars,
   slideFrames,
   SLIDE_BARS,
+  type TimelineSlideId,
   topFiveOf,
 } from '../timeline';
 import { SLIDE_COMPONENTS } from '../slides';
@@ -357,5 +364,68 @@ describe('topFiveOf', () => {
   it('is empty rather than undefined when there is no top five', () => {
     expect(topFiveOf(statsWith([]))).toEqual([]);
     expect(topFiveOf(null)).toEqual([]);
+  });
+});
+
+describe('slide lengths chosen by hand', () => {
+  it('is the table until somebody says otherwise', () => {
+    expect(barsFor('topGame')).toBe(SLIDE_BARS.topGame);
+    expect(barsFor('topGame', { topGame: 5 })).toBe(5);
+  });
+
+  it('makes the video longer or shorter by exactly what was asked', () => {
+    const base = planTimeline(statsWith(ALL_CORE));
+    const longer = planTimeline(statsWith(ALL_CORE), { bars: { topGame: SLIDE_BARS.topGame + 2 } });
+    expect(longer.bars).toBe(base.bars + 2);
+  });
+
+  // The override replaces the content length, not the total. A slide with a
+  // lead-in still gets its extra bar, so setting a length means the same amount
+  // of content time wherever the slide happens to sit.
+  it('leaves a lead-in its own bar', () => {
+    const introduced = (Object.keys(LEAD_INS) as TimelineSlideId[]).filter((id) => LEAD_INS[id]);
+    expect(introduced.length).toBeGreaterThan(0);
+    for (const id of introduced) {
+      expect(slideBars(id, null, { [id]: 2 })).toBe(2 + LEAD_IN_BARS);
+      // And a slide with no line gets exactly what was asked for.
+      expect(slideBars('winRate', null, { winRate: 2 })).toBe(2);
+    }
+  });
+
+  it('keeps every cut on a whole bar', () => {
+    const plan = planTimeline(statsWith(ALL_CORE), {
+      bars: { totalPlays: 1, topGame: 6, outro: 3 },
+    });
+    let total = 0;
+    for (const slide of plan.slides) total += slideBars(slide.id, null, {});
+    // Lengths stay whole numbers whatever is chosen, which is the whole reason
+    // this is measured in bars rather than seconds.
+    expect(Number.isInteger(plan.bars)).toBe(true);
+    expect(total).toBeGreaterThan(0);
+  });
+});
+
+describe('a chosen length, made safe', () => {
+  it('is a whole number inside the range', () => {
+    expect(clampBars(3)).toBe(3);
+    expect(clampBars(2.6)).toBe(3);
+    expect(clampBars(0)).toBe(MIN_SLIDE_BARS);
+    expect(clampBars(-4)).toBe(MIN_SLIDE_BARS);
+    expect(clampBars(900)).toBe(MAX_SLIDE_BARS);
+  });
+
+  // This runs on values from localStorage and from an HTTP body, so it is a
+  // boundary rather than a convenience: a fractional length would put every cut
+  // after it off the beat.
+  it('drops anything that is not a slide and a number', () => {
+    expect(
+      parseBarOverrides({ topGame: 3, nonsense: 4, winRate: 'two', outro: null, intro: 2.4 }),
+    ).toEqual({ topGame: 3, intro: 2 });
+  });
+
+  it('answers an empty object for anything that is not one', () => {
+    expect(parseBarOverrides(null)).toEqual({});
+    expect(parseBarOverrides('bars')).toEqual({});
+    expect(parseBarOverrides(undefined)).toEqual({});
   });
 });

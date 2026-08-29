@@ -3,7 +3,7 @@ import type { Track } from '@/shared/audio';
 import type { WrappedStats } from '@/stats/types';
 import type { Theme } from '@/theme/types';
 import { VIDEO } from '@/video/config';
-import type { TimelineSlideId } from '@/video/timeline';
+import type { SlideBarOverrides, TimelineSlideId } from '@/video/timeline';
 
 /**
  * Render to MP4.
@@ -74,10 +74,18 @@ interface Props {
   theme: Theme;
   track: Track | null;
   cut: TimelineSlideId[];
+  bars: SlideBarOverrides;
   durationInFrames: number;
 }
 
-export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, durationInFrames }) => {
+export const RenderPanel: React.FC<Props> = ({
+  stats,
+  theme,
+  track,
+  cut,
+  bars,
+  durationInFrames,
+}) => {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,7 +137,7 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         // Exactly what the preview is running.
-        body: JSON.stringify({ stats, theme, track, slides: cut }),
+        body: JSON.stringify({ stats, theme, track, slides: cut, bars }),
       });
       if (!res.ok) {
         throw new Error(((await res.json()) as { error?: string }).error ?? `HTTP ${res.status}`);
@@ -319,11 +327,13 @@ export const RenderPanel: React.FC<Props> = ({ stats, theme, track, cut, duratio
             Cancel
           </button>
         )}
-        {finished && (
-          <button className="link" onClick={() => void reveal()}>
-            Show in folder
-          </button>
-        )}
+        {/* Always on screen, not only once something has been rendered. With
+            nothing to reveal it opens the output folder, which is the more
+            common question anyway — and a button that appears halfway through a
+            workflow is one nobody knows exists. */}
+        <button className="link" onClick={() => void reveal()}>
+          {finished ? 'Show in folder' : 'Open output folder'}
+        </button>
       </div>
     </section>
   );

@@ -17,6 +17,8 @@ export type FontId =
   | 'fraunces'
   | 'space-grotesk'
   | 'archivo-expanded'
+  | 'syne'
+  | 'outfit'
   // body
   | 'plex-sans'
   | 'inter'
@@ -38,6 +40,8 @@ export type SignatureId =
   | 'tiles'
   | 'pegs'
   | 'cubes'
+  | 'grid'
+  | 'meeples'
   | 'none';
 
 /**

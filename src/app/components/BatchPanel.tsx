@@ -5,7 +5,7 @@ import type { Dataset, DateRange } from '@/shared/types';
 import { buildWrappedStats, MODULES, THIN_PLAY_THRESHOLD } from '@/stats/index';
 import { themeForPlayer } from '@/theme/generate';
 import type { Theme } from '@/theme/types';
-import type { TimelineSlideId } from '@/video/timeline';
+import type { SlideBarOverrides, TimelineSlideId } from '@/video/timeline';
 
 /**
  * Batch render: every selected player, one shared range, one button.
@@ -62,9 +62,18 @@ interface Props {
   theme: Theme;
   track: Track | null;
   cut: TimelineSlideId[];
+  bars: SlideBarOverrides;
 }
 
-export const BatchPanel: React.FC<Props> = ({ dataset, players, range, theme, track, cut }) => {
+export const BatchPanel: React.FC<Props> = ({
+  dataset,
+  players,
+  range,
+  theme,
+  track,
+  cut,
+  bars,
+}) => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [randomThemes, setRandomThemes] = useState(false);
   const [minPlays, setMinPlays] = useState(THIN_PLAY_THRESHOLD);
@@ -115,6 +124,9 @@ export const BatchPanel: React.FC<Props> = ({ dataset, players, range, theme, tr
         theme: randomThemes ? themeForPlayer(player.id) : theme,
         track,
         slides: cut,
+        // Lengths are a choice about the video, not about the player, so every
+        // item in a batch gets the same ones the preview is running.
+        bars,
       }));
 
       const res = await fetch(`${API}/batch`, {

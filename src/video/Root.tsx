@@ -27,6 +27,7 @@ export const RemotionRoot: React.FC = () => (
           track: null,
           bpm: DEFAULT_BPM,
           cut: null,
+          bars: null,
         } as WrappedProps
       }
       calculateMetadata={({ props }) => ({
@@ -34,6 +35,10 @@ export const RemotionRoot: React.FC = () => (
           // Same precedence as the component: the track re-times the video.
           bpm: (props as WrappedProps).track?.bpm ?? (props as WrappedProps).bpm ?? DEFAULT_BPM,
           ...((props as WrappedProps).cut ? { cut: (props as WrappedProps).cut! } : {}),
+          // Same precedence as the component, for the same reason: a
+          // composition whose declared length disagreed with the timeline the
+          // component lays out would cut the last slide short.
+          ...((props as WrappedProps).bars ? { bars: (props as WrappedProps).bars! } : {}),
         }).durationInFrames,
       })}
     />

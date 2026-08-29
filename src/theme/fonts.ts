@@ -119,6 +119,25 @@ export const FONTS: Record<FontId, FontSpec> = {
     role: 'display',
   },
 
+  syne: {
+    id: 'syne',
+    label: 'Syne',
+    family: 'Syne',
+    fallback: SANS,
+    googleSpec: 'Syne:wght@400..800',
+    weight: 800,
+    role: 'display',
+  },
+  outfit: {
+    id: 'outfit',
+    label: 'Outfit',
+    family: 'Outfit',
+    fallback: SANS,
+    googleSpec: 'Outfit:wght@100..900',
+    weight: 700,
+    role: 'display',
+  },
+
   'plex-sans': {
     id: 'plex-sans',
     label: 'IBM Plex Sans',

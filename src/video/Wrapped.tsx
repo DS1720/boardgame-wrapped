@@ -21,6 +21,7 @@ import {
   LEAD_IN_FRAMES,
   planTimeline,
   slideIndexAt,
+  type SlideBarOverrides,
   type Timeline,
   type TimelineSlideId,
 } from './timeline';
@@ -39,6 +40,8 @@ export interface WrappedProps {
   bpm?: number;
   /** Which slides to include, in order. Defaults to the plan's ten-slide cut. */
   cut?: TimelineSlideId[] | null;
+  /** Per-slide lengths chosen in the UI. Absent ids keep their default. */
+  bars?: SlideBarOverrides | null;
 }
 
 /**
@@ -217,6 +220,7 @@ export const Wrapped: React.FC<WrappedProps> = ({
   track = null,
   bpm = DEFAULT_BPM,
   cut = null,
+  bars = null,
 }) => {
   const base = theme ?? DEFAULT_THEME;
   const manifest = useBoxArtManifest();
@@ -232,6 +236,7 @@ export const Wrapped: React.FC<WrappedProps> = ({
   const timeline = planTimeline(stats, {
     bpm: track?.bpm ?? bpm,
     ...(cut ? { cut } : {}),
+    ...(bars ? { bars } : {}),
   });
 
   return (

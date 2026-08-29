@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MARK_DRAW_FRAMES, markFinishFrame, markStep } from '../signature';
+import { BACKDROP_SIGNATURES, MARK_DRAW_FRAMES, markFinishFrame, markStep } from '../signature';
+import { STARTERS } from '@/theme/starters';
 import { EXIT_FRAMES } from '../slides';
 import { slideFrames } from '../timeline';
 
@@ -65,5 +66,27 @@ describe('counting-mark timing', () => {
 
   it('defaults to the pen stroke when no length is given', () => {
     expect(markStep(5, WINDOW)).toBe(markStep(5, WINDOW, MARK_DRAW_FRAMES));
+  });
+});
+
+describe('every theme has a moving ground', () => {
+  /*
+    A signature is what makes a theme's ground recognisably that theme's, and
+    the rule the video is built to is that the frame is never still while the
+    content is. Punchboard kept neither promise for a long time: its signature
+    acts on the plate a stat sits in, so it had no backdrop at all and the
+    ambient fields were doing the whole job.
+  */
+  it('draws a backdrop for every starter', () => {
+    for (const theme of STARTERS) {
+      expect(BACKDROP_SIGNATURES.has(theme.signature)).toBe(true);
+    }
+  });
+
+  it('has one per starter and no spares', () => {
+    // Signatures are one-to-one with starters, so a backdrop nobody uses is
+    // dead code that looks wired up.
+    expect(BACKDROP_SIGNATURES.size).toBe(STARTERS.length);
+    expect(new Set(STARTERS.map((t) => t.signature)).size).toBe(STARTERS.length);
   });
 });

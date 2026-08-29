@@ -22,11 +22,13 @@ import { VIDEO } from '@/video/config';
 import {
   arrangementOf,
   buildCut,
+  clampBars,
   type TimelineSlideId,
   insertSlide,
   moveSlide,
   moveSlideTo,
   planTimeline,
+  SLIDE_BARS,
 } from '@/video/timeline';
 import { makeRange } from '@/ingest/select';
 
@@ -52,6 +54,7 @@ export const App: React.FC = () => {
 
   const playerId = session.playerId;
   const slides = session.slides;
+  const bars = session.bars;
 
   // The stored range is two ISO days; a DateRange needs real Dates.
   const range: DateRange | null = useMemo(() => {
@@ -115,8 +118,8 @@ export const App: React.FC = () => {
 
   // The audio picker needs the video's length to work out looping.
   const timeline = useMemo(
-    () => planTimeline(stats, { bpm: track?.bpm, cut }),
-    [stats, track?.bpm, cut],
+    () => planTimeline(stats, { bpm: track?.bpm, cut, bars }),
+    [stats, track?.bpm, cut, bars],
   );
 
   // Every edit is made against the arrangement as it will play, not against
@@ -142,6 +145,23 @@ export const App: React.FC = () => {
   const dropSlide = useCallback(
     (id: SlideId, index: number) => patch({ slides: moveSlideTo(arrangement, id, index) }),
     [arrangement, patch],
+  );
+
+  /**
+   * Set one slide's length, or clear it back to the default.
+   *
+   * Stored sparsely: a value equal to the default is removed rather than
+   * written, so the stored session says what someone changed rather than
+   * freezing today's defaults into it.
+   */
+  const setSlideBars = useCallback(
+    (id: TimelineSlideId, value: number | null) => {
+      const next = { ...bars };
+      if (value === null || value === SLIDE_BARS[id]) delete next[id];
+      else next[id] = clampBars(value);
+      patch({ bars: next });
+    },
+    [bars, patch],
   );
 
   // Which slide the preview is on, so the list can mark it. Session state, not
@@ -231,7 +251,9 @@ export const App: React.FC = () => {
             onMove={reorderSlide}
             onReorder={dropSlide}
             playing={playing}
-            onReset={() => patch({ slides: defaultSlideSelection() })}
+            bars={bars}
+            onBars={setSlideBars}
+            onReset={() => patch({ slides: defaultSlideSelection(), bars: {} })}
             onAll={allAvailable}
           />
 
@@ -261,6 +283,7 @@ export const App: React.FC = () => {
             theme={themeSelection.theme}
             track={track}
             cut={cut}
+            bars={bars}
             durationInFrames={timeline.durationInFrames}
           />
 
@@ -271,6 +294,7 @@ export const App: React.FC = () => {
             theme={themeSelection.theme}
             track={track}
             cut={cut}
+            bars={bars}
           />
 
           <BoxArtPrefetch dataset={dataset} />
@@ -284,6 +308,7 @@ export const App: React.FC = () => {
           track={track}
           boxArtMode={themeSelection.boxArtMode}
           cut={cut}
+          bars={bars}
           playerName={playerName}
           onSlideChange={setPlaying}
         />

@@ -6,7 +6,7 @@
  * on the first render and reused for every one after.
  */
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +25,7 @@ import { slugify } from '../src/shared/format';
 import type { Track } from '../src/shared/audio';
 import type { WrappedStats } from '../src/stats/types';
 import type { Theme } from '../src/theme/types';
-import type { TimelineSlideId } from '../src/video/timeline';
+import type { SlideBarOverrides, TimelineSlideId } from '../src/video/timeline';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(here, '..');
@@ -72,6 +72,15 @@ export interface RenderInput {
   track: Track | null;
   /** The ordered cut. Named `slides` in the request, per the plan. */
   slides: TimelineSlideId[] | null;
+  /**
+   * Per-slide lengths chosen in the UI.
+   *
+   * Sent with the cut rather than folded into it, because the two answer
+   * different questions — which slides, and for how long — and a render that
+   * took one from the request and the other from the defaults would come out a
+   * different length from the preview it was started from.
+   */
+  bars?: SlideBarOverrides | null;
 }
 
 export interface RenderProgress {
@@ -185,6 +194,7 @@ export const startRender = (input: RenderInput): RenderJob => {
     theme: input.theme,
     track: input.track,
     cut: input.slides,
+    bars: input.bars ?? null,
   };
 
   /**
@@ -388,6 +398,32 @@ export const isInside = (dir: string, target: string): boolean => {
  * nothing to show: a button that does nothing and says nothing is the hardest
  * kind of failure to report.
  */
+/**
+ * Open the output folder itself, with nothing selected.
+ *
+ * What the button does before anything has been rendered. "Where do my videos
+ * go" is a question people have *before* they have any, and a button that only
+ * appears once one exists cannot answer it.
+ */
+export const openOutputFolder = (): Promise<void> => {
+  const dir = getOutDir();
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  return new Promise((resolve) => {
+    const [command, args]: [string, string[]] =
+      process.platform === 'win32'
+        ? ['explorer.exe', [`"${dir}"`]]
+        : process.platform === 'darwin'
+          ? ['open', [dir]]
+          : ['xdg-open', [dir]];
+    execFile(
+      command,
+      args,
+      process.platform === 'win32' ? { windowsVerbatimArguments: true } : {},
+      () => resolve(),
+    );
+  });
+};
+
 export const revealInFolder = (file: string): Promise<void> => {
   const target = path.resolve(file);
   const outDir = getOutDir();

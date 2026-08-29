@@ -63,7 +63,7 @@ re-run and safe to interrupt. Baseline on the real export: 229 games, 228 covers
 npm run prefetch:fonts        # or: npx tsx scripts/prefetch-fonts.ts [--force]
 ```
 
-Mirrors the twelve curated families into `public/fonts/` — 32 faces, 1.3 MB,
+Mirrors the fourteen curated families into `public/fonts/` — 36 faces, 1.5 MB,
 latin and latin-ext only. Run once. **Do not replace this with
 `@remotion/google-fonts`:** it fetches from fonts.gstatic.com at render time,
 which breaks the offline guarantee and makes "identical in Player and CLI" a
@@ -217,12 +217,12 @@ Four ways a theme is arrived at:
 - **Random** — one hue outside the muddy 45°–65° band, whole palette derived.
 - **Box art** — accent taken from the slide's own cover, rest derived to match.
 
-### Seven starters, seven signatures
+### Nine starters, nine signatures
 
 A signature is the thing someone would describe if asked what the video looked
 like, so **every starter owns one and no two share**. A test enforces that, along
-with distinct grounds and distinct display faces — the point of having seven is
-that they read as seven studios' work, not one palette shuffled.
+with distinct grounds and distinct display faces — the point of having nine is
+that they read as nine studios' work, not one palette shuffled.
 
 | Theme | Ground | Signature | What it draws |
 |---|---|---|---|
@@ -233,6 +233,8 @@ that they read as seven studios' work, not one palette shuffled.
 | Meadow | parchment | `tiles` | tiles dropped in with a quarter turn, roads meeting at the joins |
 | Peg Board | walnut | `pegs` | pegs drop into a drilled track, empty holes ahead of them |
 | Neon Night | deep violet | `cubes` | big flat cubes drifting at three depths, clear of the middle |
+| Blueprint | drafting navy | `grid` | two grids at five to one, sliding under a measured rule down each margin |
+| Meeple | warm sand | `meeples` | the one piece in the box shaped like a person, drifting |
 
 **Neon Night is the odd one out, on purpose.** The other six are named after a
 material and behave like it. This one is named after a look, and it exists
@@ -312,6 +314,46 @@ content itself can never disagree about what colour the card is.
 edited.** Both the picker's `setColor` and `themeFromBoxArt` drop the field.
 Without that, editing Neon Night's accent would appear to do nothing: the six
 cards would keep the colours the starter shipped with.
+
+### Every signature moves
+
+The rule the video is built to is that the frame is never still while the
+content is, and for a long time only the ambient fields kept it: five of the
+signatures were a static CSS gradient, and Punchboard had **no backdrop at
+all** — its signature acts on the plate a stat sits in, so its ground was bare.
+That was survivable while the ground was one colour for the whole video. Once
+the ground started travelling between cards, a printed sheet under a light show
+is what it looked like.
+
+All nine now drift, and `BACKDROP_SIGNATURES` is a map rather than a chain of
+ifs so a test can assert every starter is in it — a signature that fell through
+to `null` is exactly the bug Punchboard had, and it is invisible until someone
+renders that theme.
+
+- **`useTileDrift(pitch, framesPerPitch)`** is what most of them use. It returns
+  an offset in `[0, pitch)`, so translating a tiled layer by it runs forever
+  without ever showing a seam: when the offset wraps, the pattern is one whole
+  tile along and looks identical. Layers are inset by `BLEED` (160px), because a
+  fill translated by up to one pitch otherwise exposes a strip of nothing at its
+  trailing edge.
+- **Scorepad** scrolls one rule every ten seconds — a page being filled, not a
+  page being scrolled. **Meadow** drifts diagonally on two different periods, so
+  the field never looks dragged in one direction. **Peg Board**'s two tracks run
+  *opposite* ways, which reads as depth rather than as one sheet sliding behind
+  the type; every fifth hole is larger, so the drift is countable.
+- **Felt Table** has the fine nap creeping along its own angle — at a 9px pitch
+  you cannot follow individual lines, which is the point — plus a sheen crossing
+  the cloth once every twenty-three seconds.
+- **Table Light** was already drifting, at ±2%, which is technically moving and
+  visibly still. It is ±6% now, and the pool breathes as well as travels, so the
+  light has a source rather than being a shape that slides.
+- **Punchboard** gets `SprueField`: the cut lines of the shapes *not* yet
+  punched out. Every other row is offset half a pitch, the way a real sheet
+  nests its shapes to waste less board — and it means the die-cut plate reads as
+  one piece taken from a board rather than a card floating on a colour.
+
+Everything is frame-driven, never `Math.random`. Determinism applies to a
+background exactly as much as to a stat.
 
 ### Detail animations belong to a stat, not to a theme
 
@@ -594,6 +636,39 @@ while `lateShare` has always counted 22:00–04:00. Both are corrected. Every
 player in a group that plays together will share a peak hour; that is the data
 being right, not a bug.
 
+### Slides are selectable, orderable **and timeable**
+
+**Every slide's length is set in the picker, in bars.** `SLIDE_BARS` is now the
+default rather than the answer: `SlideBarOverrides` is a sparse map of the ones
+someone changed, and it travels with the cut everywhere the cut goes — session
+storage, the Player's `inputProps`, `POST /render`, and every item in a batch.
+
+- **Bars, not seconds**, for the same reason the table is: the video is cut to a
+  track, and a slide lasting a whole number of bars lands on a downbeat where
+  one lasting 3.4 seconds never can. The seconds it works out to depend on the
+  tempo, which is why they are not what you set — the readout under the player
+  says what the whole video came to.
+- **The override replaces the content length, not the total.** A slide with a
+  lead-in still gets its extra bar, so setting a length means the same amount of
+  content time wherever the slide happens to sit.
+- **Sparse on purpose.** Storing every slide's length would freeze today's
+  defaults into everyone's session, and a later change to `SLIDE_BARS` would
+  reach nobody who had ever opened the app. Setting a slide back to its default
+  removes the entry rather than writing the default into it — which is also what
+  clicking the number does.
+- **`clampBars` is a boundary, not a convenience.** These values arrive from
+  localStorage and from an HTTP body as much as from a stepper. A fractional
+  length would put every cut after it off the beat and a huge one would hang a
+  render, so `parseBarOverrides` is shared by the session loader and the render
+  route.
+- **The bookends are timeable too**, even though they are not part of the
+  selection and never move. The outro is the one people most often want longer,
+  because it is the screenshot.
+- **`Root.tsx` uses the same overrides in `calculateMetadata`** as the component
+  does. A composition whose declared length disagreed with the timeline the
+  component lays out would cut the last slide short — and only in a render, not
+  in the preview.
+
 ### Slides are selectable **and orderable**
 
 All 20 stat modules have slide components. The UI holds an **ordered
@@ -666,6 +741,12 @@ limited range, HD primaries. `pixelFormat` alone did not.
 
 **Errors are surfaced verbatim.** A missing audio file reports the 404 and the
 path; replacing that with "render failed" throws away the fix.
+
+**The folder button is always on screen.** It used to appear only once a render
+had finished, which put it halfway through a workflow where nobody knew it
+existed — and "where do my videos go" is a question people have *before* they
+have any. With nothing to reveal it opens the output folder instead, creating it
+if this is the first time anyone has asked.
 
 ### "Show in folder" needs the quotes in the right place
 
@@ -1158,7 +1239,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 482 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 491 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.
