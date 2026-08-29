@@ -137,3 +137,45 @@ describe('the bookends quip', () => {
     expect(quipFor('firstAndLastPlay', without)).toBeNull();
   });
 });
+
+describe('the time list quip', () => {
+  const withTime = (games: number, minutes: number, topMinutes: number): WrappedStats => ({
+    ...stats,
+    stats: [
+      ...stats.stats.filter((s) => s.id !== 'topFiveByTime' && s.id !== 'timePlayed'),
+      { id: 'timePlayed', core: true, minutes, playsCounted: 10, playsMissing: 0, topGame: null },
+      {
+        id: 'topFiveByTime',
+        core: true,
+        games: Array.from({ length: games }, (_, i) => ({
+          gameId: i + 1,
+          name: `Game ${i + 1}`,
+          boxArt: null,
+          bggId: i + 1,
+          minutes: topMinutes,
+          plays: 1,
+        })),
+      },
+    ],
+  });
+
+  // The same remark the play-count five gets, in the unit this slide counts.
+  it('says what share of the year those five took', () => {
+    expect(quipFor('topFiveByTime', withTime(5, 1000, 100))).toBe(
+      'Five games, and 50% of your time at the table.',
+    );
+  });
+
+  // A "top five" of three is not five games, and the line would say otherwise.
+  it('is silent on a list shorter than five', () => {
+    expect(quipFor('topFiveByTime', withTime(3, 1000, 100))).toBeNull();
+  });
+
+  it('is silent without the total it is a share of', () => {
+    const noTotal = {
+      ...withTime(5, 1000, 100),
+      stats: withTime(5, 1000, 100).stats.filter((s) => s.id !== 'timePlayed'),
+    };
+    expect(quipFor('topFiveByTime', noTotal)).toBeNull();
+  });
+});

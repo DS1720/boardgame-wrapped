@@ -27,7 +27,7 @@ import {
   TimePlayedSlide,
   WorstGameSlide,
 } from './OptionalSlides';
-import { TopFiveSlide } from './TopFive';
+import { TopFiveByTimeSlide, TopFiveSlide } from './TopFive';
 
 /**
  * The slide registry.
@@ -42,6 +42,7 @@ export const SLIDE_COMPONENTS: Record<TimelineSlideId, React.FC<SlideProps>> = {
   timePlayed: TimePlayedSlide,
   topGame: TopGameSlide,
   topFive: TopFiveSlide,
+  topFiveByTime: TopFiveByTimeSlide,
   winRate: WinRateSlide,
   topCoPlayer: TopCoPlayerSlide,
   nemesis: NemesisSlide,

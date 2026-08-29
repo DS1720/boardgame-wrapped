@@ -306,16 +306,42 @@ export const highestScore = (ctx: StatContext): Stat | null => {
  */
 const MIN_COVERAGE = 0.6;
 
-export const timePlayed = (ctx: StatContext): Stat | null => {
+interface GameTime {
+  minutes: number;
+  plays: number;
+  firstSeen: number;
+  /**
+   * A real play of this game, kept so the game reference (name, box art, bgg
+   * id) comes from the data rather than being reassembled by hand.
+   */
+  sample: NormalizedPlay;
+}
+
+/**
+ * Estimated minutes, per game and in total, or null when too little of the year
+ * can be estimated at all.
+ *
+ * Shared by the two slides built on it. They must not be able to disagree about
+ * where the time went, and — more importantly — they have to answer the
+ * coverage question the same way: a "top five by time" appearing while the
+ * honest total was suppressed would be the same estimate presented with less
+ * of a caveat, not more.
+ */
+const estimatedTime = (
+  ctx: StatContext,
+): {
+  minutes: number;
+  playsCounted: number;
+  playsMissing: number;
+  byGame: Map<number, GameTime>;
+  ranked: ReturnType<typeof rank>;
+} | null => {
   if (ctx.playerPlays.length === 0) return null;
 
   let minutes = 0;
   let playsCounted = 0;
   let playsMissing = 0;
-  const byGame = new Map<
-    number,
-    { minutes: number; plays: number; firstSeen: number; sample: NormalizedPlay }
-  >();
+  const byGame = new Map<number, GameTime>();
 
   for (const play of ctx.playerPlays) {
     if (play.estimatedMinutes === null) {
@@ -329,8 +355,6 @@ export const timePlayed = (ctx: StatContext): Stat | null => {
       minutes: 0,
       plays: 0,
       firstSeen: play.date.getTime(),
-      // Kept so the game reference (name, box art, bgg id) comes from a real
-      // play rather than being reassembled by hand.
       sample: play,
     };
     acc.minutes += play.estimatedMinutes;
@@ -354,15 +378,22 @@ export const timePlayed = (ctx: StatContext): Stat | null => {
     })),
   );
 
-  const top = ranked[0];
-  const topEntry = top ? byGame.get(top.key as number) : undefined;
+  return { minutes, playsCounted, playsMissing, byGame, ranked };
+};
+
+export const timePlayed = (ctx: StatContext): Stat | null => {
+  const time = estimatedTime(ctx);
+  if (!time) return null;
+
+  const top = time.ranked[0];
+  const topEntry = top ? time.byGame.get(top.key as number) : undefined;
 
   return {
     id: 'timePlayed',
     core: true,
-    minutes: Math.round(minutes),
-    playsCounted,
-    playsMissing,
+    minutes: Math.round(time.minutes),
+    playsCounted: time.playsCounted,
+    playsMissing: time.playsMissing,
     topGame:
       top && topEntry
         ? {
@@ -371,5 +402,41 @@ export const timePlayed = (ctx: StatContext): Stat | null => {
             plays: topEntry.plays,
           }
         : null,
+  };
+};
+
+/** How many games the time countdown shows. */
+const TOP_GAMES_BY_TIME = 5;
+
+/**
+ * The five games the most time went into.
+ *
+ * The companion to `timePlayed`, and the reason it earns a slide of its own:
+ * the games that took the most *time* are usually not the ones played most
+ * often, so this is a different list from the top five even though it looks
+ * like the same shape. For Tina in 2026 the time list leads with Terraforming
+ * Mars over four plays while the play count leads with Faraway over twenty-one.
+ *
+ * Two games at minimum. A top five of one game is `timePlayed`'s own
+ * `topGame` again, said at greater length.
+ */
+export const topFiveByTime = (ctx: StatContext): Stat | null => {
+  const time = estimatedTime(ctx);
+  if (!time) return null;
+
+  const top = time.ranked.slice(0, TOP_GAMES_BY_TIME);
+  if (top.length < 2) return null;
+
+  return {
+    id: 'topFiveByTime',
+    core: true,
+    games: top.map((entry) => {
+      const game = time.byGame.get(entry.key as number)!;
+      return {
+        ...gameRefOf(game.sample),
+        minutes: Math.round(game.minutes),
+        plays: game.plays,
+      };
+    }),
   };
 };

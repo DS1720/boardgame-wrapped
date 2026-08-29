@@ -7,6 +7,7 @@ import {
   DEFAULT_CUT,
   DEFAULT_SLIDE_IDS,
   insertSlide,
+  leadInFor,
   arrangementOf,
   moveSlide,
   moveSlideTo,
@@ -315,5 +316,30 @@ describe('the default selection', () => {
       'totalPlays',
       'outro',
     ]);
+  });
+});
+
+describe('the time pair', () => {
+  /*
+    "114 h at the table", then where it went. The bridging line only works with
+    that number still on screen behind it, which is what makes the two one
+    thought rather than two lists — and what `LINKED_PAIRS` is for.
+  */
+  it('keeps the time slide directly before its list', () => {
+    const cut = buildCut(['topFiveByTime', 'winRate', 'timePlayed'] as SlideId[]);
+    const list = cut.indexOf('topFiveByTime');
+    expect(cut[list - 1]).toBe('timePlayed');
+  });
+
+  it('introduces the list off the back of the time slide', () => {
+    expect(leadInFor('topFiveByTime', 'timePlayed')).toBe('And this is where it went…');
+  });
+
+  // Turning the time slide off must not leave a line pointing at a number
+  // nobody was shown.
+  it('falls back to a line that stands on its own', () => {
+    const alone = leadInFor('topFiveByTime', 'totalPlays');
+    expect(alone).not.toBeNull();
+    expect(alone).not.toContain('where it went');
   });
 });

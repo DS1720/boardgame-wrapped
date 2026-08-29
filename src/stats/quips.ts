@@ -67,6 +67,17 @@ export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | 
       )}% of your year.`;
     }
 
+    case 'topFiveByTime': {
+      const byTime = find(stats, 'topFiveByTime');
+      const time = find(stats, 'timePlayed');
+      if (!byTime || !time || byTime.games.length < 5) return null;
+
+      // The same shape of remark the play-count five gets, in the unit this
+      // slide is counting: five games, and how much of the year they took.
+      const share = byTime.games.reduce((sum, g) => sum + g.minutes, 0) / Math.max(1, time.minutes);
+      return `Five games, and ${Math.round(share * 100)}% of your time at the table.`;
+    }
+
     case 'winRate': {
       const rate = find(stats, 'winRate');
       if (!rate || rate.coopOnly) return null;

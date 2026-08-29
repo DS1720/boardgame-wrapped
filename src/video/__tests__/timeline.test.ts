@@ -40,6 +40,19 @@ const ALL_CORE: Stat[] = [
     playsMissing: 4,
     topGame: { ...game(99, 'Terraforming Mars'), minutes: 480, plays: 4 },
   },
+  {
+    id: 'topFiveByTime',
+    core: true,
+    // Deliberately a different order from the play count below it: that
+    // contrast is the reason this slide exists.
+    games: [
+      { ...game(99, 'Terraforming Mars'), minutes: 480, plays: 4 },
+      { ...game(77, 'Faraway'), minutes: 420, plays: 21 },
+      { ...game(78, 'Phantom Ink'), minutes: 300, plays: 15 },
+      { ...game(23, 'Bluff'), minutes: 200, plays: 10 },
+      { ...game(40, 'Hitster'), minutes: 180, plays: 9 },
+    ],
+  },
   { id: 'topGame', core: true, game: game(77, 'Faraway'), plays: 21 },
   {
     id: 'topFive',
@@ -76,6 +89,8 @@ describe('the default cut', () => {
       'totalPlays',
       // Sits beside the play count: the same question answered in hours.
       'timePlayed',
+      // And immediately after it, where that time went.
+      'topFiveByTime',
       'topGame',
       'topFive',
       'winRate',
@@ -157,7 +172,7 @@ describe('planTimeline', () => {
       { id: 'longestWinStreak', core: false, length: 7 },
       { id: 'busiestDay', core: false, day: '2026-03-14', plays: 9 },
     ];
-    // The engine emits 18 modules; the default video is 11 slides.
+    // The engine emits more modules than the default video shows.
     expect(planTimeline(statsWith(withOptional)).slides).toHaveLength(DEFAULT_CUT.length);
   });
 

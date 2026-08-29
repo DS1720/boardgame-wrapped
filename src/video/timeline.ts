@@ -32,6 +32,7 @@ export const DEFAULT_CUT: TimelineSlideId[] = [
   'intro',
   'totalPlays',
   'timePlayed',
+  'topFiveByTime',
   'topGame',
   'topFive',
   'winRate',
@@ -56,6 +57,7 @@ export const SLIDE_LABELS: Record<TimelineSlideId, string> = {
   intro: 'Intro',
   totalPlays: 'Total plays',
   timePlayed: 'Time played',
+  topFiveByTime: 'Top five by time',
   topGame: 'Top game',
   topFive: 'Top five',
   winRate: 'Win rate',
@@ -263,6 +265,9 @@ export const LEAD_IN_BARS = 1;
  */
 export const LEAD_INS: Partial<Record<TimelineSlideId, string>> = {
   topGame: 'One game more than any other…',
+  // The fallback for when the time slide is not in the cut, so the line never
+  // refers back to a number nobody was shown.
+  topFiveByTime: 'Some of them took whole evenings…',
   topFive: 'The five that defined the year…',
   bestGame: 'You were particularly good at one of them…',
   worstGame: 'And then there was this one…',
@@ -287,6 +292,12 @@ export const PAIRED_LEAD_INS: Partial<
     after: 'coPlayerCount',
     line: 'But one of them was at the table more than anyone…',
   },
+  // "114 h at the table", then this. The line only works with that number
+  // still on screen behind it, which is what makes it a paired one.
+  topFiveByTime: {
+    after: 'timePlayed',
+    line: 'And this is where it went…',
+  },
 };
 
 /**
@@ -297,6 +308,7 @@ export const PAIRED_LEAD_INS: Partial<
  */
 export const LINKED_PAIRS: ReadonlyArray<readonly [TimelineSlideId, TimelineSlideId]> = [
   ['coPlayerCount', 'topCoPlayer'],
+  ['timePlayed', 'topFiveByTime'],
 ];
 
 export const leadInFor = (
@@ -324,6 +336,9 @@ export const SLIDE_BARS: Record<TimelineSlideId, number> = {
   intro: 2,
   totalPlays: 2,
   timePlayed: 2,
+  // Three, like the other countdown: long enough to count five down one at
+  // a time and still hold the finished list for a moment.
+  topFiveByTime: 3,
   // Three, not four. Eight seconds is a long time to hold one cover and one
   // number, and this slide has read as finished well before it cut for as long
   // as it has been four. The outro keeps its four: that one is the screenshot,

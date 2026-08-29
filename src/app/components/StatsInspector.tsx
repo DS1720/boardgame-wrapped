@@ -17,6 +17,10 @@ const describe = (stat: WrappedStats['stats'][number]): string => {
         (stat.playsMissing > 0 ? ` · ${stat.playsMissing} with no known length` : '') +
         (stat.topGame ? ` · most on ${stat.topGame.name}` : '')
       );
+    case 'topFiveByTime':
+      return stat.games
+        .map((g) => `${g.name} ${formatDuration(g.minutes)}`)
+        .join(' · ');
     case 'topGame':
       return `${stat.game.name} — ${stat.plays}×`;
     case 'topFive':

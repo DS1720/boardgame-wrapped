@@ -1,5 +1,5 @@
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { formatNumber } from '@/shared/format';
+import { formatDuration, formatNumber } from '@/shared/format';
 import { withAlpha } from '@/theme/color';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { BoxArt } from '../BoxArt';
@@ -8,7 +8,7 @@ import { Eyebrow, Headline, SafeArea, Stack } from './layout';
 import type { SlideProps } from './Slides';
 
 /**
- * The top five, counted down from five to one.
+ * A ranked five, counted down from five to one.
  *
  * Each place arrives on its own beat, and the list fills upward — five appears
  * at the bottom, one lands last at the top. Revealing them together made the
@@ -28,7 +28,51 @@ const START = 10;
 
 const ROWS = 5;
 
-export const TopFiveSlide: React.FC<SlideProps> = ({ stat }) => {
+/**
+ * How the place numbers are sized, as a fraction of their type step.
+ *
+ * First place is set from the *headline* step and the rest from the caption
+ * step, which is what makes it the one number on the slide you read as an
+ * answer rather than as an index. It was 0.62 of the headline and that was
+ * shouting: at 0.48 it is still comfortably twice the size of the places under
+ * it — every starter's headline step is at least four times its caption, so the
+ * two can never converge — without taking the row over from the cover and the
+ * title beside it.
+ */
+const FIRST_PLACE = 0.48;
+const OTHER_PLACES = 1.15;
+
+/** One row of the countdown: a game, and whatever is being counted. */
+interface CountdownRow {
+  gameId: number;
+  name: string;
+  /** Already formatted — the list does not know what unit it is showing. */
+  value: string;
+}
+
+/**
+ * The countdown itself, shared by the two slides that use it.
+ *
+ * Extracted rather than copied when the time list arrived. The motion is the
+ * recognisable part of this slide — five to one, filling upward, first place
+ * landing last on a plate — and two copies of it would drift apart the first
+ * time either was touched. What differs between the two is the heading and the
+ * number on the right, so that is all either one passes in.
+ */
+const CountdownList: React.FC<{
+  eyebrow: string;
+  headline: string;
+  rows: CountdownRow[];
+  /**
+   * Where the block sits in the frame.
+   *
+   * Bottom by default, like every other slide. The time list centres instead:
+   * its rows are a fixed height whatever the numbers say, so there is nothing
+   * for the bottom anchor to earn, and centred it sits where the play-count
+   * list does rather than 400px lower.
+   */
+  justify?: React.CSSProperties['justifyContent'];
+}> = ({ eyebrow, headline: title, rows, justify }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const manifest = useBoxArtManifest();
@@ -38,16 +82,14 @@ export const TopFiveSlide: React.FC<SlideProps> = ({ stat }) => {
   const utilityFont = useFont('utility');
   const { body, caption, headline } = useTypeScale();
 
-  if (stat?.id !== 'topFive') return null;
-  // The stat carries six for the outro grid; this slide is a top five.
-  const games = stat.games.slice(0, ROWS);
+  const games = rows.slice(0, ROWS);
 
   return (
-    <SafeArea>
+    <SafeArea {...(justify ? { justify } : {})}>
       <Stack gap={24}>
         <Stack gap={6}>
-          <Eyebrow>The year in five</Eyebrow>
-          <Headline maxLines={1}>Most played</Headline>
+          <Eyebrow>{eyebrow}</Eyebrow>
+          <Headline maxLines={1}>{title}</Headline>
         </Stack>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
@@ -97,7 +139,7 @@ export const TopFiveSlide: React.FC<SlideProps> = ({ stat }) => {
                 <span
                   style={{
                     ...(isFirst ? displayFont : utilityFont),
-                    fontSize: isFirst ? headline * 0.62 : caption * 1.15,
+                    fontSize: isFirst ? headline * FIRST_PLACE : caption * OTHER_PLACES,
                     color: isFirst ? color.accent : color.inkMuted,
                     width: 62,
                     flexShrink: 0,
@@ -140,7 +182,7 @@ export const TopFiveSlide: React.FC<SlideProps> = ({ stat }) => {
                     fontVariantNumeric: 'tabular-nums',
                   }}
                 >
-                  {formatNumber(game.plays)}
+                  {game.value}
                 </span>
               </div>
             );
@@ -148,5 +190,46 @@ export const TopFiveSlide: React.FC<SlideProps> = ({ stat }) => {
         </div>
       </Stack>
     </SafeArea>
+  );
+};
+
+export const TopFiveSlide: React.FC<SlideProps> = ({ stat }) => {
+  if (stat?.id !== 'topFive') return null;
+  return (
+    <CountdownList
+      eyebrow="The year in five"
+      headline="Most played"
+      // The stat carries six for the outro grid; this slide is a top five.
+      rows={stat.games.map((game) => ({
+        gameId: game.gameId,
+        name: game.name,
+        value: formatNumber(game.plays),
+      }))}
+    />
+  );
+};
+
+/**
+ * The same countdown, ranked by time rather than by plays.
+ *
+ * It sits directly after the time slide and is deliberately the same shape as
+ * the play count list, because the point is that they are *different lists*:
+ * the game you played most often is usually not the one you spent most of the
+ * year inside. Shown in a different form, that contrast would read as two
+ * unrelated facts.
+ */
+export const TopFiveByTimeSlide: React.FC<SlideProps> = ({ stat }) => {
+  if (stat?.id !== 'topFiveByTime') return null;
+  return (
+    <CountdownList
+      eyebrow="Where the time went"
+      headline="Most time"
+      justify="center"
+      rows={stat.games.map((game) => ({
+        gameId: game.gameId,
+        name: game.name,
+        value: formatDuration(game.minutes),
+      }))}
+    />
   );
 };

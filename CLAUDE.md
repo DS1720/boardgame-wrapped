@@ -567,6 +567,44 @@ there is no second code path between what you see and what you get. Its
 `inputProps` and `timeline` are memoised: a fresh object identity on every
 render restarts the Player and throws away the scrub position.
 
+### Where the time went is a different list
+
+`topFiveByTime` is the companion to `timePlayed`, and the reason it earns a
+slide rather than a line: **the games that took the most time are usually not
+the ones played most often.** For Tina in 2026 the time list leads with
+Terraforming Mars (8.0 h over four plays) while the play count leads with
+Faraway (21 plays). That contrast is the whole point, which is why it is drawn
+in exactly the same shape as the top five — shown any other way it would read as
+two unrelated facts rather than the same year counted two ways.
+
+- **`CountdownList` is shared.** The motion is the recognisable part of that
+  slide — five to one, filling upward, first place landing last on a plate — and
+  two copies would drift apart the first time either was touched. The heading
+  and the number on the right are all either slide passes in.
+- **Both read the same aggregation.** `estimatedTime` returns the per-game
+  minutes and is used by both, so they cannot disagree about where the time
+  went — and, more importantly, they answer the coverage question the same way.
+  A "top five by time" appearing while the honest total was suppressed would be
+  the same estimate carrying *less* of a caveat, not more.
+- **Two games at minimum**, for the same reason the play-count top five needs
+  two: a top five of one game is `timePlayed`'s own `topGame` again, at greater
+  length.
+- **It is the one countdown that centres.** Both lists are the same fixed
+  height whatever the numbers say, so there is nothing for the bottom anchor to
+  earn — and without a line under it this slide sat 400px lower than the one it
+  is meant to rhyme with. It has a line now (`Five games, and 26% of your time
+  at the table.` — the play-count five's remark, in the unit this slide counts),
+  which reserves the aside's band, and `justify="center"` closes the rest of the
+  gap. The play-count list is still bottom-anchored like every other slide.
+- **It is a linked pair with `timePlayed`.** "114 h at the table", then *"And
+  this is where it went…"*. The bridging line only works with that number still
+  on screen behind it, so `LINKED_PAIRS` keeps the two adjacent and
+  `PAIRED_LEAD_INS` supplies the line. There is also a plain `LEAD_INS` entry
+  for when the time slide is not in the cut, so the line can never point back at
+  a number nobody was shown.
+
+The default cut is now **34 bars, about 68 seconds** at 120 BPM.
+
 ### Estimated time played
 
 `timePlayed` is the one stat that is inferred rather than measured, so it says
@@ -1289,8 +1327,7 @@ knowing:
 **The most-played slide is three bars, not four.** Eight seconds is a long time
 to hold one cover and one number, and it read as finished well before it cut.
 The outro keeps its four: that one is the screenshot, and it has to sit still
-long enough to take one. The default cut is **30 bars, exactly 60 seconds** at
-120 BPM.
+long enough to take one. Before this slide was added the default cut was 30 bars; it is 34 now.
 
 ### The mirror test found a bug, not an effect
 
@@ -1328,7 +1365,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 508 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 517 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.

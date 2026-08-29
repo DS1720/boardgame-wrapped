@@ -1,6 +1,7 @@
 export type SlideId =
   | 'totalPlays'
   | 'timePlayed'
+  | 'topFiveByTime'
   | 'topGame'
   | 'topFive'
   | 'winRate'
@@ -95,6 +96,11 @@ export type Stat =
   | (StatBase & { id: 'busiestDay'; day: string; plays: number })
   | (StatBase & { id: 'coPlayerCount'; count: number })
   | (StatBase & { id: 'firstAndLastPlay'; first: { day: string; game: GameRef }; last: { day: string; game: GameRef } })
+  | (StatBase & {
+      id: 'topFiveByTime';
+      /** Ranked by estimated minutes, which is not the same order as by plays. */
+      games: Array<GameRef & { minutes: number; plays: number }>;
+    })
   | (StatBase & { id: 'nightOwl'; peakHour: number; playsAtPeak: number; lateShare: number })
   | (StatBase & { id: 'groupShare'; ratio: number; attended: number; total: number })
   | (StatBase & {

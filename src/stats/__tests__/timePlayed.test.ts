@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { estimatedPlayMinutes } from '@/ingest/parse';
 import { formatDays, formatDuration } from '@/shared/format';
 import type { RawGame } from '@/shared/types';
-import { timePlayed } from '../modules/optional';
+import { timePlayed, topFiveByTime } from '../modules/optional';
 import { buildContext } from '../context';
 import type { StatContext } from '../context';
 import { CORE_SLIDES, MODULES } from '../index';
@@ -172,5 +172,69 @@ describe('formatting', () => {
 
   it('makes a large number of hours imaginable as days', () => {
     expect(formatDays(6852)).toBe('4.8');
+  });
+});
+
+describe('topFiveByTime', () => {
+  /*
+    The companion to `timePlayed`, and the reason it is a slide of its own: it
+    ranks by minutes, so it is usually a *different list* from the top five by
+    play count. Everything here is about that difference and about the rails it
+    shares with the stat it sits beside.
+  */
+  it('ranks by minutes, not by plays', () => {
+    // Game 2 is played three times for 30 minutes; game 1 once for 200.
+    const stat = topFiveByTime(contextWith([200, 30, 30, 30], [1, 2, 2, 2]));
+    expect(stat?.id).toBe('topFiveByTime');
+    if (stat?.id !== 'topFiveByTime') return;
+    expect(stat.games.map((g) => g.gameId)).toEqual([1, 2]);
+    expect(stat.games[0].minutes).toBe(200);
+    expect(stat.games[0].plays).toBe(1);
+    expect(stat.games[1].minutes).toBe(90);
+    expect(stat.games[1].plays).toBe(3);
+  });
+
+  it('shows five at most', () => {
+    const minutes = [10, 20, 30, 40, 50, 60, 70];
+    const stat = topFiveByTime(contextWith(minutes, [1, 2, 3, 4, 5, 6, 7]));
+    if (stat?.id !== 'topFiveByTime') return;
+    expect(stat.games).toHaveLength(5);
+    // The longest first, and the two shortest games left off.
+    expect(stat.games.map((g) => g.minutes)).toEqual([70, 60, 50, 40, 30]);
+  });
+
+  // A top five of one game is the time slide's own `topGame` again, at greater
+  // length. Same reasoning as the play-count top five.
+  it('says nothing when only one game has any time in it', () => {
+    expect(topFiveByTime(contextWith([60, 60, 60], [1, 1, 1]))).toBeNull();
+  });
+
+  /*
+    The rail that matters most: below the coverage floor an estimate is of part
+    of a year presented as the whole. If this list appeared while `timePlayed`
+    was suppressed, the same estimate would be on screen with *less* of a
+    caveat rather than more.
+  */
+  it('is silent on exactly the coverage `timePlayed` is silent on', () => {
+    const thin = contextWith([60, null, null, null, null], [1, 2, 3, 4, 5]);
+    expect(timePlayed(thin)).toBeNull();
+    expect(topFiveByTime(thin)).toBeNull();
+
+    const covered = contextWith([60, 30, 45, 90, null], [1, 2, 3, 4, 5]);
+    expect(timePlayed(covered)).not.toBeNull();
+    expect(topFiveByTime(covered)).not.toBeNull();
+  });
+
+  it('agrees with timePlayed about which game took the most', () => {
+    const ctx = contextWith([200, 30, 30, 30], [1, 2, 2, 2]);
+    const total = timePlayed(ctx);
+    const list = topFiveByTime(ctx);
+    if (total?.id !== 'timePlayed' || list?.id !== 'topFiveByTime') return;
+    expect(list.games[0].gameId).toBe(total.topGame?.gameId);
+    expect(list.games[0].minutes).toBe(total.topGame?.minutes);
+  });
+
+  it('says nothing at all when there are no plays', () => {
+    expect(topFiveByTime(contextWith([]))).toBeNull();
   });
 });

@@ -12,6 +12,9 @@ export const MODULES: Array<{ id: SlideId; run: StatModule; core: boolean }> = [
   // Sits next to the play count because the two answer the same question in
   // different units, and reads better before the video moves on to games.
   { id: 'timePlayed', run: optional.timePlayed, core: true },
+  // Straight after it, because the two are one thought: how long in total, and
+  // then where it went. `LINKED_PAIRS` keeps them adjacent in the cut.
+  { id: 'topFiveByTime', run: optional.topFiveByTime, core: true },
   { id: 'topGame', run: core.topGame, core: true },
   { id: 'topFive', run: core.topFive, core: true },
   { id: 'winRate', run: core.winRate, core: true },
