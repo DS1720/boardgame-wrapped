@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { useFont, useTheme, useTypeScale } from '@/theme/ThemeContext';
 import { ESTIMATED_ADVANCE, measureFor, type Measure } from '../measure';
 import { VIDEO } from '../config';
-import { KineticWords } from '../motion';
+import { KINETIC_WORD_GAP, KineticWords } from '../motion';
 import { useQuipSpace } from './Quip';
 
 /**
@@ -26,7 +26,7 @@ export const DISPLAY_CHAR_WIDTH = ESTIMATED_ADVANCE;
  * display face at random, so any face being wrong made random themes
  * unreliable rather than just the two.
  */
-const useMeasure = (role: 'display' | 'utility', fallback?: number): Measure => {
+const useMeasure = (role: 'display' | 'body' | 'utility', fallback?: number): Measure => {
   const id = useTheme().type[role];
   return useMemo(() => measureFor(id, fallback), [id, fallback]);
 };
@@ -172,6 +172,29 @@ export const Caption: React.FC<{ children: React.ReactNode; accent?: boolean }> 
   );
 };
 
+/** The measurer for this theme's body face, for anything that has to be counted. */
+export const useBodyMeasure = (): Measure => useMeasure('body');
+
+/**
+ * How many lines a piece of body text will take.
+ *
+ * The missing term in every height budget on the cover-led slides. They
+ * reserved one line per caption, which is right until a caption is a game's
+ * name — and this dataset has a 56-character one. A caption that wrapped took
+ * a line nobody had budgeted for, the stack grew past the box, and since
+ * content is anchored to the bottom the overflow came off the top: first the
+ * heading on best-and-worst, then the cover on the record slide.
+ *
+ * Pure and exported. The measurement it is given is the only part that needs a
+ * browser.
+ */
+export const linesFor = (
+  text: string,
+  size: number,
+  measure: Measure,
+  width: number = VIDEO.width - VIDEO.safeMargin * 2,
+): number => Math.max(1, Math.ceil((measure(text) * size) / width));
+
 /**
  * Air a slide keeps above its content, whatever the type does.
  *
@@ -215,7 +238,25 @@ export const Headline: React.FC<{
   const font = useFont('display');
   const { display } = useTypeScale();
   const { color } = useTheme();
-  const measure = useMeasure('display');
+  const face = useMeasure('display');
+  /*
+    Measured the way a headline is actually laid out.
+
+    `KineticWords` sets every word as an `inline-block` with its own right
+    margin, which means no whitespace survives between them and the margin is
+    the space. Measuring the string as one run uses the font's space glyph
+    instead, which is narrower — "You win most at" came out fitting two lines
+    and was set on three, and since content is anchored to the bottom the third
+    line pushed the heading off the top of the frame.
+  */
+  const measure = useMemo<Measure>(
+    () => (text) => {
+      const words = text.split(/\s+/).filter(Boolean);
+      if (words.length === 0) return 0;
+      return words.reduce((sum, word) => sum + face(word), 0) + words.length * KINETIC_WORD_GAP;
+    },
+    [face],
+  );
   /*
     A headline fills the width it is given, rather than being set at one size
     and shrunk only when it overruns.
@@ -429,7 +470,63 @@ export const fitBlock = ({
     best = Math.max(best, Math.min(ceiling, byMeasure, byWord, byHeight));
   }
 
-  return Math.max(floor, Math.min(ceiling, best));
+  /*
+    The arithmetic above assumes the words pack into their lines perfectly. A
+    browser wraps greedily, and greedy wrapping wastes whatever is left at the
+    end of each line — so a size that fits "in two lines' worth of measure" can
+    still need three.
+
+    "You win most at" is the case that showed it: sized for two lines it broke
+    as "You win / most / at", which is half again the height that was budgeted.
+    Content is anchored to the bottom, so the extra line came off the top and
+    took the heading with it.
+
+    So the analytic answer is only a starting point. From there the real line
+    count is counted, the same way the browser will do it, and the size steps
+    down until the text genuinely fits. 2% a step converges in a handful of
+    passes because the estimate is never far off.
+  */
+  let size = Math.min(ceiling, best);
+  for (let step = 0; step < 200 && size > floor; step += 1) {
+    const lines = linesAt(text, size, ems, width);
+    if (lines <= Math.max(1, maxLines) && size * lineHeight * lines <= maxHeight) break;
+    size -= Math.max(1, size * 0.02);
+  }
+
+  return Math.max(floor, Math.min(ceiling, size));
+};
+
+/**
+ * How many lines this text takes at this size, wrapped the way a browser wraps.
+ *
+ * Greedy: each word joins the current line if it still fits, and starts a new
+ * one if it does not. Candidate lines are measured whole rather than as a sum
+ * of word widths and spaces, because that is what will actually be set.
+ *
+ * Pure and exported — the wrapping is the part worth testing, and the only part
+ * of it that needs a browser is the measurement handed in.
+ */
+export const linesAt = (
+  text: string,
+  size: number,
+  measure: Measure,
+  width: number = VIDEO.width - VIDEO.safeMargin * 2,
+): number => {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 1;
+
+  let lines = 1;
+  let current = words[0];
+  for (let i = 1; i < words.length; i += 1) {
+    const candidate = `${current} ${words[i]}`;
+    if (measure(candidate) * size <= width) {
+      current = candidate;
+    } else {
+      lines += 1;
+      current = words[i];
+    }
+  }
+  return lines;
 };
 
 /** Below this a headline stops reading at arm's length on a phone. */

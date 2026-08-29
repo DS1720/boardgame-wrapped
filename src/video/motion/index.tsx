@@ -215,6 +215,17 @@ export const Float: React.FC<{
  * fade in, it assembles. Words are separate spans on one baseline grid, each on
  * its own spring, so a long title still wraps naturally.
  */
+/**
+ * The gap between two assembled words, in ems.
+ *
+ * Words are laid out as `inline-block`, so no whitespace survives between them
+ * and this margin *is* the space. It is exported because the fitters need it:
+ * measuring "You win" with the font's own space glyph came out narrower than
+ * the browser sets it, and a headline sized on that measurement wrapped onto a
+ * line nobody had budgeted for.
+ */
+export const KINETIC_WORD_GAP = 0.26;
+
 export const KineticWords: React.FC<{
   text: string;
   delay?: number;
@@ -251,7 +262,9 @@ export const KineticWords: React.FC<{
               // Rises and settles, rather than simply appearing.
               transform: `translateY(${(1 - progress) * 0.34}em)`,
               // A space of its own, so `inline-block` words do not run together.
-              marginRight: '0.26em',
+              // Anything fitting this text has to count it: it replaces the
+              // font's space glyph rather than sitting beside it.
+              marginRight: `${KINETIC_WORD_GAP}em`,
             }}
           >
             {word}

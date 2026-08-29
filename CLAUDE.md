@@ -946,14 +946,14 @@ cover would be, the span where a game's name would be. The slide reads as three
 rows — a game, the gap, a game — and everything lines up because everything is
 in the same grid.
 
-- **The span is the figure**, set at a third of the display step in accent, with
-  a second line under it saying the same length a different way: weeks up to a
-  season, then months. Nobody counts 236 days; everybody knows how long eight
-  months is.
-- **Both are fitted to the column, not the frame.** `Eyebrow` and `fitBlock`
-  both take a `width`. At full size "Started the year with" wrapped onto two
-  lines and pushed the date out from under it, and "236 days" broke across two
-  lines in a wide face.
+- **The span is said once, in the unit a person lives in** — weeks up to a
+  season, then months. It was briefly a display figure ("236 days") with that
+  line under it, which put a third number on a slide whose whole point is the
+  two dates already on it, and made the middle row taller than the two it
+  divides. Nobody counts 236 days; everybody knows how long eight months is.
+- **It is fitted to the column, not the frame.** `Eyebrow` and `fitBlock` both
+  take a `width`. At full size "Started the year with" wrapped onto two lines
+  and pushed the date out from under it.
 - **The rows arrive from opposite sides.** One opened the year and one closed
   it; sliding in from the same side made them read as two items in a list.
 - **It has a quip now**, which is what the slide was really missing — a remark
@@ -1092,9 +1092,35 @@ the one element allowed to grow.
 
 Three slides need it — most played, the record, and best/worst. Content is
 anchored to the bottom of its box, so anything that does not fit spills off the
-*top*, and on those slides the top is the cover. It was Blueprint and Meeple
-that exposed it: a wide display face grew the title, everything above it was
-pushed up, and the box art left the frame entirely.
+*top*, and on those slides the top is the cover, or the heading above it. It was
+Blueprint and Meeple that exposed it, but it turned out to be true of most
+themes once anyone looked.
+
+A budget is only as good as its terms, and two were missing:
+
+- **Captions wrap, and a wrapped caption takes a line nobody budgeted for.**
+  `linesFor` counts them for real. "the highest of 12 players · over 21 plays"
+  is two lines in most of the body faces here and one in the narrowest, and
+  a game's name can be 56 characters.
+- **`fitBlock` assumed the words pack into their lines perfectly.** A browser
+  wraps greedily, and greedy wrapping wastes whatever is left at the end of each
+  line — so a size that fits "two lines' worth of measure" can still need three.
+  "You win most at" was set as "You / win / most at" at a size budgeted for two
+  lines, which is half again the height. `linesAt` now counts the wrap the way
+  the browser will, and `fitBlock` steps the size down until the text genuinely
+  fits. It is exported and tested: the wrapping is the part worth checking, and
+  the only part of it needing a browser is the measurement handed in.
+
+**And the measurement had to match how a headline is actually laid out.**
+`KineticWords` sets every word as an `inline-block` with a `KINETIC_WORD_GAP`
+(0.26em) right margin, so no whitespace survives between words and that margin
+*is* the space. Measuring the string as one run uses the font's own space glyph,
+which is narrower — the gap between "fits on two lines" and "is set on three"
+was exactly that difference. `Headline` measures word by word and adds the gap.
+
+Checked by rendering the three slides in all nine starters and scanning each
+frame for the topmost row holding content: 27 of 27 now clear the safe margin,
+where 13 did not.
 
 **A display number never wraps, and every one of them is sized against its own
 string.** `whiteSpace: nowrap` is the backstop; `fit` is the fix. The formatted
@@ -1288,7 +1314,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 502 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 508 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.

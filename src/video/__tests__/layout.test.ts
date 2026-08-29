@@ -4,6 +4,7 @@ import { STARTERS } from '@/theme/starters';
 import { VIDEO } from '../config';
 import {
   fitBlock,
+  linesAt,
   fitDisplay,
   fitLabel,
   fitText,
@@ -285,5 +286,78 @@ describe('fitBlock', () => {
 
   it('never grows past its ceiling however much room there is', () => {
     expect(fitBlock({ text: 'X', ceiling: 120, maxHeight: 5000 })).toBe(120);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('linesAt', () => {
+  /** A monospace-ish measurer, so the arithmetic is checkable by hand. */
+  const flat = (advance: number) => (text: string) => text.length * advance;
+
+  it('is one line for one word, and for nothing at all', () => {
+    expect(linesAt('Faraway', 100, flat(0.5))).toBe(1);
+    expect(linesAt('', 100, flat(0.5))).toBe(1);
+  });
+
+  it('packs greedily, the way a browser does', () => {
+    // 0.5em a character at 100px is 50px a character; the measure is 840.
+    // "aaaaaaaa bbbbbbbb" is 17 chars = 850px, one over, so it breaks.
+    expect(linesAt('aaaaaaaa bbbbbbbb', 100, flat(0.5))).toBe(2);
+    expect(linesAt('aaaaaaa bbbbbbb', 100, flat(0.5))).toBe(1);
+  });
+
+  it('counts the third line a perfect-packing estimate would miss', () => {
+    // Three words that together fit "two lines' worth" of measure, but which no
+    // greedy wrap can get onto two lines. This is exactly what happened to
+    // "You win most at".
+    const text = 'aaaaaaaaaa bbbbbbbbbb cccccccccc';
+    const size = 100;
+    const measure = flat(0.5);
+    // Total advance is under two lines...
+    expect(measure(text) * size).toBeLessThanOrEqual(SAFE_WIDTH * 2);
+    // ...and it still needs three.
+    expect(linesAt(text, size, measure)).toBe(3);
+  });
+});
+
+describe('fitBlock and greedy wrapping', () => {
+  const flat = (advance: number) => (text: string) => text.length * advance;
+
+  it('shrinks until the text really fits its line budget', () => {
+    const text = 'aaaaaaaaaa bbbbbbbbbb cccccccccc';
+    const measure = flat(0.5);
+    const size = fitBlock({ text, ceiling: 300, maxLines: 2, measure });
+    expect(linesAt(text, size, measure)).toBeLessThanOrEqual(2);
+  });
+
+  it('keeps every headline in the video inside its line budget', () => {
+    const claims = [
+      'You win most at',
+      'Your worst game',
+      'Terraforming Mars',
+      'Codenames: Pictures',
+      LONGEST_GAME,
+      LONGEST_PLAYER,
+    ];
+    // Sweep the advance range real display faces occupy.
+    for (const advance of [0.42, 0.56, 0.72, 0.95]) {
+      const measure = flat(advance);
+      for (const text of claims) {
+        const size = fitBlock({ text, ceiling: 340, maxLines: 2, measure });
+        if (size > MIN_HEADLINE_PX) {
+          expect(linesAt(text, size, measure)).toBeLessThanOrEqual(2);
+        }
+      }
+    }
+  });
+
+  it('still honours a height budget once the lines are counted', () => {
+    const text = 'You win most at';
+    const measure = flat(0.72);
+    const budget = 320;
+    const size = fitBlock({ text, ceiling: 340, maxLines: 2, measure, maxHeight: budget });
+    const lines = linesAt(text, size, measure);
+    expect(size * HEADLINE_LINE_HEIGHT * lines).toBeLessThanOrEqual(budget + 0.001);
   });
 });

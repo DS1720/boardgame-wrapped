@@ -15,7 +15,6 @@ import {
   StreakChain,
 } from './details';
 import { boxArtFor, useBoxArtManifest } from '../useBoxArt';
-import { measureFor } from '../measure';
 import {
   Caption,
   DisplayNumber,
@@ -23,9 +22,11 @@ import {
   Headline,
   LABEL_SCALE,
   fitBlock,
+  linesFor,
   SafeArea,
   Stack,
   StatBlock,
+  useBodyMeasure,
   useSpareHeight,
 } from './layout';
 import type { SlideProps } from './Slides';
@@ -191,8 +192,20 @@ export const GroupShareSlide: React.FC<SlideProps> = ({ stat }) => {
 /** Shared by best and worst: the cover leads, the rate follows. */
 const RATE_COVER = 380;
 const RATE_GAP = 24;
-/** Two rows of 40px markers and the gap between them. */
-const RESULT_ROW_HEIGHT = 100;
+
+/** `Caption`'s own line height, so a wrapped one can be counted. */
+const CAPTION_LINE_HEIGHT = 1.3;
+
+/**
+ * How tall the row of won/lost markers comes out.
+ *
+ * `ResultRow` caps at 18 markers, ten to a row, at 40px with a 10px gap — so it
+ * is one row or two and never more, whatever the play count.
+ */
+const resultRowHeight = (plays: number): number => {
+  const rows = Math.min(plays, 18) > 10 ? 2 : 1;
+  return rows * 40 + (rows - 1) * 10;
+};
 
 const GameRateSlide: React.FC<{
   eyebrow: string;
@@ -202,10 +215,19 @@ const GameRateSlide: React.FC<{
 }> = ({ eyebrow, game, ratio, plays }) => {
   const manifest = useBoxArtManifest();
   const { body } = useTypeScale();
+  const bodyMeasure = useBodyMeasure();
+
+  const rateLine = `${Math.round(ratio * 100)}% in ${formatNumber(plays)} plays`;
+  // Both captions counted for real. The game's name is the one that wraps —
+  // this dataset has a 56-character title — and a wrapped caption used to take
+  // a line out of the heading's budget without anyone knowing.
+  const captionLines =
+    linesFor(game.name, body, bodyMeasure) + linesFor(rateLine, body, bodyMeasure);
+
   // The headline sits above the cover here, so it is the cover that leaves the
   // frame when the type outgrows it.
   const claimBudget = useSpareHeight(
-    RATE_COVER + RATE_GAP * 4 + body * 1.3 * 2 + RESULT_ROW_HEIGHT,
+    RATE_COVER + RATE_GAP * 4 + body * CAPTION_LINE_HEIGHT * captionLines + resultRowHeight(plays),
   );
 
   return (
@@ -304,28 +326,49 @@ const RECORD_GAP = 22;
 export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
   const manifest = useBoxArtManifest();
   const { caption, body, display } = useTypeScale();
-  const otherRecords = stat?.id === 'gameRecord' ? stat.otherRecords : 0;
+  const bodyMeasure = useBodyMeasure();
+
+  // Narrowed once, up here, because the budget below needs the caption text and
+  // hooks cannot run after an early return.
+  const record = stat?.id === 'gameRecord' ? stat : null;
+  const best = record?.highestWins ? 'highest' : 'lowest';
+  const detail = record
+    ? `the ${best} of ${formatNumber(record.contenders)} players${
+        record.plays > 1 ? ` · over ${formatNumber(record.plays)} plays` : ''
+      }`
+    : '';
+  const alsoLine = record
+    ? `and the best score in ${formatNumber(record.otherRecords)} other ${
+        record.otherRecords === 1 ? 'game' : 'games'
+      }`
+    : '';
+
   /*
     The tallest stack in the video: a cover, a label, a title, a display number
     and up to two captions. It was also the one that broke first on a wide
     display face — the title grew, everything above it was pushed up, and the
-    cover left the top of the frame. The number is counted at its full step
+    cover left the top of the frame.
+
+    Every term is counted rather than assumed. The number takes its full step
     rather than its fitted one, so the budget never depends on how many digits
-    this player happens to have scored.
+    this player scored; the captions are measured, because "the highest of 12
+    players · over 21 plays" is two lines in most of the body faces here and one
+    in the narrowest, and Felt Table is one of the ones where it wraps.
   */
+  const captionLines =
+    linesFor(detail, body, bodyMeasure) +
+    (record && record.otherRecords > 0 ? linesFor(alsoLine, body, bodyMeasure) : 0);
+
   const titleBudget = useSpareHeight(
     RECORD_COVER.height +
-      RECORD_GAP * 3 +
+      RECORD_GAP * (record && record.otherRecords > 0 ? 4 : 3) +
       caption * LABEL_SCALE * 1.2 +
       10 +
       display * 0.95 +
-      body * 1.3 +
-      (otherRecords > 0 ? RECORD_GAP + body * 1.3 : 0),
+      body * CAPTION_LINE_HEIGHT * captionLines,
   );
 
-  if (stat?.id !== 'gameRecord') return null;
-
-  const best = stat.highestWins ? 'highest' : 'lowest';
+  if (!record) return null;
 
   return (
     <SafeArea>
@@ -334,8 +377,8 @@ export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
           {/* Contained, not cropped: the slide names one game, so its box
               should be legible. A square crop took the title off the top. */}
           <BoxArt
-            entry={boxArtFor(manifest, stat.game.gameId)}
-            name={stat.game.name}
+            entry={boxArtFor(manifest, record.game.gameId)}
+            name={record.game.name}
             width={RECORD_COVER.width}
             height={RECORD_COVER.height}
             fit="contain"
@@ -344,33 +387,33 @@ export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
 
         <Stack gap={10}>
           <Reveal delay={BEAT.second}>
-            <Eyebrow>{stat.shared ? 'You share the record in' : 'You hold the record in'}</Eyebrow>
+            <Eyebrow>{record.shared ? 'You share the record in' : 'You hold the record in'}</Eyebrow>
           </Reveal>
           <Reveal delay={BEAT.second + 4}>
             <Headline maxLines={2} maxHeight={titleBudget}>
-              {stat.game.name}
+              {record.game.name}
             </Headline>
           </Reveal>
         </Stack>
 
         <Reveal delay={BEAT.third}>
-          <DisplayNumber fit={formatNumber(stat.score)}>
-            <CountUp to={stat.score} delay={BEAT.third} />
+          <DisplayNumber fit={formatNumber(record.score)}>
+            <CountUp to={record.score} delay={BEAT.third} />
           </DisplayNumber>
         </Reveal>
 
         <Reveal delay={BEAT.third + 6}>
           <Caption>
-            the {best} of {formatNumber(stat.contenders)} players
-            {stat.plays > 1 ? ` · over ${formatNumber(stat.plays)} plays` : ''}
+            the {best} of {formatNumber(record.contenders)} players
+            {record.plays > 1 ? ` · over ${formatNumber(record.plays)} plays` : ''}
           </Caption>
         </Reveal>
 
-        {stat.otherRecords > 0 && (
+        {record.otherRecords > 0 && (
           <Reveal delay={BEAT.third + 10}>
             <Caption accent>
-              and the best score in {formatNumber(stat.otherRecords)} other{' '}
-              {stat.otherRecords === 1 ? 'game' : 'games'}
+              and the best score in {formatNumber(record.otherRecords)} other{' '}
+              {record.otherRecords === 1 ? 'game' : 'games'}
             </Caption>
           </Reveal>
         )}
@@ -391,7 +434,7 @@ export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
  * counts 236 days, but everybody knows how long eight months is.
  */
 const gapNote = (days: number, months: number): string => {
-  if (days < 14) return 'start to finish';
+  if (days < 14) return 'the same fortnight';
   if (days < 100) return `${Math.round(days / 7)} weeks between them`;
   return `${months} months, end to end`;
 };
@@ -405,9 +448,8 @@ export const FirstAndLastPlaySlide: React.FC<SlideProps> = ({ stat }) => {
   const manifest = useBoxArtManifest();
   const { color } = useTheme();
   const bodyFont = useFont('body');
-  const displayFont = useFont('display');
-  const { body, display } = useTypeScale();
-  const spanMeasure = measureFor(useTheme().type.display);
+  const { body } = useTypeScale();
+  const spanMeasure = useBodyMeasure();
   if (stat?.id !== 'firstAndLastPlay') return null;
 
   const row = (
@@ -499,33 +541,28 @@ export const FirstAndLastPlaySlide: React.FC<SlideProps> = ({ stat }) => {
           </div>
           {days > 0 && (
             <Reveal delay={BEAT.second + 8}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span
-                  style={{
-                    ...displayFont,
-                    // Fitted to the column, not to the frame: at the display
-                    // step a wide face broke "236 days" across two lines and
-                    // pushed the note under it out of the row.
-                    fontSize: fitBlock({
-                      text: `${days} days`,
-                      ceiling: display * 0.34,
-                      maxLines: 1,
-                      measure: spanMeasure,
-                      width: ROW_TEXT_WIDTH,
-                      floor: 40,
-                    }),
-                    color: color.accent,
-                    lineHeight: 1,
-                    letterSpacing: '-0.02em',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <CountUp to={days} delay={BEAT.second + 8} /> days
-                </span>
-                <span style={{ ...bodyFont, fontSize: body * 0.86, color: color.inkMuted }}>
-                  {gapNote(days, months)}
-                </span>
-              </div>
+              {/* The span, said once. It used to be a display figure with this
+                  line under it, which put a third number on a slide whose whole
+                  point is the two dates already on it — and made the middle row
+                  taller than the two it divides. The tear draws the length; this
+                  says what it comes to. */}
+              <span
+                style={{
+                  ...bodyFont,
+                  fontSize: fitBlock({
+                    text: gapNote(days, months),
+                    ceiling: body,
+                    maxLines: 1,
+                    measure: spanMeasure,
+                    width: ROW_TEXT_WIDTH,
+                    floor: body * 0.7,
+                  }),
+                  color: color.accent,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {gapNote(days, months)}
+              </span>
             </Reveal>
           )}
         </div>
