@@ -263,9 +263,9 @@ describe('a linked pair moves as one', () => {
 
 describe('insertSlide', () => {
   it('places a newly enabled slide where the catalogue would put it', () => {
-    const order: SlideId[] = ['totalPlays', 'winRate'];
+    const order: SlideId[] = ['totalPlays', 'topFive'];
     // topGame sits between them in the catalogue, so that is where it lands.
-    expect(insertSlide(order, 'topGame')).toEqual(['totalPlays', 'topGame', 'winRate']);
+    expect(insertSlide(order, 'topGame')).toEqual(['totalPlays', 'topGame', 'topFive']);
   });
 
   it('appends when nothing after it is enabled', () => {

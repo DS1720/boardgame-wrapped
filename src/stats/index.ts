@@ -15,24 +15,28 @@ export const MODULES: Array<{ id: SlideId; run: StatModule; core: boolean }> = [
   // Straight after it, because the two are one thought: how long in total, and
   // then where it went. `LINKED_PAIRS` keeps them adjacent in the cut.
   { id: 'topFiveByTime', run: optional.topFiveByTime, core: true },
+  // How it went, before which games it went on: the run of verdicts about the
+  // player comes first, then the countdown of games.
+  { id: 'winRate', run: core.winRate, core: true },
+  { id: 'longestWinStreak', run: optional.longestWinStreak, core: true },
+  { id: 'bestGame', run: optional.bestGame, core: true },
+  { id: 'worstGame', run: optional.worstGame, core: true },
   { id: 'topGame', run: core.topGame, core: true },
   { id: 'topFive', run: core.topFive, core: true },
-  { id: 'winRate', run: core.winRate, core: true },
-  { id: 'longestWinStreak', run: optional.longestWinStreak, core: false },
-  { id: 'bestGame', run: optional.bestGame, core: false },
-  { id: 'worstGame', run: optional.worstGame, core: false },
-  { id: 'highestScore', run: optional.highestScore, core: false },
-  // Straight after the personal best, because the two are the same number seen
-  // from different sides: what you scored, and whether it beat everyone else.
-  { id: 'gameRecord', run: optional.gameRecord, core: false },
+  { id: 'highestScore', run: optional.highestScore, core: true },
+  { id: 'coPlayerCount', run: optional.coPlayerCount, core: true },
+  // Counts the people, then names one of them. `LINKED_PAIRS` keeps the two
+  // adjacent so the bridging line always has its setup in front of it.
   { id: 'topCoPlayer', run: core.topCoPlayer, core: true },
+  { id: 'gameRecord', run: optional.gameRecord, core: true },
   { id: 'nemesis', run: core.nemesis, core: true },
-  { id: 'coPlayerCount', run: optional.coPlayerCount, core: false },
   { id: 'gamesLearned', run: core.gamesLearned, core: true },
-  { id: 'busiestDay', run: optional.busiestDay, core: false },
-  { id: 'nightOwl', run: optional.nightOwl, core: false },
-  { id: 'firstAndLastPlay', run: optional.firstAndLastPlay, core: false },
+  { id: 'busiestDay', run: optional.busiestDay, core: true },
+  { id: 'nightOwl', run: optional.nightOwl, core: true },
+  { id: 'firstAndLastPlay', run: optional.firstAndLastPlay, core: true },
   { id: 'topLocation', run: core.topLocation, core: true },
+  // The one module still off by default: the plays slide already draws a count
+  // of nights, and a second slide counting them is the same fact twice.
   { id: 'groupShare', run: optional.groupShare, core: false },
 ];
 

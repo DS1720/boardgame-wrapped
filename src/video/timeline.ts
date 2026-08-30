@@ -24,8 +24,9 @@ export type TimelineSlideId = 'intro' | 'outro' | SlideId;
  * The default cut, in order, from step 7 of the plan.
  *
  * This list is also the filter: a stat with no entry here gets no slide. The
- * stats engine can emit all 17 modules, but the default video is these ten.
- * Adding an optional stat to the cut means adding it here and writing its
+ * stats engine emits twenty modules and nineteen of them are in the default
+ * video; `groupShare` is the one left out, because the plays slide already
+ * counts nights. Adding a stat to the cut means adding it here and writing its
  * component — nothing else.
  */
 export const DEFAULT_CUT: TimelineSlideId[] = [
@@ -33,12 +34,21 @@ export const DEFAULT_CUT: TimelineSlideId[] = [
   'totalPlays',
   'timePlayed',
   'topFiveByTime',
+  'winRate',
+  'longestWinStreak',
+  'bestGame',
+  'worstGame',
   'topGame',
   'topFive',
-  'winRate',
+  'highestScore',
+  'coPlayerCount',
   'topCoPlayer',
+  'gameRecord',
   'nemesis',
   'gamesLearned',
+  'busiestDay',
+  'nightOwl',
+  'firstAndLastPlay',
   'topLocation',
   'outro',
 ];
@@ -339,14 +349,12 @@ export const SLIDE_BARS: Record<TimelineSlideId, number> = {
   // Three, like the other countdown: long enough to count five down one at
   // a time and still hold the finished list for a moment.
   topFiveByTime: 3,
-  // Three, not four. Eight seconds is a long time to hold one cover and one
-  // number, and this slide has read as finished well before it cut for as long
-  // as it has been four. The outro keeps its four: that one is the screenshot,
-  // and it has to sit still long enough to take one.
-  topGame: 3,
-  // Long enough to count down from five, one at a time, and still hold the
-  // finished list for a moment.
-  topFive: 3,
+  // One. It has a lead-in line ahead of it and the top five right behind it,
+  // and between those two it only has to land a cover and a number.
+  topGame: 1,
+  // Two: the countdown still lands five to one, and the list holds briefly
+  // rather than sitting finished.
+  topFive: 2,
   winRate: 2,
   topCoPlayer: 2,
   nemesis: 2,
@@ -354,16 +362,16 @@ export const SLIDE_BARS: Record<TimelineSlideId, number> = {
   topLocation: 2,
   // The outro is the screenshot. It has to sit on screen long enough to take one.
   outro: 4,
-  // Optional modules keep a length here so adding one to the cut is a one-line change.
   bestGame: 2,
   worstGame: 2,
   longestWinStreak: 2,
   busiestDay: 2,
   coPlayerCount: 2,
   firstAndLastPlay: 2,
-  // Three: it carries a cover, a name, a number and two lines under it.
-  gameRecord: 3,
+  gameRecord: 2,
   nightOwl: 2,
+  // The one module not in the default cut; it keeps a length here so adding it
+  // is a one-line change.
   groupShare: 2,
   highestScore: 2,
 };

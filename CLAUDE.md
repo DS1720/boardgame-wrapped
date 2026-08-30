@@ -481,7 +481,8 @@ first.
 `planTimeline(stats)` in [src/video/timeline.ts](src/video/timeline.ts) decides
 what appears; `SLIDE_COMPONENTS` in [src/video/slides/](src/video/slides/index.tsx)
 decides what draws it. **A stat id absent from `DEFAULT_CUT` gets no slide** —
-the engine emits all 17 modules, the default video is ten. Adding one to the cut
+the engine emits all 20 modules and the default video is nineteen of them.
+Adding one to the cut
 means adding its id there and writing its component; nothing else.
 
 Slide lengths are declared in **bars, not frames** (`SLIDE_BARS`), because step 8
@@ -603,7 +604,9 @@ two unrelated facts rather than the same year counted two ways.
   for when the time slide is not in the cut, so the line can never point back at
   a number nobody was shown.
 
-The default cut is now **34 bars, about 68 seconds** at 120 BPM.
+The default cut is now **53 bars, about 106 seconds** at 120 BPM. It was 34
+bars and ten stat slides; every module except `groupShare` is now on by
+default, so the video is the whole year rather than a sample of it.
 
 ### Estimated time played
 
@@ -1324,10 +1327,16 @@ knowing:
   player with no co-player count gets no bridging line and no extra bar, rather
   than an introduction to a slide that never comes.
 
-**The most-played slide is three bars, not four.** Eight seconds is a long time
-to hold one cover and one number, and it read as finished well before it cut.
-The outro keeps its four: that one is the screenshot, and it has to sit still
-long enough to take one. Before this slide was added the default cut was 30 bars; it is 34 now.
+**The most-played slide is one bar.** Eight seconds is a long time to hold one
+cover and one number, and it read as finished well before it cut; it went to
+three, and then to one. It already opens with a lead-in line, which buys it a
+bar of anticipation before the cover lands, and the top five is right behind it
+counting the same games again. The outro keeps its four: that one is the
+screenshot, and it has to sit still long enough to take one.
+
+**The top five is two bars and the record holder is two.** The countdown still
+lands five to one and still holds the finished list, and at three the record
+was the longest slide in a run of verdicts that all read at the same pace.
 
 ### The mirror test found a bug, not an effect
 
@@ -1376,10 +1385,10 @@ engine server-side so a batch does not need a browser tab open.
 
 Known gaps left deliberately:
 
-- The **optional stats are off by default**. Ten of the twenty-one modules
-  (`bestGame`, `nightOwl`, `gameRecord`, …) are computed and shown in the
-  StatsInspector but are not in `DEFAULT_CUT`. Each has a real slide and a
-  length in `SLIDE_BARS`; adding one to the default cut is a one-line change.
+- **One module is off by default.** `groupShare` (nights attended) is computed
+  and shown in the StatsInspector but is not in `DEFAULT_CUT`, because the plays
+  slide already counts nights. It has a real slide and a length in `SLIDE_BARS`;
+  adding it is a one-line change.
 - **Only one render at a time**, single or batch, enforced with a 409. Remotion
   opens a browser per render and saturates the CPU; two at once take longer than
   two in sequence and are likelier to run out of memory.
@@ -1392,7 +1401,7 @@ Known gaps left deliberately:
   "Unknown — set this before publishing" so it cannot be forgotten.
 - The **SFX layer** the plan lists as optional (a tick on each `CountUp`
   landing) is not built.
-- A **one-play player still gets a ten-slide video**, including a "top five"
+- A **one-play player still gets the full cut**, including a "top five"
   showing one game. It is coherent and never breaks, but step 12's polish pass
   should consider a shorter cut when `stats.thin` is true.
 

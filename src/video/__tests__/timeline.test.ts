@@ -53,6 +53,10 @@ const ALL_CORE: Stat[] = [
       { ...game(40, 'Hitster'), minutes: 180, plays: 9 },
     ],
   },
+  { id: 'winRate', core: true, wins: 61, losses: 161, ratio: 61 / 222, coopOnly: false },
+  { id: 'longestWinStreak', core: true, length: 7 },
+  { id: 'bestGame', core: true, game: game(23, 'Bluff'), ratio: 0.7, plays: 10 },
+  { id: 'worstGame', core: true, game: game(63, 'Castle Combo'), ratio: 0.1, plays: 10 },
   { id: 'topGame', core: true, game: game(77, 'Faraway'), plays: 21 },
   {
     id: 'topFive',
@@ -65,12 +69,40 @@ const ALL_CORE: Stat[] = [
       { ...game(40, 'Hitster'), plays: 9 },
     ],
   },
-  { id: 'winRate', core: true, wins: 61, losses: 161, ratio: 61 / 222, coopOnly: false },
+  {
+    id: 'highestScore',
+    core: true,
+    score: 466,
+    game: game(31, 'La Cuenta'),
+    day: '2026-04-02',
+    won: true,
+  },
+  { id: 'coPlayerCount', core: true, count: 60 },
   { id: 'topCoPlayer', core: true, name: 'Dario', playerId: 1, shared: 180, others: [] },
+  {
+    id: 'gameRecord',
+    core: true,
+    game: game(23, 'Bluff'),
+    score: 88,
+    plays: 10,
+    otherRecords: 2,
+    contenders: 5,
+    highestWins: true,
+    shared: false,
+  },
   { id: 'nemesis', core: true, name: 'Markus', playerId: 2, lossesTo: 14, headToHead: 30, lossRate: 14 / 30 },
   { id: 'gamesLearned', core: true, count: 34, games: [game(1, 'A'), game(2, 'B')] },
+  { id: 'busiestDay', core: true, day: '2026-03-14', plays: 9 },
+  { id: 'nightOwl', core: true, peakHour: 20, playsAtPeak: 40, lateShare: 0.46 },
+  {
+    id: 'firstAndLastPlay',
+    core: true,
+    first: { day: '2026-01-03', game: game(77, 'Faraway') },
+    last: { day: '2026-12-27', game: game(40, 'Hitster') },
+  },
   { id: 'topLocation', core: true, name: 'Home', nights: 40 },
 ];
+
 
 const statsWith = (stats: Stat[]): WrappedStats => ({
   playerId: 4,
@@ -91,12 +123,22 @@ describe('the default cut', () => {
       'timePlayed',
       // And immediately after it, where that time went.
       'topFiveByTime',
+      'winRate',
+      'longestWinStreak',
+      'bestGame',
+      'worstGame',
       'topGame',
       'topFive',
-      'winRate',
+      'highestScore',
+      // Counts the people, then names one of them.
+      'coPlayerCount',
       'topCoPlayer',
+      'gameRecord',
       'nemesis',
       'gamesLearned',
+      'busiestDay',
+      'nightOwl',
+      'firstAndLastPlay',
       'topLocation',
       'outro',
     ]);
@@ -169,8 +211,7 @@ describe('planTimeline', () => {
   it('ignores optional stats that are not in the cut', () => {
     const withOptional: Stat[] = [
       ...ALL_CORE,
-      { id: 'longestWinStreak', core: false, length: 7 },
-      { id: 'busiestDay', core: false, day: '2026-03-14', plays: 9 },
+      { id: 'groupShare', core: false, ratio: 0.8, attended: 73, total: 91 },
     ];
     // The engine emits more modules than the default video shows.
     expect(planTimeline(statsWith(withOptional)).slides).toHaveLength(DEFAULT_CUT.length);
@@ -225,11 +266,12 @@ describe('slide lengths', () => {
   });
 
   it('produces a video of a sane length for a full year', () => {
-    // Grew from 56s when the lead-in lines and the top-five countdown landed:
-    // seven slides can now open with a line, and each of those costs a bar.
+    // Grew from 56s when the lead-in lines and the top-five countdown landed,
+    // and again when the cut went from ten stat slides to nineteen. The ceiling
+    // is what a story-format video can hold, not a target.
     const seconds = planTimeline(statsWith(ALL_CORE)).durationInFrames / VIDEO.fps;
     expect(seconds).toBeGreaterThan(20);
-    expect(seconds).toBeLessThan(80);
+    expect(seconds).toBeLessThan(150);
   });
 
   it('charges a slide with a lead-in exactly one extra bar', () => {
@@ -306,10 +348,10 @@ describe('slideAt', () => {
 describe('the linked co-player pair', () => {
   const BRIDGE = PAIRED_LEAD_INS.topCoPlayer!.line;
 
-  const withCount = (): Stat[] => [
-    ...ALL_CORE,
-    { id: 'coPlayerCount', core: false, count: 26 },
-  ];
+  // The count is in the default cut, so it is already in ALL_CORE. The
+  // interesting case is the player who has no co-player count at all.
+  const withCount = (): Stat[] => ALL_CORE;
+  const withoutCount = (): Stat[] => ALL_CORE.filter((s) => s.id !== 'coPlayerCount');
 
   it('pulls the count up against the person, whatever order they were given in', () => {
     const cut = buildCut(['totalPlays', 'topCoPlayer', 'nemesis', 'coPlayerCount']);
@@ -364,7 +406,9 @@ describe('the linked co-player pair', () => {
   it('drops the line when the player has no co-player count to set it up', () => {
     // The stat module returned null, so the slide is never emitted — and the
     // line that introduces it must not be left stranded on the next slide.
-    const plan = planTimeline(statsWith(ALL_CORE), { cut: buildCut(withCount().map((s) => s.id)) });
+    const plan = planTimeline(statsWith(withoutCount()), {
+      cut: buildCut(withCount().map((s) => s.id)),
+    });
     const paired = plan.slides.find((s) => s.id === 'topCoPlayer')!;
     expect(paired.leadIn).toBeNull();
     expect(paired.durationInFrames).toBe(slideFrames('topCoPlayer'));
