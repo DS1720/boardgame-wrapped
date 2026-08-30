@@ -4,7 +4,6 @@ public/boxart/*
 !public/boxart/.gitkeep
 public/audio/*
 !public/audio/.gitkeep
-!public/audio/manifest.json
 .DS_Store
 # Written by the app when you choose an output folder.
 settings.json
