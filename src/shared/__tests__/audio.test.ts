@@ -204,6 +204,7 @@ const CORE: Stat[] = [
     core: true,
     game: { gameId: 1, name: 'Faraway', boxArt: null, bggId: 1 },
     plays: 21,
+    standing: null,
   },
   { id: 'topFive', core: true, games: [] },
   { id: 'winRate', core: true, wins: 61, losses: 161, ratio: 0.27, coopOnly: false },

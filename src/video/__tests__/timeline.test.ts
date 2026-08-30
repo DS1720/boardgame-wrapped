@@ -57,7 +57,7 @@ const ALL_CORE: Stat[] = [
   { id: 'longestWinStreak', core: true, length: 7 },
   { id: 'bestGame', core: true, game: game(23, 'Bluff'), ratio: 0.7, plays: 10 },
   { id: 'worstGame', core: true, game: game(63, 'Castle Combo'), ratio: 0.1, plays: 10 },
-  { id: 'topGame', core: true, game: game(77, 'Faraway'), plays: 21 },
+  { id: 'topGame', core: true, game: game(77, 'Faraway'), plays: 21, standing: null },
   {
     id: 'topFive',
     core: true,

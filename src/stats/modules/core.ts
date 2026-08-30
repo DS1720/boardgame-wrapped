@@ -27,12 +27,62 @@ export const totalPlays = (ctx: StatContext): Stat | null => {
   };
 };
 
+/**
+ * Fewest people a game needs before a percentage is said about it.
+ *
+ * Below this the granularity is the problem rather than the sample: one player
+ * in four is "the top 25%", which sounds like a worse result than the first
+ * place it actually describes. Six is the median pool on the real export, so
+ * five keeps most games in while dropping the ones where every step is a
+ * quarter of the field.
+ */
+export const MIN_STANDING_POOL = 5;
+
+/**
+ * Where a player ranks among everyone who played one game, by play count.
+ *
+ * The pool is **everyone in the export who played it in range** — this group's
+ * table, not the world's. BG Stats knows nothing beyond the plays it was given,
+ * so the claim built on this has to be about the people they actually play
+ * with, and the copy in `quips.ts` says exactly that.
+ *
+ * Ties share a rank: two people on twenty plays are both second if one person
+ * has more, because the alternative is deciding a percentile alphabetically.
+ * That also keeps it deterministic without sorting.
+ */
+export const standingIn = (
+  ctx: StatContext,
+  gameId: number,
+): { rank: number; players: number } | null => {
+  const counts = new Map<number, number>();
+  for (const play of ctx.allPlays) {
+    if (play.gameId !== gameId) continue;
+    // A player counted once per play, however the participant list is shaped.
+    for (const id of new Set(play.participants.map((x) => x.playerId))) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+
+  const mine = counts.get(ctx.playerId);
+  if (mine === undefined || counts.size < MIN_STANDING_POOL) return null;
+
+  let better = 0;
+  for (const count of counts.values()) if (count > mine) better += 1;
+  return { rank: better + 1, players: counts.size };
+};
+
 export const topGame = (ctx: StatContext): Stat | null => {
   const ranked = tally(ctx.playerPlays, gameKey);
   if (ranked.length === 0) return null;
   const top = ranked[0];
   const play = ctx.playerPlays.find((p) => p.gameId === top.key)!;
-  return { id: 'topGame', core: true, game: gameRefOf(play), plays: top.count };
+  return {
+    id: 'topGame',
+    core: true,
+    game: gameRefOf(play),
+    plays: top.count,
+    standing: standingIn(ctx, play.gameId),
+  };
 };
 
 /**

@@ -159,23 +159,12 @@ describe('the time list quip', () => {
     ],
   });
 
-  // The same remark the play-count five gets, in the unit this slide counts.
-  it('says what share of the year those five took', () => {
-    expect(quipFor('topFiveByTime', withTime(5, 1000, 100))).toBe(
-      'Five games, and 50% of your time at the table.',
-    );
-  });
-
-  // A "top five" of three is not five games, and the line would say otherwise.
-  it('is silent on a list shorter than five', () => {
+  // It used to carry the play-count five's remark in this slide's unit —
+  // "Five games, and 50% of your time at the table" — which was a third way of
+  // saying what the five durations beside the games already say.
+  it('has no line, whatever the numbers are', () => {
+    expect(quipFor('topFiveByTime', withTime(5, 1000, 100))).toBeNull();
     expect(quipFor('topFiveByTime', withTime(3, 1000, 100))).toBeNull();
-  });
-
-  it('is silent without the total it is a share of', () => {
-    const noTotal = {
-      ...withTime(5, 1000, 100),
-      stats: withTime(5, 1000, 100).stats.filter((s) => s.id !== 'timePlayed'),
-    };
-    expect(quipFor('topFiveByTime', noTotal)).toBeNull();
+    expect(quipFor('topFiveByTime', withTime(5, 1, 100))).toBeNull();
   });
 });

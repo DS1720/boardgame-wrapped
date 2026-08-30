@@ -22,7 +22,14 @@ const describe = (stat: WrappedStats['stats'][number]): string => {
         .map((g) => `${g.name} ${formatDuration(g.minutes)}`)
         .join(' · ');
     case 'topGame':
-      return `${stat.game.name} — ${stat.plays}×`;
+      return (
+        `${stat.game.name} — ${stat.plays}×` +
+        // The standing is what the quip under this slide is built on, so it is
+        // worth being able to see it without rendering the video.
+        (stat.standing
+          ? ` · rank ${stat.standing.rank} of ${stat.standing.players} who played it`
+          : '')
+      );
     case 'topFive':
       return stat.games.map((g) => `${g.name} (${g.plays})`).join(' · ');
     case 'winRate':

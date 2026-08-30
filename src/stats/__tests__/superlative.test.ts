@@ -76,7 +76,7 @@ describe('claims that have to be earned', () => {
   // 93 real players, because three of six plays clears "half the year".
   it('does not call six plays a devotion to one game', () => {
     const result = superlativeFor(
-      statsWith([totalPlays(6), { id: 'topGame', core: true, game: game(1, 'Faraway'), plays: 4 }]),
+      statsWith([totalPlays(6), { id: 'topGame', core: true, game: game(1, 'Faraway'), plays: 4, standing: null }]),
     );
     // The claim is refused. A plain fact about the same game is not the same
     // sentence: "Faraway more than anything else" is true of four of six plays,
@@ -88,7 +88,7 @@ describe('claims that have to be earned', () => {
 
   it('does call it that when the sample is real', () => {
     const result = superlativeFor(
-      statsWith([totalPlays(60), { id: 'topGame', core: true, game: game(1, 'Faraway'), plays: 36 }]),
+      statsWith([totalPlays(60), { id: 'topGame', core: true, game: game(1, 'Faraway'), plays: 36, standing: null }]),
     );
     expect(result?.id).toBe('loyalist');
     expect(result?.line).toContain('Faraway');
@@ -166,7 +166,7 @@ describe('degenerate input', () => {
 
   it('does not divide by zero for a player with no plays', () => {
     const result = superlativeFor(
-      statsWith([totalPlays(0, 0), { id: 'topGame', core: true, game: game(1, 'X'), plays: 0 }]),
+      statsWith([totalPlays(0, 0), { id: 'topGame', core: true, game: game(1, 'X'), plays: 0, standing: null }]),
     );
     // No earned claim, no NaN, and whatever comes back is a real sentence.
     expect(result?.id).not.toBe('loyalist');
@@ -176,7 +176,7 @@ describe('degenerate input', () => {
 });
 
 describe('every player gets a sentence', () => {
-  const ORDINARY = [totalPlays(17), { id: 'topGame', core: true, game: game(1, 'Azul'), plays: 4 }] as Stat[];
+  const ORDINARY = [totalPlays(17), { id: 'topGame', core: true, game: game(1, 'Azul'), plays: 4, standing: null }] as Stat[];
 
   it('gives an unremarkable year a fact instead of a blank', () => {
     const result = superlativeFor(statsWith(ORDINARY));
@@ -202,7 +202,7 @@ describe('every player gets a sentence', () => {
     const result = superlativeFor(
       statsWith([
         totalPlays(60),
-        { id: 'topGame', core: true, game: game(1, 'Faraway'), plays: 36 },
+        { id: 'topGame', core: true, game: game(1, 'Faraway'), plays: 36, standing: null },
         { id: 'bestGame', core: false, game: game(2, 'Codenames'), ratio: 0.9, plays: 10 },
       ]),
     );
@@ -277,7 +277,7 @@ describe('not saying what the card already says', () => {
     // games or nights, so excluding those quantities must not remove them.
     const loyal: Stat[] = [
       { id: 'totalPlays', core: true, plays: 60, nights: 30, distinctGames: 10 },
-      { id: 'topGame', core: true, game: game(1, 'Faraway'), plays: 40 },
+      { id: 'topGame', core: true, game: game(1, 'Faraway'), plays: 40, standing: null },
     ];
     expect(superlativeFor(statsWith(loyal), { avoid: ['plays', 'games', 'nights', 'hours'] })?.id).toBe(
       'loyalist',

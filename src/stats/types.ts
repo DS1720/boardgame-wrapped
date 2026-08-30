@@ -45,7 +45,19 @@ export type Stat =
       /** The game the most estimated time went into — not always the most played. */
       topGame: (GameRef & { minutes: number; plays: number }) | null;
     })
-  | (StatBase & { id: 'topGame'; game: GameRef; plays: number })
+  | (StatBase & {
+      id: 'topGame';
+      game: GameRef;
+      plays: number;
+      /**
+       * Where the player ranks among everyone who played this game in range.
+       *
+       * Null when the pool is too small for a percentage to mean anything —
+       * one in four is "top 25%", which reads as worse than the first place it
+       * actually is. See `MIN_STANDING_POOL`.
+       */
+      standing: { rank: number; players: number } | null;
+    })
   | (StatBase & {
       id: 'gameRecord';
       game: GameRef;

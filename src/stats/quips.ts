@@ -28,6 +28,88 @@ const rangeDays = (stats: WrappedStats): number => {
 /** The extended Lord of the Rings trilogy, in minutes. A unit everyone knows. */
 const LOTR_MINUTES = 726;
 
+/** Days in the month a day key falls in. */
+const daysInMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
+
+/** `[year, month, day]` from a `"YYYY-MM-DD"` day key. */
+const partsOf = (day: string) => day.split('-').map(Number);
+
+/**
+ * The period the wrapped covers, worded to finish a sentence.
+ *
+ * "...everyone who played it **this year**" is only right for a year, and this
+ * app happily takes a month, a quarter, or an arbitrary pair of dates. Saying
+ * "this year" over a six-week range would be the one kind of wrong that nobody
+ * checks.
+ *
+ * **"This year" means a calendar year, and nothing else.** September to
+ * September is twelve months, but it is not a year anybody refers to as "this
+ * year" — it is the last twelve months, and that is what it says. Same rule one
+ * unit down: "this month" is the first to the last of one month, and a span
+ * that merely happens to be about a month long is counted in weeks.
+ *
+ * Everything that is not one of those two is phrased as "in the last N ..." and
+ * counted in the largest unit that does not round to one, so the sentence never
+ * lands on "in the last 1 months". Past twelve months it switches to years,
+ * rounded to the nearest — eighteen months is two years, thirteen is one.
+ *
+ * Derived from the dates rather than from `rangeLabel`, because the label is
+ * renameable — someone can call a range "Spring in Vienna" — and a phrase built
+ * from a name the user typed is not a phrase about time.
+ */
+export const rangePhrase = (stats: WrappedStats): string => {
+  const [fromYear, fromMonth, fromDay] = partsOf(stats.rangeFrom);
+  const [toYear, toMonth, toDay] = partsOf(stats.rangeTo);
+
+  const wholeMonth =
+    fromYear === toYear &&
+    fromMonth === toMonth &&
+    fromDay === 1 &&
+    toDay === daysInMonth(toYear, toMonth);
+
+  if (fromYear === toYear && fromMonth === 1 && fromDay === 1 && toMonth === 12 && toDay === 31) {
+    return 'this year';
+  }
+  if (wholeMonth) return 'this month';
+
+  const days = rangeDays(stats);
+  if (days <= 1) return 'today';
+  if (days <= 13) return `in the last ${days} days`;
+  // Under two months, weeks are the unit that still divides into more than one.
+  if (days < 60) return `in the last ${Math.round(days / 7)} weeks`;
+
+  // The average Gregorian month, so twelve of them is a year rather than 360
+  // days. September to September has to come out as 12, not 11.
+  const months = Math.round(days / 30.44);
+  if (months <= 12) return `in the last ${months} months`;
+
+  // Past twelve months nobody counts in months any more — "in the last 19
+  // months" is arithmetic, not a period. Rounded to the nearest year, so 18
+  // months is two and 13 months is one.
+  const years = Math.round(days / 365.25);
+  // "in the last 1 years" is the obvious failure and "in the last 1 year"
+  // is barely better; a single year is just "the last year".
+  return years <= 1 ? 'in the last year' : `in the last ${years} years`;
+};
+
+/**
+ * The player's standing in their top game, as a "top N%".
+ *
+ * Rounded **up**, because rounding the other way overstates the result: a rank
+ * of 2 in 12 is 16.7%, and calling that "top 16%" claims a place the player
+ * does not hold. Null above half the field — "top 67%" is not a compliment,
+ * and a line that lands as one is worse than no line at all.
+ */
+export const MAX_STANDING_SHARE = 50;
+
+export const topGameShare = (
+  standing: { rank: number; players: number } | null,
+): number | null => {
+  if (!standing || standing.players <= 0) return null;
+  const share = Math.ceil((standing.rank / standing.players) * 100);
+  return share > MAX_STANDING_SHARE ? null : share;
+};
+
 export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | null => {
   if (!stats) return null;
   const days = rangeDays(stats);
@@ -54,6 +136,12 @@ export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | 
     case 'topGame': {
       const top = find(stats, 'topGame');
       if (!top || top.plays < 3) return null;
+      const share = topGameShare(top.standing);
+      if (share !== null) {
+        return `You were in the top ${share}% of everyone who played it ${rangePhrase(stats)}.`;
+      }
+      // No usable pool: the group is too small for a percentage to say
+      // anything, so fall back to the rate rather than invent a ranking.
       const every = Math.round(days / top.plays);
       return `Once every ${every} days, on average. Nobody is surprised.`;
     }
@@ -67,16 +155,11 @@ export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | 
       )}% of your year.`;
     }
 
-    case 'topFiveByTime': {
-      const byTime = find(stats, 'topFiveByTime');
-      const time = find(stats, 'timePlayed');
-      if (!byTime || !time || byTime.games.length < 5) return null;
-
-      // The same shape of remark the play-count five gets, in the unit this
-      // slide is counting: five games, and how much of the year they took.
-      const share = byTime.games.reduce((sum, g) => sum + g.minutes, 0) / Math.max(1, time.minutes);
-      return `Five games, and ${Math.round(share * 100)}% of your time at the table.`;
-    }
+    // `topFiveByTime` has no line. It used to carry the play-count five's
+    // remark in this slide's unit — "Five games, and 26% of your time at the
+    // table" — which was a third way of saying what the five durations beside
+    // the games already say. The slide is centred rather than bottom-anchored,
+    // so it does not need the aside's band reserved to sit where it should.
 
     case 'winRate': {
       const rate = find(stats, 'winRate');

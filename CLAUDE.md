@@ -160,6 +160,9 @@ Verified against the real export — these are not guesses:
   is the case that found this: three different players each held the record at
   27, because all three were on the winning team of the same play.
 - Scores exist on roughly a third of entries.
+- **The export is one group's plays, not the game's playerbase.** Anything
+  phrased as a ranking "among players of X" can only ever mean among the people
+  in this file who played it — see the top game's percentile below.
 - Play tags and play ratings are unused.
 - Some plays have **no `locationRefId` at all** (absent, not zero) — normalized
   to `null` in ingest.
@@ -590,13 +593,21 @@ two unrelated facts rather than the same year counted two ways.
 - **Two games at minimum**, for the same reason the play-count top five needs
   two: a top five of one game is `timePlayed`'s own `topGame` again, at greater
   length.
-- **It is the one countdown that centres.** Both lists are the same fixed
-  height whatever the numbers say, so there is nothing for the bottom anchor to
-  earn — and without a line under it this slide sat 400px lower than the one it
-  is meant to rhyme with. It has a line now (`Five games, and 26% of your time
-  at the table.` — the play-count five's remark, in the unit this slide counts),
-  which reserves the aside's band, and `justify="center"` closes the rest of the
-  gap. The play-count list is still bottom-anchored like every other slide.
+- **It is the one countdown that centres, and the one with no line.** Both
+  lists are the same fixed height whatever the numbers say, so there is nothing
+  for the bottom anchor to earn. It briefly carried the play-count five's
+  remark in this slide's unit — "Five games, and 26% of your time at the
+  table" — which was a third way of saying what the five durations beside the
+  games already say.
+
+  Losing it moves the list **down** about 205px, because `SafeArea` stops
+  reserving `QUIP_BAND` at the foot of the frame and centres in the taller box.
+  That is the right direction: bottom-anchored with the band reserved, the
+  play-count list's top sits at `1389 - h`, and this one centred in the full
+  frame sits at `960 - h/2`. Those meet at h = 858 and stay within about 90px
+  of each other across every height these five rows can take — closer than the
+  ~180px the reserved version was out by. The play-count list is still
+  bottom-anchored like every other slide.
 - **It is a linked pair with `timePlayed`.** "114 h at the table", then *"And
   this is where it went…"*. The bridging line only works with that number still
   on screen behind it, so `LINKED_PAIRS` keeps the two adjacent and
@@ -1095,6 +1106,60 @@ under 4, `busiestDay` under 4, a top five with fewer than five games), a co-op-o
 year gets no win-rate joke, and the bookends never get one at all — they have no
 number to remark on. Thresholds are asserted in
 [quips.test.ts](src/stats/__tests__/quips.test.ts).
+
+#### The top game says a percentile, and the pool is the export
+
+The line under the most-played slide is Wrapped's own move: **"You were in the
+top 17% of everyone who played it this year."** It replaced "Once every 11 days,
+on average", which was a restatement of the play count in another unit — true,
+but it told nobody anything the number above it had not already said.
+
+`standingIn` in [core.ts](src/stats/modules/core.ts) computes it and the result
+travels on the stat as `standing: { rank, players }`; `topGameShare` in
+`quips.ts` turns it into the percentage. The stats layer ranks, the quip layer
+words it — `quipFor` only ever gets `WrappedStats` and has no way to reach the
+dataset, which is what forces the split and is the right side of the line
+anyway.
+
+Four things keep the claim honest:
+
+- **The pool is everyone in *this export* who played the game in range** — the
+  group's table, not the world's. Spotify can say "top 0.5% of listeners"
+  because it has every listener; BG Stats has the plays it was handed and
+  nothing else. So the line says "everyone who played it", which is true of the
+  data it is built from, and it does not say "players of this game", which
+  would not be.
+- **It rounds up.** A rank of 2 in 12 is 16.7%, and "top 16%" claims a place
+  nobody reached. Rounding down is the direction that lies.
+- **Ties share a rank.** Two people on twenty plays are both second if one
+  person has more — the alternative is a percentile decided alphabetically.
+- **Below `MIN_STANDING_POOL` (5) there is no percentage.** The problem at four
+  is granularity, not sample size: every step is a quarter of the field, so
+  first place reads as "top 25%", which sounds like a worse result than it is.
+  Those slides fall back to the old rate line rather than going silent.
+- **It names the period, and the period is measured.** `rangePhrase` ends the
+  sentence, from the dates rather than from `rangeLabel` — the label is
+  renameable, and a phrase built from a name somebody typed is not a phrase
+  about time.
+
+  **"This year" means a calendar year and nothing else.** September to
+  September is twelve months long, but nobody calls it "this year": it is the
+  last twelve months, and that is what it says. The same rule one unit down —
+  "this month" is the first to the last of one month, and a span that merely
+  happens to be about a month long is counted in weeks. Everything else is
+  "in the last N ...", in the largest unit that does not round to one.
+
+  **Twelve months is the last month counted in months.** Past it the phrase is
+  years, rounded to the nearest — eighteen months is two years, thirteen is
+  one — because "in the last 19 months" is arithmetic rather than a period.
+  One year is said without the numeral ("in the last year"), so the sentence
+  can never land on "in the last 1 months" or "in the last 1 year". A test
+  sweeps 1200 consecutive spans checking exactly that.
+
+Above `MAX_STANDING_SHARE` (50%) it says nothing either — "top 67%" is not a
+compliment. Measured on the real export: of 93 players, **36 get a percentage,
+5 get the rate and 52 get no line at all**, the last because their top game has
+under three plays and always did.
 
 ### The intro is two bars
 
