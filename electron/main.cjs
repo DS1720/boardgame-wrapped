@@ -55,14 +55,45 @@ const seedFonts = (target) => {
   }
 };
 
+/* -------------------------------------------------------------------------- */
+/* The port, and why it has to be the same one every time                      */
+/* -------------------------------------------------------------------------- */
+
 /**
- * A port nobody is using.
+ * The port the window is served from, remembered between launches.
  *
- * Not hardcoded 4000: somebody running `npm run server` in a checkout would
- * otherwise collide with their own installed copy, and the failure would look
- * like the app silently showing the wrong thing.
+ * This started as `listen(0)` — any free port — on the reasoning that a
+ * hardcoded 4000 would collide with somebody running `npm run server` in a
+ * checkout. That reasoning is still right, and the conclusion was still wrong,
+ * because **the page's origin includes its port**.
+ *
+ * A new port every launch is a new origin every launch, and `localStorage` is
+ * partitioned by origin. So the slide arrangement, the theme and the whole
+ * session were not "lost on update" — they were lost on *every start*, and the
+ * previous ones were still sitting in the profile under origins nothing would
+ * ever load again. Measured on this machine before the fix: eight distinct
+ * `http://127.0.0.1:<port>` origins in one Local Storage database.
+ *
+ * So: prefer the port used last time, fall back to a fixed default, and only
+ * then take whatever is going. The last two are the rare paths, and both are
+ * recorded so the *next* launch is stable again.
  */
-const freePort = () =>
+const PORT_FILE = () => path.join(app.getPath('userData'), 'port.json');
+
+/** Far from 4000, so a checkout's `npm run server` cannot take it. */
+const DEFAULT_PORT = 47615;
+
+/** Whether we can actually bind this port right now. */
+const portFree = (port) =>
+  new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.unref();
+    probe.on('error', () => resolve(false));
+    probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(true)));
+  });
+
+/** Any port the OS will give us. The last resort. */
+const anyPort = () =>
   new Promise((resolve, reject) => {
     const probe = net.createServer();
     probe.unref();
@@ -72,6 +103,51 @@ const freePort = () =>
       probe.close(() => resolve(port));
     });
   });
+
+const rememberedPort = () => {
+  try {
+    const { port } = JSON.parse(fs.readFileSync(PORT_FILE(), 'utf8'));
+    // Anything outside the ephemeral range is a value we could have written.
+    return Number.isInteger(port) && port > 1024 && port < 65536 ? port : null;
+  } catch {
+    return null;
+  }
+};
+
+const rememberPort = (port) => {
+  try {
+    fs.writeFileSync(PORT_FILE(), JSON.stringify({ port }, null, 2));
+  } catch (err) {
+    // Not fatal — it costs this session's stored state, not the app.
+    console.error('[port] could not be remembered:', err?.message ?? err);
+  }
+};
+
+/**
+ * The port to serve on, stable across launches wherever that is possible.
+ *
+ * In a checkout nothing is remembered and nothing is written: `npm run
+ * app:start` is a development run, and it has no stored state worth keeping
+ * stable at the cost of possibly taking the installed copy's port.
+ */
+const choosePort = async () => {
+  if (!app.isPackaged) return anyPort();
+
+  for (const candidate of [rememberedPort(), DEFAULT_PORT]) {
+    if (candidate && (await portFree(candidate))) {
+      rememberPort(candidate);
+      return candidate;
+    }
+  }
+
+  // Both taken. Something else is on the default and the remembered one is
+  // gone; take what we can get and remember it, so this is a one-off rather
+  // than a new origin every launch from here on.
+  const fallback = await anyPort();
+  console.warn(`[port] ${DEFAULT_PORT} unavailable; using ${fallback}`);
+  rememberPort(fallback);
+  return fallback;
+};
 
 /** Resolve once the service answers /health, or give up. */
 const waitForServer = async (port, timeoutMs = 60_000) => {
@@ -162,38 +238,151 @@ const createWindow = (port) => {
   });
 };
 
+/* -------------------------------------------------------------------------- */
+/* Updates                                                                     */
+/* -------------------------------------------------------------------------- */
+
 /**
- * Check GitHub for a newer release, and install it on quit if there is one.
+ * What the UI is told about the update, and the only thing it is told.
  *
- * Deliberately quiet: it never interrupts, never blocks startup, and a failed
- * check is not worth a dialog — this is a local tool, and being unable to reach
- * GitHub is not a problem the user needs to hear about mid-session.
+ * Held here rather than only pushed, because the events that matter fire
+ * during startup — `checkForUpdates` runs the moment the window is created,
+ * and a `checking` event sent before the page has mounted its listener is an
+ * event nobody hears. The renderer asks for this on mount and subscribes for
+ * the rest, so it can never miss the state it arrived in.
+ *
+ * `phase` is the whole vocabulary:
+ *   unsupported  running from a checkout, or electron-updater is not there
+ *   idle         checked, nothing newer
+ *   checking     asking GitHub
+ *   downloading  found one, pulling it down (percent is meaningful here)
+ *   ready        downloaded, waiting for a restart
+ *   error        the check or the download failed
+ */
+let updateStatus = { phase: 'unsupported', version: null, percent: 0, error: null };
+
+/** Whether an installer is downloaded and waiting for the quit. */
+let updateReady = false;
+/** Set once the installer has been handed control, so it is never run twice. */
+let installing = false;
+/** Kept so the quit path can install without a second require(). */
+let updater = null;
+
+/**
+ * Set on the first pass through `before-quit`, so the second pass - the one
+ * `quitAndInstall` triggers - is let straight through rather than deferred
+ * again. Declared here rather than beside the quit handler because the install
+ * handler sets it too, and a binding used above its own declaration is a trap
+ * waiting for somebody to reorder the file.
+ */
+let quitting = false;
+
+/**
+ * Publish the status to the page, and remember it.
+ *
+ * The window may not exist yet, or may be mid-reload. Both are ordinary, and
+ * neither is worth guarding at every call site — the stored copy is what makes
+ * a dropped send harmless.
+ */
+const setUpdateStatus = (patch) => {
+  updateStatus = { ...updateStatus, ...patch };
+  if (window && !window.isDestroyed()) {
+    window.webContents.send('bgw:update', updateStatus);
+  }
+};
+
+/**
+ * Check GitHub for a newer release.
+ *
+ * Still never interrupts and never blocks startup — but it is no longer
+ * silent. It used to say the one thing it had to say in the *title bar*, which
+ * is the one part of the window nobody reads, and said nothing at all while a
+ * 169 MB installer came down. Everything now goes to the page, which has room
+ * to say what is happening and a button to act on it.
  *
  * Only in a packaged build. Running from a checkout, git is the update
  * mechanism.
  */
-const checkForUpdates = () => {
-  if (!app.isPackaged) return;
+const checkForUpdates = ({ manual = false } = {}) => {
+  if (!app.isPackaged) {
+    setUpdateStatus({ phase: 'unsupported', error: null });
+    return;
+  }
   try {
-    const { autoUpdater } = require('electron-updater');
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = true;
-    autoUpdater.on('error', (err) => console.error('[update]', err?.message ?? err));
-    autoUpdater.on('update-available', (i) => console.log('[update] found', i?.version));
-    autoUpdater.on('update-downloaded', (i) => {
-      console.log('[update] ready, installs on quit:', i?.version);
-      if (window) {
-        // Said in the title bar rather than a modal: nothing is interrupted,
-        // and the app is already usable.
-        window.setTitle('Board Game Wrapped — update ready, restart to apply');
-      }
+    if (!updater) {
+      const { autoUpdater } = require('electron-updater');
+      updater = autoUpdater;
+      updater.autoDownload = true;
+      // We install on quit ourselves — see `finishQuit`. electron-updater's own
+      // hook for this listens for the `quit` event, and `app.exit()` on the
+      // shutdown path does not emit one, so leaving this on would promise an
+      // install that never happened.
+      updater.autoInstallOnAppQuit = false;
+
+      updater.on('checking-for-update', () => setUpdateStatus({ phase: 'checking', error: null }));
+      updater.on('update-not-available', () => setUpdateStatus({ phase: 'idle', error: null }));
+      updater.on('update-available', (i) => {
+        console.log('[update] found', i?.version);
+        setUpdateStatus({ phase: 'downloading', version: i?.version ?? null, percent: 0 });
+      });
+      updater.on('download-progress', (p) => {
+        setUpdateStatus({ phase: 'downloading', percent: Math.round(p?.percent ?? 0) });
+      });
+      updater.on('update-downloaded', (i) => {
+        console.log('[update] ready, installs on restart:', i?.version);
+        updateReady = true;
+        setUpdateStatus({ phase: 'ready', version: i?.version ?? null, percent: 100 });
+      });
+      updater.on('error', (err) => {
+        const message = err?.message ?? String(err);
+        console.error('[update]', message);
+        // A failed check is background noise on a local tool; a failure the
+        // user asked for by pressing the button is an answer they are waiting
+        // for. Same event, two different things to do with it.
+        setUpdateStatus({ phase: 'error', error: message });
+      });
+    }
+    setUpdateStatus({ phase: 'checking', error: null });
+    updater.checkForUpdates().catch((err) => {
+      setUpdateStatus({ phase: 'error', error: err?.message ?? String(err) });
     });
-    autoUpdater.checkForUpdates().catch(() => undefined);
-  } catch {
+  } catch (err) {
     // electron-updater not installed, or no publish config. Not fatal: the app
     // works, it just will not update itself.
+    setUpdateStatus({ phase: 'unsupported', error: manual ? String(err) : null });
   }
 };
+
+/** The page asks for this on mount, so it never misses an early event. */
+ipcMain.handle('bgw:update-state', () => updateStatus);
+
+/** The "Check for updates" button. */
+ipcMain.handle('bgw:check-updates', () => {
+  checkForUpdates({ manual: true });
+  return updateStatus;
+});
+
+/**
+ * Restart into the new version.
+ *
+ * The service is stopped first, deliberately and before the installer is
+ * spawned: NSIS is about to overwrite the very directory the render service is
+ * running out of, and a headless Chrome still holding files in it is how an
+ * update half-applies.
+ */
+ipcMain.handle('bgw:install-update', async () => {
+  if (!updateReady || installing) return false;
+  installing = true;
+  await stopServer();
+  // The service is already down and the installer is about to take over, so
+  // the `before-quit` cleanup has nothing left to do. Saying so here is what
+  // keeps it from deferring a quit it cannot improve.
+  quitting = true;
+  // Silent, because the page has already done the explaining, and
+  // isForceRunAfter so the user gets the app back — they pressed *Restart*.
+  updater.quitAndInstall(true, true);
+  return true;
+});
 
 // The page cannot be given a filesystem path by a browser, so the shell asks
 // for one on its behalf. The only privileged thing the UI can do.
@@ -206,8 +395,31 @@ ipcMain.handle('bgw:choose-folder', async (_event, current) => {
   return result.canceled ? null : (result.filePaths[0] ?? null);
 });
 
-app.whenReady().then(async () => {
-  const port = await freePort();
+/*
+  One copy at a time.
+
+  Two instances cannot both hold the stable port, and the loser would fall back
+  to a random one — a window with an empty slide arrangement and a default
+  theme, which looks exactly like the state loss this is here to prevent. It
+  also stops two render services and two headless Chromes fighting over one
+  output folder. A second launch raises the window that is already open, which
+  is what double-clicking the icon is asking for anyway.
+*/
+if (app.isPackaged && !app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!window || window.isDestroyed()) return;
+    if (window.isMinimized()) window.restore();
+    window.focus();
+  });
+
+  start();
+}
+
+async function start() {
+  await app.whenReady();
+  const port = await choosePort();
   if (app.isPackaged) seedFonts(userPublicDir());
   startServer(port);
 
@@ -226,7 +438,7 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow(port);
   });
-});
+}
 
 /**
  * Stop the service, and everything it started.
@@ -291,21 +503,44 @@ const stopServer = async () => {
 };
 
 /*
-  Quit is held open until the service is down.
+  Quit is held open until the service is down, and until a downloaded update
+  has been handed to its installer.
 
   `before-quit` is the only hook that can still defer the exit, so the cleanup
-  runs there and `app.exit` finishes the job — it skips the quit events, which
-  is what stops this from re-entering itself.
+  runs there. The second pass through — the one `quitAndInstall` triggers — is
+  let straight through by the `quitting` guard, which is what stops this from
+  re-entering itself.
 */
-let quitting = false;
+
+/**
+ * The last thing that happens.
+ *
+ * If an installer is waiting, it gets control and quits us itself; the timer
+ * is there because an update that fails to launch must not leave a window-less
+ * app running with no way to close it. Otherwise `app.exit` finishes the job.
+ */
+const finishQuit = () => {
+  if (updateReady && !installing && updater) {
+    installing = true;
+    try {
+      console.log('[update] installing on quit');
+      updater.quitAndInstall(true, false);
+      setTimeout(() => app.exit(0), 10_000);
+      return;
+    } catch (err) {
+      console.error('[update]', err?.message ?? err);
+    }
+  }
+  app.exit(0);
+};
 
 app.on('before-quit', (event) => {
   if (quitting) return;
   quitting = true;
-  if (!child) return;
+  if (!child && !updateReady) return;
 
   event.preventDefault();
-  stopServer().finally(() => app.exit(0));
+  stopServer().finally(finishQuit);
 });
 
 app.on('window-all-closed', () => app.quit());

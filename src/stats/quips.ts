@@ -196,10 +196,30 @@ export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | 
       return 'You could find the coasters blindfolded.';
     }
 
+    /*
+      The one slide that always gets a line.
+
+      Everywhere else a missing quip is the right answer — a slide with no
+      remark beats one with a limp remark. This slide is the exception because
+      the *layout* depends on it: a slide with an aside gives up `QUIP_BAND` of
+      height for it, and without one the content drops to the bottom of the
+      frame. So "People played with" sat in a visibly different place depending
+      on how many people somebody had played with, which is a number they have
+      no control over.
+
+      The count is at least 1 whenever the stat exists — `coPlayerCount`
+      returns null for a solo-only year — so the tiers below cover every case
+      the slide can be shown for.
+    */
     case 'coPlayerCount': {
       const count = find(stats, 'coPlayerCount');
-      if (!count || count.count < 10) return null;
-      return `That is a lot of people to explain rules to.`;
+      if (!count) return null;
+      if (count.count >= 10) return `That is a lot of people to explain rules to.`;
+      // Each line is true of its own band and of no other: one person is a
+      // pair, four others still fit one table, nine do not.
+      if (count.count >= 5) return 'More than one table between you.';
+      if (count.count >= 2) return 'Everybody fits around one table.';
+      return 'Just the two of you, all year.';
     }
 
     case 'busiestDay': {

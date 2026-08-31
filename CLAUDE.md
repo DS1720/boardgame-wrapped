@@ -23,7 +23,7 @@ or every command below except the `npx tsx` one will fail.
 npm install
 npm run dev          # UI on http://localhost:5173
 npm run server       # render service on http://localhost:4000 (stub until step 10)
-npm test             # vitest, 342 tests
+npm test             # vitest, 604 tests
 npm run typecheck    # tsc --noEmit
 npm run video:studio # Remotion Studio
 npm run video:render # renders out/test.mp4
@@ -615,7 +615,7 @@ two unrelated facts rather than the same year counted two ways.
   for when the time slide is not in the cut, so the line can never point back at
   a number nobody was shown.
 
-The default cut is now **53 bars, about 106 seconds** at 120 BPM. It was 34
+The default cut is now **54 bars, about 108 seconds** at 120 BPM. It was 34
 bars and ten stat slides; every module except `groupShare` is now on by
 default, so the video is the whole year rather than a sample of it.
 
@@ -1101,7 +1101,15 @@ remark about *this* year rather than something that would fit anyone's. A
 generic quip under a specific number makes the number feel generic too.
 
 It returns `null` freely, and that is the important half: a slide with no line
-is better than a slide with a limp one. Small numbers get nothing (`gamesLearned`
+is better than a slide with a limp one.
+
+**`coPlayerCount` is the one exception, and for a layout reason rather than a
+copy one.** A slide with an aside gives up `QUIP_BAND` of height for it; with
+no line the content drops to the foot of the frame, so "People played with" sat
+in a visibly different place depending on how many people somebody had played
+with — a number they have no control over. It now has four tiers covering every
+count the slide can be shown for (the stat is null for a solo-only year, so the
+count is always at least 1), and the line it always had above ten is unchanged. Small numbers get nothing (`gamesLearned`
 under 4, `busiestDay` under 4, a top five with fewer than five games), a co-op-only
 year gets no win-rate joke, and the bookends never get one at all — they have no
 number to remark on. Thresholds are asserted in
@@ -1392,12 +1400,14 @@ knowing:
   player with no co-player count gets no bridging line and no extra bar, rather
   than an introduction to a slide that never comes.
 
-**The most-played slide is one bar.** Eight seconds is a long time to hold one
+**The most-played slide is two bars.** Eight seconds is a long time to hold one
 cover and one number, and it read as finished well before it cut; it went to
-three, and then to one. It already opens with a lead-in line, which buys it a
-bar of anticipation before the cover lands, and the top five is right behind it
-counting the same games again. The outro keeps its four: that one is the
-screenshot, and it has to sit still long enough to take one.
+three, then to one — and one was a bar too far. Two seconds is not long enough
+to look at the largest single image in the video, which is the whole reason
+this slide is drawn the way it is. The lead-in line still buys it a bar of
+anticipation before the cover lands, and it is still the shortest stat slide in
+the cut. The outro keeps its four: that one is the screenshot, and it has to
+sit still long enough to take one.
 
 **The top five is two bars and the record holder is two.** The countdown still
 lands five to one and still holds the finished list, and at three the record
@@ -1423,6 +1433,45 @@ range, slide arrangement, track id and box-art mode under `bgw:session`. The
 theme has its own older store; these two together are what makes a reload resume
 where you left off.
 
+### A player can be renamed for the video
+
+The name in the export is whatever somebody typed when they first added a
+player, and `stats.playerName` is the single value the intro slide, the square
+and the **output filename** all read. So the override is applied in
+`buildWrappedStats` — a fifth, optional `displayName` — rather than at the call
+sites. Two callers each remembering to override it is two places to forget, and
+the failure mode is a batch that renames the video but writes the file under
+the old name.
+
+[playerNames.ts](src/app/state/playerNames.ts) is the pure half.
+
+- **Sparse, and an empty field clears.** An entry exists only where somebody
+  typed one, exactly like `bars`.
+- **The field is stored verbatim; only the *use* is trimmed.** `setPlayerName`
+  runs on every keystroke, so trimming there deleted a trailing space the
+  instant it was typed and the box fought anybody writing two words. `rawFor`
+  is what the input is handed back — the one accessor that does not trim, so
+  the caret cannot jump — and `overrideFor` is the boundary everything else
+  goes through. A field holding only spaces is somebody mid-word: it persists,
+  and `overrideFor` answers null, so a half-typed name can never reach a video
+  or a filename. This is also why there are two caps: `MAX_PLAYER_NAME` (60)
+  bounds the trimmed name, `MAX_PLAYER_NAME_RAW` (200) bounds what is stored.
+- **The real name is the placeholder, never the value.** Seeding the field with
+  it would make every player look renamed, and there would be no way back to
+  the export's name short of deleting the exact string.
+- **Typing the name that was already there is not a rename.** `isRenamed`
+  compares, so the list never shows `Tina (Tina)`.
+- **Keys are strings.** `Record<number, string>` is a type that lies about what
+  survives a round trip through `localStorage`.
+- **The session version was *not* bumped.** A bump makes `parseSession` fall
+  back to defaults, which would discard every stored slide arrangement to
+  introduce a field that defaults to `{}`. A purely additive field needs none;
+  bump it only when an existing field changes meaning.
+
+Both lists show `Name (Override)`, but only the player picker has the field —
+the batch list is read-only, because two places to type one name is one too
+many.
+
 Three details worth keeping:
 
 - **A range can be renamed for the video** — `rangeName` — and it is stored
@@ -1439,7 +1488,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 517 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 604 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.
@@ -1515,9 +1564,27 @@ Six things here are load-bearing:
   the port released. The `taskkill` branch is the untested one — it only runs
   for a service too wedged to answer, which is exactly when its children need
   collecting anyway.
-- **The port is picked at runtime, never 4000.** Somebody running
-  `npm run server` in a checkout would otherwise collide with their installed
-  copy, and the symptom would be the app quietly showing the wrong data.
+- **The port is stable across launches, and that is a correctness rule, not a
+  convenience.** It was `listen(0)` — any free port — on the reasoning that a
+  hardcoded 4000 collides with `npm run server` in a checkout. That reasoning
+  is right and the conclusion was wrong: **a page's origin includes its port**,
+  and `localStorage` is partitioned by origin. A new port every launch is a new
+  origin every launch, so the slide arrangement, the theme and the whole
+  session were not lost *on update* — they were lost on **every start**, with
+  the previous ones stranded in the profile under origins nothing would load
+  again. Measured before the fix: eight distinct `http://127.0.0.1:<port>`
+  origins in one Local Storage database.
+
+  `choosePort` now prefers the port used last time, falls back to a fixed
+  `DEFAULT_PORT` (47615 — far enough from 4000 that a checkout cannot take it),
+  and only then takes what it is given. All three are written to `port.json` in
+  `userData`, so even the unlucky path is a one-off rather than a new origin
+  every time. **A checkout deliberately remembers nothing**: `npm run app:start`
+  is a development run and must not squat on the installed copy's port.
+
+  This is also why the app takes a **single-instance lock**. Two copies cannot
+  both hold one port, and the loser falls back to a random one — which presents
+  as exactly the state loss the stable port exists to prevent.
 - **`/api` is rewritten in the server itself.** Vite's proxy does this in dev;
   packaged there is no Vite, so `server/index.ts` strips the prefix at the top
   of the middleware stack. The alternative was registering every route twice.
@@ -1563,9 +1630,65 @@ uploads a **draft** release when a `v*` tag is pushed.
 - **`electron-updater` is a `dependency`, not a devDependency.** electron-builder
   ships only production dependencies, so as a devDependency it is absent from
   the packaged app and the update check silently never runs.
-- **Private repos do not work** without embedding a token in the app. The repo
-  currently answers 404 unauthenticated, so this is untested end to end: the
-  wiring is in place, but no update has actually been installed.
+- **The repo is public, and that is what makes this work at all.** A private
+  repo answers 404 unauthenticated, the updater swallows it, and the check
+  silently never succeeds. Reading a private repo would mean embedding a
+  GitHub token in a 169 MB installer handed to other people.
+- **`app-update.yml` is written at install time, not read from the network.**
+  Every installed copy points at whatever `publish` said when *its* installer
+  was built. So moving releases to a different repo or a static host needs one
+  manual reinstall on every machine; making this repo public was the only
+  option that reached the copies already out there.
+
+#### `createDesktopShortcut` must be `"always"`, not `true`
+
+An update deletes the desktop shortcut and does not put it back. The old
+uninstaller runs first and removes it; the new installer then skips creating it
+because at `true` the NSIS script only creates a desktop shortcut on a *first*
+install. The user is left with no icon, and Windows — still holding the .lnk in
+its link-tracking state — answers a click with *"Verknüpfung wurde geändert"*
+rather than anything that names the real problem.
+
+`"always"` means "recreate on reinstall too", which is exactly the update case.
+Confirmed on a real machine after the 0.2.1 → 0.2.2 update: the Start Menu
+shortcut was intact and correct, the install directory held the new build, and
+there was simply no Board Game Wrapped .lnk on the desktop at all.
+
+It is self-healing rather than retroactive: the shortcut is written by the
+*incoming* installer, so the first update that carries this flag puts the icon
+back on every machine that takes it.
+
+#### Updating says what it is doing
+
+It used to say it in the **title bar** — the one part of a window nobody reads
+— and said nothing whatsoever while a 169 MB installer came down. The first
+sign most people had was the app restarting as a different version.
+
+`electron/main.cjs` now keeps an `updateStatus` and pushes it to the page;
+[UpdateBanner.tsx](src/app/components/UpdateBanner.tsx) is a strip above the
+header. Four things are load-bearing:
+
+- **The status is stored, not only pushed.** The check runs at startup and its
+  first events fire before the page has mounted a listener. The renderer asks
+  for the current state on mount (`bgw:update-state`) and subscribes for the
+  rest, so it can never miss the state it arrived in.
+- **A quiet result stays quiet, unless somebody asked.** `describeUpdate` takes
+  a `manual` flag. An automatic check finding nothing must say nothing — a bar
+  reading "up to date" on every launch is a notification attached to a
+  non-event — while the same result behind a button has to answer or the button
+  looks broken. Same for a failed check: unreachable GitHub is not a problem a
+  local video tool raises on its own.
+- **`autoInstallOnAppQuit` is off, and the install is explicit.** It works by
+  listening for the `quit` event, and `stopServer`'s `app.exit(0)` does not
+  emit one — so leaving it on promised an install that never ran. `finishQuit`
+  hands over to `quitAndInstall` instead, and the "Restart and install" button
+  goes through the same path.
+- **The service is stopped before the installer is spawned.** NSIS is about to
+  overwrite the directory the render service is running out of, and a headless
+  Chrome still holding files in there is how an update half-applies.
+
+A strip, not a modal: an update is never urgent enough to interrupt a render,
+and a dialog over a half-configured video is worse news than no news.
 
 ### Two things that will bite
 

@@ -52,6 +52,15 @@ export const buildWrappedStats = (
   playerId: number,
   range: DateRange,
   enabled: SlideId[] = CORE_SLIDES,
+  /**
+   * A name to use instead of the export's, when somebody has typed one.
+   *
+   * Applied here rather than at each call site because `playerName` is the
+   * single value the intro, the square and the output filename all read — two
+   * callers remembering to override it separately is two places to forget.
+   * Blank and undefined both mean "use the export's name".
+   */
+  displayName?: string | null,
 ): WrappedStats => {
   const ctx = buildContext(dataset, playerId, range);
   const on = new Set(enabled);
@@ -66,7 +75,7 @@ export const buildWrappedStats = (
 
   return {
     playerId,
-    playerName: ctx.playerName,
+    playerName: displayName?.trim() || ctx.playerName,
     rangeLabel: range.label,
     rangeFrom: isoDay(range.from),
     rangeTo: isoDay(range.to),

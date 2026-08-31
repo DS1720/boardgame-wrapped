@@ -6,6 +6,7 @@ import {
   parseBarOverrides,
   type SlideBarOverrides,
 } from '@/video/timeline';
+import { parsePlayerNames, type PlayerNameOverrides } from './playerNames';
 
 /**
  * Everything the app should still know after a reload.
@@ -19,6 +20,15 @@ import {
  */
 
 const KEY = 'bgw:session';
+/*
+  Still 2, deliberately, even though `playerNames` is new.
+
+  A version bump makes `parseSession` fall back to defaults, which would throw
+  away every stored slide arrangement to introduce a field that defaults to
+  `{}` anyway. A purely additive field needs no bump: a session written by an
+  older version simply has no names in it, and `parsePlayerNames(undefined)`
+  answers an empty map. Bump this only when an existing field changes meaning.
+*/
 const VERSION = 2;
 
 export interface Session {
@@ -48,6 +58,13 @@ export interface Session {
    * reach nobody who had ever opened the app.
    */
   bars: SlideBarOverrides;
+  /**
+   * Names typed by hand, replacing the ones in the export.
+   *
+   * Sparse, like `bars`: an entry exists only where somebody typed one, so
+   * clearing the field restores the export's name rather than storing a blank.
+   */
+  playerNames: PlayerNameOverrides;
   trackId: string | null;
   boxArtMode: boolean;
 }
@@ -61,6 +78,7 @@ export const defaultSession = (): Session => ({
   rangeName: null,
   slides: [...DEFAULT_SLIDE_IDS],
   bars: {},
+  playerNames: {},
   trackId: null,
   boxArtMode: false,
 });
@@ -104,6 +122,7 @@ export const parseSession = (raw: unknown): Session => {
     // Shared with the render route, so a length is validated the same way
     // whether it came from storage or from an HTTP body.
     bars: parseBarOverrides(value.bars),
+    playerNames: parsePlayerNames(value.playerNames),
     trackId: typeof value.trackId === 'string' ? value.trackId : null,
     boxArtMode: typeof value.boxArtMode === 'boolean' ? value.boxArtMode : false,
   };

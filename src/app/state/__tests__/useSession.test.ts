@@ -181,3 +181,36 @@ describe('hostile storage', () => {
     expect(loadSession(storage)).toEqual(defaultSession());
   });
 });
+
+describe('player name overrides', () => {
+  it('round trips through storage', () => {
+    const session = { ...defaultSession(), playerNames: { '4': 'Tinchen' } };
+    const storage = memoryStorage();
+    saveSession(session, storage);
+    expect(loadSession(storage).playerNames).toEqual({ '4': 'Tinchen' });
+  });
+
+  it('defaults to an empty map', () => {
+    expect(defaultSession().playerNames).toEqual({});
+  });
+
+  /* The field was added without bumping the schema version, precisely so that
+     a session stored before it existed keeps everything else. A bump here
+     would throw away somebody's slide arrangement to introduce a field that
+     defaults to empty anyway. */
+  it('restores a session written before the field existed, intact', () => {
+    const before = { ...defaultSession(), playerId: 7, slides: ['winRate'] as SlideId[] };
+    delete (before as Partial<typeof before>).playerNames;
+
+    const restored = parseSession(before);
+    expect(restored.playerId).toBe(7);
+    expect(restored.slides).toEqual(['winRate']);
+    expect(restored.playerNames).toEqual({});
+  });
+
+  it('drops a malformed map without touching the rest of the session', () => {
+    const restored = parseSession({ ...defaultSession(), playerId: 7, playerNames: 'nope' });
+    expect(restored.playerNames).toEqual({});
+    expect(restored.playerId).toBe(7);
+  });
+});

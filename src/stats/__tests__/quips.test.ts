@@ -168,3 +168,56 @@ describe('the time list quip', () => {
     expect(quipFor('topFiveByTime', withTime(5, 1, 100))).toBeNull();
   });
 });
+
+describe('the co-player count always has a line', () => {
+  /*
+    The exception to "a slide with no line is better than a slide with a limp
+    one". This slide's layout depends on having an aside: without one the
+    content drops to the bottom of the frame, so the slide would sit in a
+    different place for different players depending on a number they have no
+    control over.
+  */
+  const withCount = (count: number): WrappedStats => ({
+    ...stats,
+    stats: stats.stats.map((s) =>
+      s.id === 'coPlayerCount' ? { ...s, count } : s,
+    ) as WrappedStats['stats'],
+  });
+
+  it.each([1, 2, 3, 4, 5, 9, 10, 40])('says something for %i co-players', (count) => {
+    expect(quipFor('coPlayerCount', withCount(count))).toBeTruthy();
+  });
+
+  it('keeps the line it always had from ten upwards', () => {
+    expect(quipFor('coPlayerCount', withCount(10))).toBe(
+      'That is a lot of people to explain rules to.',
+    );
+    expect(quipFor('coPlayerCount', withCount(93))).toBe(
+      'That is a lot of people to explain rules to.',
+    );
+  });
+
+  it('says a table between five and nine', () => {
+    expect(quipFor('coPlayerCount', withCount(5))).toBe('More than one table between you.');
+    expect(quipFor('coPlayerCount', withCount(9))).toBe('More than one table between you.');
+  });
+
+  it('fits two to four around one table', () => {
+    expect(quipFor('coPlayerCount', withCount(2))).toBe('Everybody fits around one table.');
+    expect(quipFor('coPlayerCount', withCount(4))).toBe('Everybody fits around one table.');
+  });
+
+  it('calls one co-player a pair', () => {
+    expect(quipFor('coPlayerCount', withCount(1))).toBe('Just the two of you, all year.');
+  });
+
+  // The stat is null for a solo-only year, so the slide is never shown at 0 -
+  // but the quip layer must not invent a line for stats it was not given.
+  it('still says nothing when the stat is absent', () => {
+    const without: WrappedStats = {
+      ...stats,
+      stats: stats.stats.filter((s) => s.id !== 'coPlayerCount'),
+    };
+    expect(quipFor('coPlayerCount', without)).toBeNull();
+  });
+});

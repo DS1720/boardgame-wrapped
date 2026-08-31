@@ -6,6 +6,7 @@ import { buildWrappedStats, MODULES, THIN_PLAY_THRESHOLD } from '@/stats/index';
 import { themeForPlayer } from '@/theme/generate';
 import type { Theme } from '@/theme/types';
 import type { SlideBarOverrides, TimelineSlideId } from '@/video/timeline';
+import { isRenamed, overrideFor, type PlayerNameOverrides } from '../state/playerNames';
 
 /**
  * Batch render: every selected player, one shared range, one button.
@@ -63,6 +64,8 @@ interface Props {
   track: Track | null;
   cut: TimelineSlideId[];
   bars: SlideBarOverrides;
+  /** Names typed by hand in the player picker. Sparse. */
+  names: PlayerNameOverrides;
 }
 
 export const BatchPanel: React.FC<Props> = ({
@@ -73,6 +76,7 @@ export const BatchPanel: React.FC<Props> = ({
   track,
   cut,
   bars,
+  names,
 }) => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [randomThemes, setRandomThemes] = useState(false);
@@ -119,6 +123,11 @@ export const BatchPanel: React.FC<Props> = ({
           player.id,
           range,
           MODULES.map((m) => m.id),
+          // The same override the preview uses. It travels on the stats rather
+          // than beside them because `playerName` is what the intro, the
+          // square and the output filename all read — a batch that renamed
+          // only the video would write the file under the old name.
+          overrideFor(names, player.id),
         ),
         // Seeded by player id, so a re-run produces the same set of videos.
         theme: randomThemes ? themeForPlayer(player.id) : theme,
@@ -210,7 +219,12 @@ export const BatchPanel: React.FC<Props> = ({
                   disabled={running}
                   onChange={() => toggle(player.id)}
                 />
-                <span className="batch-name">{player.name}</span>
+                <span className="batch-name">
+                  {player.name}
+                  {isRenamed(names, player.id, player.name) && (
+                    <em className="player-alias"> ({overrideFor(names, player.id)})</em>
+                  )}
+                </span>
                 <span className="count">{player.playCount}</span>
                 {item && (
                   <span className={`batch-status is-${item.status}`} title={item.reason ?? ''}>

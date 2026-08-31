@@ -1086,3 +1086,149 @@ button.icon:hover:not(:disabled) {
   align-items: center;
   gap: 14px;
 }
+
+/* Updates
+   -------
+   A strip above the header rather than a modal. An update is never urgent
+   enough to interrupt a render, and a dialog thrown over a half-configured
+   video is worse news than no news. It only exists in the desktop app; in a
+   browser the component renders nothing. */
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--surface-lift);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+/* The one state with an action attached is the one that gets the accent. The
+   others are reporting, not asking. */
+.update-ready {
+  border-bottom-color: var(--accent);
+}
+
+.update-error {
+  border-bottom-color: var(--warn);
+}
+
+.update-text {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.update-text p {
+  margin: 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.update-error .update-text p {
+  color: var(--warn);
+}
+
+/* Same 6px rule as the render and box-art bars — three progress bars that
+   looked like three different components would be three things to learn. */
+.update-banner .bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-lift);
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.update-banner .bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 150ms linear;
+}
+
+.update-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* Nothing is happening, so this is a link in the corner rather than a bar
+   across the top - but it is still on screen, because "am I on the latest
+   version?" is a question people have before there is any news to show them. */
+.update-quiet {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 8px 24px 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.update-quiet .link {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.update-quiet .link:hover {
+  color: var(--accent);
+}
+
+/* Renaming a player
+   -----------------
+   The row is now the select button plus a field, so it lays out as a grid
+   rather than relying on the button filling the line. The button keeps most of
+   the width: finding somebody is the common act, renaming them is the rare
+   one. */
+.players li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 128px;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The name the video will use, shown beside the one in the export. Muted and
+   not italicised into illegibility - it is the operative name, not an aside. */
+.player-alias {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.player-rename {
+  width: 100%;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--surface-lift);
+  border-radius: 6px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+}
+
+.player-rename::placeholder {
+  color: var(--ink-muted);
+  opacity: 0.7;
+}
+
+.player-rename:hover {
+  border-color: var(--ink-muted);
+}
+
+/* In the batch list the alias is read-only - the field lives in the player
+   picker, and two places to type one name is one too many. */
+.batch-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

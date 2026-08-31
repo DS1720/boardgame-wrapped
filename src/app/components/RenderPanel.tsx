@@ -4,6 +4,9 @@ import type { WrappedStats } from '@/stats/types';
 import type { Theme } from '@/theme/types';
 import { VIDEO } from '@/video/config';
 import type { SlideBarOverrides, TimelineSlideId } from '@/video/timeline';
+// Imported for the `window.bgw` declaration as much as for `shell()`: the
+// folder picker is absent in a browser and the panel checks before offering it.
+import { shell } from '../shell';
 
 /**
  * Render to MP4.
@@ -15,19 +18,6 @@ import type { SlideBarOverrides, TimelineSlideId } from '@/video/timeline';
 
 const API = '/api';
 const POLL_MS = 400;
-
-/**
- * The desktop shell's native folder picker, when there is one.
- *
- * Absent in a browser, where a page cannot be handed a filesystem path — there
- * the field is typed into instead. Declared rather than imported: this is the
- * one thing the UI knows about the shell, and it is optional.
- */
-declare global {
-  interface Window {
-    bgw?: { chooseFolder?: (current: string) => Promise<string | null> };
-  }
-}
 
 interface OutputSettings {
   outDir: string;
@@ -219,7 +209,7 @@ export const RenderPanel: React.FC<Props> = ({
   }, []);
 
   const browseFolder = useCallback(async () => {
-    const chosen = await window.bgw?.chooseFolder?.(output?.outDir ?? '');
+    const chosen = await shell()?.chooseFolder?.(output?.outDir ?? '');
     // Null is a cancelled dialog, not a request to reset.
     if (chosen) void applyFolder(chosen);
   }, [applyFolder, output?.outDir]);
@@ -273,7 +263,7 @@ export const RenderPanel: React.FC<Props> = ({
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
             }}
           />
-          {typeof window !== 'undefined' && window.bgw?.chooseFolder && (
+          {shell()?.chooseFolder && (
             <button className="secondary" onClick={() => void browseFolder()}>
               Choose…
             </button>

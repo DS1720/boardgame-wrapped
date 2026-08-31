@@ -349,9 +349,12 @@ export const SLIDE_BARS: Record<TimelineSlideId, number> = {
   // Three, like the other countdown: long enough to count five down one at
   // a time and still hold the finished list for a moment.
   topFiveByTime: 3,
-  // One. It has a lead-in line ahead of it and the top five right behind it,
-  // and between those two it only has to land a cover and a number.
-  topGame: 1,
+  // Two. At one it had a lead-in line ahead of it and the top five right
+  // behind, which was argument enough that landing a cover and a number was
+  // all it had to do — but one bar is two seconds, and the cover is the
+  // largest single image in the video. It was gone before it had been looked
+  // at. Two is still the shortest stat slide in the cut.
+  topGame: 2,
   // Two: the countdown still lands five to one, and the list holds briefly
   // rather than sitting finished.
   topFive: 2,

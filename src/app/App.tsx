@@ -12,6 +12,7 @@ import { StatsInspector } from './components/StatsInspector';
 import { ThemePicker } from './components/ThemePicker';
 import { useDataset } from './state/useDataset';
 import { useSession } from './state/useSession';
+import { displayNameFor, overrideFor, setPlayerName } from './state/playerNames';
 import { useAppFonts, useThemeSelection } from './state/useThemeSelection';
 import { allTimeRange, playersInPlays, playsInRange } from '@/ingest/select';
 import { buildWrappedStats, MODULES } from '@/stats/index';
@@ -55,6 +56,7 @@ export const App: React.FC = () => {
   const playerId = session.playerId;
   const slides = session.slides;
   const bars = session.bars;
+  const playerNames = session.playerNames;
 
   // The stored range is two ISO days; a DateRange needs real Dates.
   const range: DateRange | null = useMemo(() => {
@@ -78,6 +80,13 @@ export const App: React.FC = () => {
   );
 
   const setPlayerId = useCallback((id: number) => patch({ playerId: id }), [patch]);
+
+  /* Blank clears the override rather than storing an empty name — see
+     `setPlayerName`, which is where that rule lives. */
+  const renamePlayer = useCallback(
+    (id: number, name: string) => patch({ playerNames: setPlayerName(playerNames, id, name) }),
+    [patch, playerNames],
+  );
 
   const activeRange = useMemo(() => {
     if (!dataset) return null;
@@ -111,8 +120,12 @@ export const App: React.FC = () => {
       playerId,
       namedRange,
       MODULES.map((m) => m.id),
+      // `overrideFor` rather than a raw lookup: it is the one place the
+      // trimming happens, so a name still being typed cannot reach the video
+      // or the filename with a trailing space on it.
+      overrideFor(playerNames, playerId),
     );
-  }, [dataset, namedRange, playerId]);
+  }, [dataset, namedRange, playerId, playerNames]);
 
   const cut = useMemo(() => buildCut(slides), [slides]);
 
@@ -208,7 +221,12 @@ export const App: React.FC = () => {
     );
   }
 
-  const playerName = players.find((p) => p.id === playerId)?.name ?? null;
+  const actualName = players.find((p) => p.id === playerId)?.name ?? null;
+  // What the video will actually say, so the preview and the render agree.
+  const playerName =
+    actualName === null || playerId === null
+      ? null
+      : displayNameFor(playerNames, playerId, actualName);
 
   return (
     <main className="shell shell-loaded">
@@ -242,7 +260,13 @@ export const App: React.FC = () => {
             />
           )}
 
-          <PlayerPicker players={players} selected={playerId} onSelect={setPlayerId} />
+          <PlayerPicker
+            players={players}
+            selected={playerId}
+            onSelect={setPlayerId}
+            names={playerNames}
+            onRename={renamePlayer}
+          />
 
           <SlidePicker
             stats={stats}
@@ -290,6 +314,7 @@ export const App: React.FC = () => {
           <BatchPanel
             dataset={dataset}
             players={players}
+            names={playerNames}
             range={activeRange}
             theme={themeSelection.theme}
             track={track}
