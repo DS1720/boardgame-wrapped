@@ -1,7 +1,7 @@
 {
   "name": "boardgame-wrapped",
   "private": true,
-  "version": "0.2.4",
+  "version": "0.2.5",
   "type": "module",
   "description": "Local Spotify-Wrapped-style video generator for BG Stats exports. Mobile format (1080x1920).",
   "license": "AGPL-3.0-only",
