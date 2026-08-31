@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useState } from 'react';
 import { shell, type UpdateStatus } from '../shell';
 
 /**
@@ -11,9 +10,19 @@ import { shell, type UpdateStatus } from '../shell';
  * version.
  *
  * So this says what is happening, where it will be seen, and gives the one
- * action worth offering. It is deliberately a strip above the header rather
- * than a modal: an update is never urgent enough to interrupt a render, and a
- * dialog over a half-configured video is worse than no news at all.
+ * action worth offering.
+ *
+ * This file is the quiet end of that: a strip above the header, for the states
+ * that are only news. An update *downloading* is never urgent enough to
+ * interrupt a render. The two louder surfaces belong to states that are more
+ * than news — [UpdateDialog](./UpdateDialog.tsx) once one is downloaded and
+ * there is a question to answer, [UpdateScreen](./UpdateScreen.tsx) once the
+ * answer was yes — and [UpdateSurface](./UpdateSurface.tsx) is what chooses
+ * between the three.
+ *
+ * Presentational on purpose: the status arrives as a prop rather than from its
+ * own subscription, because three surfaces listening separately would be three
+ * things that could disagree about where the update had got to.
  *
  * In a browser `window.bgw` is absent and this renders nothing, which is why
  * `npm run dev` never shows it.
@@ -25,8 +34,16 @@ export interface UpdateCopy {
   message: string | null;
   /** Show the determinate progress bar. */
   showProgress: boolean;
-  /** Offer "Restart and install". */
+  /** Offer "Restart and update". */
   canInstall: boolean;
+  /**
+   * Worth stopping the user for, rather than reporting in the strip.
+   *
+   * Only a downloaded update earns this: it is the one state that asks a
+   * question instead of describing progress. Everything else — checking,
+   * downloading, up to date, failed — is news, and news goes in the strip.
+   */
+  modal: boolean;
   /** Offer "Check again" — only where a check is not already running. */
   canCheck: boolean;
   tone: 'info' | 'ready' | 'error';
@@ -36,6 +53,7 @@ const SILENT: UpdateCopy = {
   message: null,
   showProgress: false,
   canInstall: false,
+  modal: false,
   canCheck: false,
   tone: 'info',
 };
@@ -60,6 +78,11 @@ export const describeUpdate = (status: UpdateStatus, manual: boolean): UpdateCop
     case 'unsupported':
       return SILENT;
 
+    /* The screen has the whole window at this point. A strip underneath it
+       would be a second, quieter account of the same thing. */
+    case 'installing':
+      return SILENT;
+
     case 'checking':
       return manual
         ? { ...SILENT, message: 'Checking for updates…', tone: 'info' }
@@ -71,6 +94,7 @@ export const describeUpdate = (status: UpdateStatus, manual: boolean): UpdateCop
             message: 'Board Game Wrapped is up to date.',
             showProgress: false,
             canInstall: false,
+            modal: false,
             canCheck: true,
             tone: 'info',
           }
@@ -81,6 +105,7 @@ export const describeUpdate = (status: UpdateStatus, manual: boolean): UpdateCop
         message: `${version} is downloading… ${status.percent}%`,
         showProgress: true,
         canInstall: false,
+        modal: false,
         canCheck: false,
         tone: 'info',
       };
@@ -90,6 +115,7 @@ export const describeUpdate = (status: UpdateStatus, manual: boolean): UpdateCop
         message: `${version} is ready to install.`,
         showProgress: false,
         canInstall: true,
+        modal: true,
         canCheck: false,
         tone: 'ready',
       };
@@ -102,6 +128,7 @@ export const describeUpdate = (status: UpdateStatus, manual: boolean): UpdateCop
             message: `Could not check for updates. ${status.error ?? ''}`.trim(),
             showProgress: false,
             canInstall: false,
+            modal: false,
             canCheck: true,
             tone: 'error',
           }
@@ -112,33 +139,23 @@ export const describeUpdate = (status: UpdateStatus, manual: boolean): UpdateCop
   }
 };
 
-export const UpdateBanner: React.FC = () => {
-  const [status, setStatus] = useState<UpdateStatus | null>(null);
-  /** True once the user has pressed the button, so quiet states become loud. */
-  const [manual, setManual] = useState(false);
-  const [installing, setInstalling] = useState(false);
+export interface UpdateBannerProps {
+  status: UpdateStatus;
+  /** Whether the user asked for this check, which is what makes it speak up. */
+  manual: boolean;
+  /** A restart is already on its way; the button should not offer a second. */
+  installing: boolean;
+  onCheck: () => void;
+  onInstall: () => void;
+}
 
-  useEffect(() => {
-    const api = shell();
-    if (!api?.onUpdateStatus) return;
-    // Asked for as well as subscribed to: the check runs at startup and its
-    // first events fire before this ever mounts.
-    void api.updateStatus?.().then(setStatus).catch(() => undefined);
-    return api.onUpdateStatus(setStatus);
-  }, []);
-
-  const check = useCallback(() => {
-    setManual(true);
-    void shell()?.checkForUpdates?.().then(setStatus).catch(() => undefined);
-  }, []);
-
-  const install = useCallback(() => {
-    setInstalling(true);
-    // No .then: a successful install quits the app, so nothing here runs again.
-    void shell()?.installUpdate?.().catch(() => setInstalling(false));
-  }, []);
-
-  if (!status) return null;
+export const UpdateBanner: React.FC<UpdateBannerProps> = ({
+  status,
+  manual,
+  installing,
+  onCheck,
+  onInstall,
+}) => {
   const copy = describeUpdate(status, manual);
 
   /* Nothing to report. In the desktop app that still leaves one thing worth
@@ -148,7 +165,7 @@ export const UpdateBanner: React.FC = () => {
     if (status.phase === 'unsupported' || !shell()?.checkForUpdates) return null;
     return (
       <div className="update-quiet">
-        <button className="link" type="button" onClick={check}>
+        <button className="link" type="button" onClick={onCheck}>
           Check for updates
         </button>
       </div>
@@ -174,13 +191,13 @@ export const UpdateBanner: React.FC = () => {
 
       <div className="update-actions">
         {copy.canCheck && (
-          <button className="link" type="button" onClick={check}>
+          <button className="link" type="button" onClick={onCheck}>
             Check again
           </button>
         )}
         {copy.canInstall && (
-          <button type="button" onClick={install} disabled={installing}>
-            {installing ? 'Restarting…' : 'Restart and install'}
+          <button type="button" onClick={onInstall} disabled={installing}>
+            {installing ? 'Restarting…' : 'Restart and update'}
           </button>
         )}
       </div>

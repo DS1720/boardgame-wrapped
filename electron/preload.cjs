@@ -38,4 +38,7 @@ contextBridge.exposeInMainWorld('bgw', {
 
   /** Stop the service, run the installer, come back on the new version. */
   installUpdate: () => ipcRenderer.invoke('bgw:install-update'),
+
+  /** Leave the failed-install screen and go back to the app. */
+  clearInstallError: () => ipcRenderer.invoke('bgw:clear-install-error'),
 });

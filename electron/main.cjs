@@ -257,15 +257,22 @@ const createWindow = (port) => {
  *   checking     asking GitHub
  *   downloading  found one, pulling it down (percent is meaningful here)
  *   ready        downloaded, waiting for a restart
+ *   installing   the restart is under way (`step` is meaningful here)
  *   error        the check or the download failed
+ *
+ * `installing` is the one the page clears its whole window for. Everything
+ * else is news reported in a strip; that one is the app being taken apart
+ * underneath the page, and it used to happen in complete silence — the window
+ * simply vanished for as long as NSIS took, and the only way to know it had
+ * worked was to notice the version had changed.
  */
-let updateStatus = { phase: 'unsupported', version: null, percent: 0, error: null };
+let updateStatus = { phase: 'unsupported', version: null, percent: 0, error: null, step: null };
 
-/** Whether an installer is downloaded and waiting for the quit. */
+/** Whether an installer is downloaded and waiting for somebody to say yes. */
 let updateReady = false;
 /** Set once the installer has been handed control, so it is never run twice. */
 let installing = false;
-/** Kept so the quit path can install without a second require(). */
+/** Kept so the install handler can run without a second require(). */
 let updater = null;
 
 /**
@@ -285,7 +292,10 @@ let quitting = false;
  * a dropped send harmless.
  */
 const setUpdateStatus = (patch) => {
-  updateStatus = { ...updateStatus, ...patch };
+  // A step belongs to the phase that set it. Carrying one across a phase change
+  // is how a screen ends up describing something that stopped happening.
+  const step = 'step' in patch ? patch.step : patch.phase ? null : updateStatus.step;
+  updateStatus = { ...updateStatus, ...patch, step };
   if (window && !window.isDestroyed()) {
     window.webContents.send('bgw:update', updateStatus);
   }
@@ -313,10 +323,11 @@ const checkForUpdates = ({ manual = false } = {}) => {
       const { autoUpdater } = require('electron-updater');
       updater = autoUpdater;
       updater.autoDownload = true;
-      // We install on quit ourselves — see `finishQuit`. electron-updater's own
-      // hook for this listens for the `quit` event, and `app.exit()` on the
-      // shutdown path does not emit one, so leaving this on would promise an
-      // install that never happened.
+      // Nothing installs itself on the way out. Two reasons, and either would
+      // be enough: the hook listens for the `quit` event, which `app.exit()`
+      // on the shutdown path does not emit — so it would promise an install
+      // that never happened — and an update applied without being asked for is
+      // one the popup's "Later" would have been lying about.
       updater.autoInstallOnAppQuit = false;
 
       updater.on('checking-for-update', () => setUpdateStatus({ phase: 'checking', error: null }));
@@ -363,25 +374,99 @@ ipcMain.handle('bgw:check-updates', () => {
 });
 
 /**
+ * How long to wait for our own exit before forcing it.
+ *
+ * `quitAndInstall` spawns the installer and then quits us. If for any reason it
+ * does not, the window would sit on the updating screen forever — and by this
+ * point the installer is already running and waiting for this process to let go
+ * of the directory it is about to replace.
+ */
+const INSTALL_EXIT_MS = 10_000;
+
+/**
+ * Put the app back together after an install that never started.
+ *
+ * The service has already been stopped by then, so the page is a UI talking to
+ * nothing: every poll fails, a render cannot be started, and the window looks
+ * alive while being useless. That is a worse state than the one the user was
+ * in before they pressed the button, so it is undone rather than reported.
+ */
+const recoverFromFailedInstall = async (err) => {
+  const message = err?.message ?? String(err);
+  console.error('[update] install did not start:', message);
+
+  installing = false;
+  quitting = false;
+  // Set by `stopServer` on the way in. Left true, a service that later died
+  // for real would do it without saying anything.
+  app.isQuitting = false;
+
+  let restored = false;
+  try {
+    startServer(servicePort);
+    restored = await waitForServer(servicePort);
+  } catch (restartErr) {
+    console.error('[update] service did not come back:', restartErr?.message ?? restartErr);
+  }
+
+  setUpdateStatus({
+    phase: 'installing',
+    step: 'failed',
+    error: restored
+      ? message
+      : `${message} — and the render service did not come back. Restart the app.`,
+  });
+};
+
+/**
  * Restart into the new version.
  *
  * The service is stopped first, deliberately and before the installer is
  * spawned: NSIS is about to overwrite the very directory the render service is
  * running out of, and a headless Chrome still holding files in it is how an
  * update half-applies.
+ *
+ * Every stage of that is now published as it happens. It is not decoration:
+ * `stopServer` waits up to eight seconds for a render to unwind, and the whole
+ * of it used to be spent behind a window that had already gone.
  */
 ipcMain.handle('bgw:install-update', async () => {
   if (!updateReady || installing) return false;
   installing = true;
+
+  // The page swaps the whole app for the updating screen on this phase, so it
+  // has to land before anything slow starts rather than after.
+  setUpdateStatus({ phase: 'installing', step: 'stopping', error: null });
   await stopServer();
+
   // The service is already down and the installer is about to take over, so
   // the `before-quit` cleanup has nothing left to do. Saying so here is what
   // keeps it from deferring a quit it cannot improve.
   quitting = true;
-  // Silent, because the page has already done the explaining, and
-  // isForceRunAfter so the user gets the app back — they pressed *Restart*.
-  updater.quitAndInstall(true, true);
+  setUpdateStatus({ phase: 'installing', step: 'launching' });
+
+  try {
+    // Silent, because this installer is the assisted kind: run with its own UI
+    // it would ask where to install and wait to be clicked through, which is
+    // not what "Restart and update" promised. isForceRunAfter is what brings
+    // the app back on the far side — the user asked for a restart, not a quit.
+    updater.quitAndInstall(true, true);
+  } catch (err) {
+    await recoverFromFailedInstall(err);
+    return false;
+  }
+
+  setTimeout(() => app.exit(0), INSTALL_EXIT_MS);
   return true;
+});
+
+/** Leave the failed-install screen. The service is back up by this point. */
+ipcMain.handle('bgw:clear-install-error', () => {
+  if (updateStatus.step === 'failed') {
+    // Back to where the button was, so a second attempt is one click away.
+    setUpdateStatus({ phase: 'ready', step: null, error: null });
+  }
+  return updateStatus;
 });
 
 // The page cannot be given a filesystem path by a browser, so the shell asks
@@ -503,44 +588,30 @@ const stopServer = async () => {
 };
 
 /*
-  Quit is held open until the service is down, and until a downloaded update
-  has been handed to its installer.
+  Quit is held open until the service is down, and that is now all it is for.
 
   `before-quit` is the only hook that can still defer the exit, so the cleanup
   runs there. The second pass through — the one `quitAndInstall` triggers — is
   let straight through by the `quitting` guard, which is what stops this from
   re-entering itself.
-*/
 
-/**
- * The last thing that happens.
- *
- * If an installer is waiting, it gets control and quits us itself; the timer
- * is there because an update that fails to launch must not leave a window-less
- * app running with no way to close it. Otherwise `app.exit` finishes the job.
- */
-const finishQuit = () => {
-  if (updateReady && !installing && updater) {
-    installing = true;
-    try {
-      console.log('[update] installing on quit');
-      updater.quitAndInstall(true, false);
-      setTimeout(() => app.exit(0), 10_000);
-      return;
-    } catch (err) {
-      console.error('[update]', err?.message ?? err);
-    }
-  }
-  app.exit(0);
-};
+  It used to install a waiting update on the way out as well, whether or not
+  anybody had been asked. That made the popup's "Later" a lie — dismiss the
+  update, close the app, and it was applied anyway — and it meant the dialog
+  could never come back on the next launch, because by then there was nothing
+  left to install. So `quitAndInstall` has exactly one caller: the
+  `bgw:install-update` handler, behind the *Restart and update* button.
+  Dismissing defers to the next launch, where the check runs again, finds the
+  same release waiting, and asks again.
+*/
 
 app.on('before-quit', (event) => {
   if (quitting) return;
   quitting = true;
-  if (!child && !updateReady) return;
+  if (!child) return;
 
   event.preventDefault();
-  stopServer().finally(finishQuit);
+  stopServer().finally(() => app.exit(0));
 });
 
 app.on('window-all-closed', () => app.quit());

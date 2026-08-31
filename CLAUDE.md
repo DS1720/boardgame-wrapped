@@ -23,7 +23,7 @@ or every command below except the `npx tsx` one will fail.
 npm install
 npm run dev          # UI on http://localhost:5173
 npm run server       # render service on http://localhost:4000 (stub until step 10)
-npm test             # vitest, 604 tests
+npm test             # vitest, 619 tests
 npm run typecheck    # tsc --noEmit
 npm run video:studio # Remotion Studio
 npm run video:render # renders out/test.mp4
@@ -1488,7 +1488,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 604 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
+**All twelve steps are done.** 619 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
 engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.
@@ -1664,9 +1664,8 @@ It used to say it in the **title bar** — the one part of a window nobody reads
 — and said nothing whatsoever while a 169 MB installer came down. The first
 sign most people had was the app restarting as a different version.
 
-`electron/main.cjs` now keeps an `updateStatus` and pushes it to the page;
-[UpdateBanner.tsx](src/app/components/UpdateBanner.tsx) is a strip above the
-header. Four things are load-bearing:
+`electron/main.cjs` now keeps an `updateStatus` and pushes it to the page.
+Four things are load-bearing:
 
 - **The status is stored, not only pushed.** The check runs at startup and its
   first events fire before the page has mounted a listener. The renderer asks
@@ -1678,17 +1677,103 @@ header. Four things are load-bearing:
   non-event — while the same result behind a button has to answer or the button
   looks broken. Same for a failed check: unreachable GitHub is not a problem a
   local video tool raises on its own.
-- **`autoInstallOnAppQuit` is off, and the install is explicit.** It works by
-  listening for the `quit` event, and `stopServer`'s `app.exit(0)` does not
-  emit one — so leaving it on promised an install that never ran. `finishQuit`
-  hands over to `quitAndInstall` instead, and the "Restart and install" button
-  goes through the same path.
+- **Nothing installs itself, ever.** `autoInstallOnAppQuit` is off — it listens
+  for the `quit` event, which `stopServer`'s `app.exit(0)` does not emit, so it
+  only ever promised an install that never ran — and the quit path no longer
+  installs either. `quitAndInstall` has exactly one caller: the
+  `bgw:install-update` handler behind the **Restart and update** button.
 - **The service is stopped before the installer is spawned.** NSIS is about to
   overwrite the directory the render service is running out of, and a headless
   Chrome still holding files in there is how an update half-applies.
 
-A strip, not a modal: an update is never urgent enough to interrupt a render,
-and a dialog over a half-configured video is worse news than no news.
+#### Three surfaces, and they escalate
+
+[UpdateSurface.tsx](src/app/components/UpdateSurface.tsx) holds the one
+subscription and picks between them. Three components listening to the same IPC
+channel would be three things that could disagree about where the update had
+got to, and the last of the three is a screen the other two must not be
+rendering behind.
+
+| State | Surface | Why that much |
+|---|---|---|
+| checking, downloading, up to date, failed | [UpdateBanner](src/app/components/UpdateBanner.tsx) — a strip | None of it asks anything, so none of it earns more than a line |
+| downloaded | [UpdateDialog](src/app/components/UpdateDialog.tsx) — a modal | The only state that asks a question |
+| installing | [UpdateScreen](src/app/components/UpdateScreen.tsx) — the whole window | The app is being taken apart underneath the page |
+
+**A popup for the decision.** Downloading is news: an update *coming down* is
+never urgent enough to throw a dialog over somebody's render. A **downloaded**
+one is the exception, because it is the only update state that asks a question
+rather than describing progress — and asked in a 14px line above a video
+preview, it was routinely not read at all. Four things about the dialog are
+deliberate:
+
+- **`modal` is a field on `UpdateCopy`, not a check on the phase.** `ready` is
+  the only state that sets it, and a test asserts the other five never do — a
+  second phase raising a modal is exactly the "dialog over a half-configured
+  video" the strip exists to avoid, and it would be a one-word change to cause.
+- **"Later" means later, not never.** The dismissal is React state and nothing
+  writes it anywhere, so the next launch that still finds an update waiting
+  asks again. It is keyed by version rather than a boolean: dismissing 0.2.4 is
+  not an answer about 0.2.5.
+- **The dismissal drops back to the strip**, which still carries the button.
+  Taking away every way to start the update until the next launch would be a
+  worse answer than the one the user gave.
+- **Native `<dialog>` with `showModal()`.** The focus trap, the top layer, the
+  backdrop and Escape-to-close all come with it, and a hand-rolled overlay gets
+  all four wrong quietly. `onClose` is the single dismissal path, so Escape and
+  the button cannot disagree; `onCancel` is refused while the restart is in
+  flight, where a dialog vanishing would read as a cancel.
+
+**The trade this makes:** somebody who dismisses every time never updates. They
+are asked on every launch, which is the design — but if silent updating matters
+more than the prompt, restoring it is one call to `quitAndInstall` on the quit
+path in [electron/main.cjs](electron/main.cjs), and the popup then only ever
+returns after a crash or a failed install.
+
+#### The restart takes the whole window
+
+Pressing **Restart and update** used to be the last thing that visibly
+happened. `stopServer` waits up to eight seconds for the service to unwind, and
+longer with a render still going; then the window closed, NSIS ran silently,
+and the app came back some time later on a different version. None of it was
+reported, so the honest reading from outside was that the app had crashed.
+
+The install now publishes a `step` alongside the phase — `stopping`,
+`launching`, `failed` — and `UpdateScreen` renders it.
+
+- **The app is replaced, not covered.** `UpdateSurface` wraps `<App/>` rather
+  than sitting beside it, and stops rendering its children in this phase.
+  Everything behind a full-screen message would be polling a render service
+  that is already going down; a half-live control column under it is a worse
+  thing to leave on screen than no control column.
+- **`launching`'s detail line is the load-bearing copy**, and it is why the
+  step exists at all. Once the installer has control there is no window of ours
+  left to draw in, so the only thing that can be done about the silence is to
+  say it is coming: *"will close while it updates, then open again on its own"*.
+  A window that disappears after saying it will is an update; one that
+  disappears in silence is a crash. A test asserts that line.
+- **The bar is indeterminate.** NSIS reports nothing back to us. A bar that
+  invented a percentage would be worse than one that only says something is
+  still happening — and under `prefers-reduced-motion` it pulses in place
+  rather than travelling, because "not stuck" is the whole message.
+- **A step never survives its phase.** `setUpdateStatus` clears `step` on any
+  patch that changes `phase` without naming one, so a screen cannot end up
+  describing something that stopped happening.
+- **The install stays silent, and that is a consequence of `oneClick: false`.**
+  This is the assisted NSIS installer, so running it with its own UI would ask
+  where to install and wait to be clicked through — not what "Restart and
+  update" promised. `isForceRunAfter` is what brings the app back afterwards.
+- **A failed install is undone, not just reported.** By that point the service
+  has been stopped for an install that never happened, which leaves a UI
+  talking to nothing: every poll fails and the window looks alive while being
+  useless. `recoverFromFailedInstall` restarts the service, waits for
+  `/health`, and only then says so — with a button back to the app rather than
+  a spinner that never ends. `app.isQuitting` is cleared on that path too, or a
+  service that later died for real would do it in silence.
+- **`INSTALL_EXIT_MS` (10s) is a backstop, not the mechanism.**
+  `quitAndInstall` spawns the installer and then quits us; if it ever did not,
+  the window would sit on this screen forever while the installer waited for a
+  process that was never going to let go of the directory.
 
 ### Two things that will bite
 

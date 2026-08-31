@@ -15,12 +15,13 @@ const status = (over: Partial<UpdateStatus> = {}): UpdateStatus => ({
   version: null,
   percent: 0,
   error: null,
+  step: null,
   ...over,
 });
 
 describe('describeUpdate', () => {
   describe('an automatic check stays quiet', () => {
-    it.each<UpdatePhase>(['unsupported', 'idle', 'checking', 'error'])(
+    it.each<UpdatePhase>(['unsupported', 'idle', 'checking', 'installing', 'error'])(
       'says nothing in %s',
       (phase) => {
         expect(describeUpdate(status({ phase, error: 'nope' }), false).message).toBeNull();
@@ -86,6 +87,29 @@ describe('describeUpdate', () => {
       // A progress bar pinned at 100% is a bar saying nothing.
       expect(copy.showProgress).toBe(false);
     });
+
+    /* The popup exists because this state asks a question and every other one
+       only reports. If a second phase ever raised a modal, an update coming
+       down in the background would throw a dialog over somebody's render —
+       which is the thing the strip was built to avoid. */
+    it.each([true, false])('is the only state worth a popup, manual=%s', (manual) => {
+      expect(describeUpdate(status({ phase: 'ready', version: '0.2.3' }), manual).modal).toBe(true);
+    });
+  });
+
+  it.each<UpdatePhase>(['unsupported', 'idle', 'checking', 'downloading', 'installing', 'error'])(
+    'never raises a popup in %s',
+    (phase) => {
+      expect(describeUpdate(status({ phase, error: 'nope' }), true).modal).toBe(false);
+      expect(describeUpdate(status({ phase, error: 'nope' }), false).modal).toBe(false);
+    },
+  );
+
+  /* The screen has the whole window while an update installs. A strip
+     underneath it would be a second, quieter account of the same thing. */
+  it('says nothing while installing, however it was asked', () => {
+    expect(describeUpdate(status({ phase: 'installing', step: 'stopping' }), true).message).toBeNull();
+    expect(describeUpdate(status({ phase: 'installing', step: 'stopping' }), false).message).toBeNull();
   });
 
   /* `unsupported` is what a browser reports, and `npm run dev` is a browser.

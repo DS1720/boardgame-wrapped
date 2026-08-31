@@ -4,6 +4,7 @@
   "version": "0.2.3",
   "type": "module",
   "description": "Local Spotify-Wrapped-style video generator for BG Stats exports. Mobile format (1080x1920).",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "vite",
     "server": "tsx watch server/index.ts",

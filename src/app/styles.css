@@ -1176,6 +1176,157 @@ button.icon:hover:not(:disabled) {
   color: var(--accent);
 }
 
+/* The one update state that stops you
+   ----------------------------------
+   Progress belongs in the strip; a *downloaded* update is a question, and a
+   question asked in a 14px line above a video preview was not being read. A
+   native <dialog> rather than a hand-rolled overlay, because showModal() comes
+   with the focus trap, the top layer and Escape-to-close already right. */
+.update-dialog {
+  max-width: 420px;
+  padding: 24px;
+  border: 1px solid var(--surface-lift);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.update-dialog::backdrop {
+  background: rgba(6, 10, 9, 0.6);
+}
+
+.update-dialog h2 {
+  margin: 0 0 10px;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+.update-dialog p {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.update-dialog p.muted {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.update-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+/* The affirmative answer is the filled one. "Later" stays a link: it is the
+   way out, not the other half of a choice between equals. */
+.update-install {
+  background: var(--accent);
+  color: #14201b;
+  font-weight: 600;
+}
+
+/* The shared hover only moves the border, which is invisible against a filled
+   accent. */
+.update-install:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+/* The restart, which takes the whole window
+   ---------------------------------------
+   From the moment the button is pressed the app is being taken apart: the
+   render service is going down and every panel behind this would be polling
+   something that no longer answers. So the app is replaced rather than
+   covered. It is on screen for the several seconds `stopServer` takes, and its
+   last job is to say the window is about to close — a window that disappears
+   after saying it will is an update, one that disappears in silence is a
+   crash. */
+.update-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.update-screen-inner {
+  max-width: 460px;
+  text-align: center;
+}
+
+.update-screen-eyebrow {
+  margin: 0 0 10px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.update-screen h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+
+.update-screen-status {
+  margin: 20px 0 6px;
+  font-size: 15px;
+}
+
+.update-screen-detail {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.update-screen .update-install {
+  margin-top: 24px;
+}
+
+/* Indeterminate, because the installer reports nothing back to us and a bar
+   that invented a percentage would be worse than one that only says something
+   is still happening. Same 6px rule as every other bar in the app. */
+.update-screen-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-lift);
+  overflow: hidden;
+  margin-top: 24px;
+}
+
+.update-screen-bar span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 3px;
+  background: var(--accent);
+  animation: update-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes update-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+
+/* Somebody who turned motion down still needs to see that this is not stuck,
+   so the bar holds still and glows instead of travelling. */
+@media (prefers-reduced-motion: reduce) {
+  .update-screen-bar span {
+    width: 100%;
+    animation: update-pulse 2s ease-in-out infinite;
+  }
+  @keyframes update-pulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+  }
+}
+
 /* Renaming a player
    -----------------
    The row is now the select button plus a field, so it lays out as a grid
