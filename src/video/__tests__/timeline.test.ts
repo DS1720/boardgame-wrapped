@@ -55,10 +55,6 @@ const ALL_CORE: Stat[] = [
       { ...game(40, 'Hitster'), minutes: 180, plays: 9 },
     ],
   },
-  { id: 'winRate', core: true, wins: 61, losses: 161, ratio: 61 / 222, coopOnly: false },
-  { id: 'longestWinStreak', core: true, length: 7 },
-  { id: 'bestGame', core: true, game: game(23, 'Bluff'), ratio: 0.7, plays: 10 },
-  { id: 'worstGame', core: true, game: game(63, 'Castle Combo'), ratio: 0.1, plays: 10 },
   { id: 'topGame', core: true, game: game(77, 'Faraway'), plays: 21, standing: null },
   {
     id: 'topFive',
@@ -72,15 +68,25 @@ const ALL_CORE: Stat[] = [
     ],
   },
   {
-    id: 'highestScore',
+    id: 'topTheme',
     core: true,
-    score: 466,
-    game: game(31, 'La Cuenta'),
-    day: '2026-04-02',
-    won: true,
+    name: 'Space exploration',
+    plays: 39,
+    games: 6,
+    examples: [
+      { ...game(99, 'Terraforming Mars'), plays: 4 },
+      { ...game(12, 'SETI'), plays: 3 },
+    ],
+    coverage: 1,
   },
+  { id: 'winRate', core: true, wins: 61, losses: 161, ratio: 61 / 222, coopOnly: false },
+  { id: 'longestWinStreak', core: true, length: 7 },
+  { id: 'bestGame', core: true, game: game(23, 'Bluff'), ratio: 0.7, plays: 10 },
+  { id: 'worstGame', core: true, game: game(63, 'Castle Combo'), ratio: 0.1, plays: 10 },
   { id: 'coPlayerCount', core: true, count: 60 },
   { id: 'topCoPlayer', core: true, name: 'Dario', playerId: 1, shared: 180, others: [] },
+  { id: 'nemesis', core: true, name: 'Markus', playerId: 2, lossesTo: 14, headToHead: 30, lossRate: 14 / 30 },
+  { id: 'gamesLearned', core: true, count: 34, games: [game(1, 'A'), game(2, 'B')] },
   {
     id: 'gameRecord',
     core: true,
@@ -92,17 +98,15 @@ const ALL_CORE: Stat[] = [
     highestWins: true,
     shared: false,
   },
-  { id: 'nemesis', core: true, name: 'Markus', playerId: 2, lossesTo: 14, headToHead: 30, lossRate: 14 / 30 },
-  { id: 'gamesLearned', core: true, count: 34, games: [game(1, 'A'), game(2, 'B')] },
   { id: 'busiestDay', core: true, day: '2026-03-14', plays: 9 },
   { id: 'nightOwl', core: true, peakHour: 20, playsAtPeak: 40, lateShare: 0.46 },
+  { id: 'topLocation', core: true, name: 'Home', nights: 40 },
   {
     id: 'firstAndLastPlay',
     core: true,
     first: { day: '2026-01-03', game: game(77, 'Faraway') },
     last: { day: '2026-12-27', game: game(40, 'Hitster') },
   },
-  { id: 'topLocation', core: true, name: 'Home', nights: 40 },
 ];
 
 
@@ -125,23 +129,23 @@ describe('the default cut', () => {
       'timePlayed',
       // And immediately after it, where that time went.
       'topFiveByTime',
+      'topGame',
+      'topFive',
+      'topTheme',
       'winRate',
       'longestWinStreak',
       'bestGame',
       'worstGame',
-      'topGame',
-      'topFive',
-      'highestScore',
       // Counts the people, then names one of them.
       'coPlayerCount',
       'topCoPlayer',
-      'gameRecord',
       'nemesis',
       'gamesLearned',
+      'gameRecord',
       'busiestDay',
       'nightOwl',
-      'firstAndLastPlay',
       'topLocation',
+      'firstAndLastPlay',
       'outro',
     ]);
   });
@@ -160,12 +164,11 @@ describe('the default cut', () => {
   });
 
   /*
-    The five BGG credit slides. They are opt-in, so nothing in the default cut
-    reaches them — which is exactly why they need asserting: a missing entry in
-    any of these three tables is invisible until somebody switches one on.
+    The opt-in BGG credit slides. They stay out of the default cut, but still
+    need asserting: a missing entry in any of these tables is invisible until
+    somebody switches one on.
   */
-  const CREDIT_SLIDES = [
-    'topTheme',
+  const OPTIONAL_CREDIT_SLIDES = [
     'topThemes',
     'topMechanic',
     'topMechanics',
@@ -174,8 +177,8 @@ describe('the default cut', () => {
     'topPublishers',
   ] as const;
 
-  it('registers every credit slide without putting it in the default cut', () => {
-    for (const id of CREDIT_SLIDES) {
+  it('registers every optional credit slide without putting it in the default cut', () => {
+    for (const id of OPTIONAL_CREDIT_SLIDES) {
       expect(ALL_SLIDES).toContain(id);
       expect(SLIDE_COMPONENTS[id]).toBeTypeOf('function');
       expect(SLIDE_BARS[id]).toBeGreaterThan(0);
@@ -186,6 +189,13 @@ describe('the default cut', () => {
     }
   });
 
+  it('keeps the top theme in the default cut when credit data exists', () => {
+    expect(ALL_SLIDES).toContain('topTheme');
+    expect(SLIDE_COMPONENTS.topTheme).toBeTypeOf('function');
+    expect(SLIDE_BARS.topTheme).toBeGreaterThan(0);
+    expect(DEFAULT_CUT).toContain('topTheme');
+  });
+
   it('lets every credit section introduce itself and no more', () => {
     /*
       A line costs a bar, so only the head of a section gets one: the two theme
@@ -194,6 +204,7 @@ describe('the default cut', () => {
       video from games to people. Artists and publishers follow it and start
       cold.
     */
+    const CREDIT_SLIDES = ['topTheme', ...OPTIONAL_CREDIT_SLIDES] as const;
     const withLine = CREDIT_SLIDES.filter((id) => leadInFor(id) !== null);
     expect(withLine).toEqual(['topTheme', 'topThemes', 'topMechanic', 'topMechanics', 'topDesigners']);
   });
@@ -579,9 +590,9 @@ describe('slide labels', () => {
 describe('the most-played slide takes the losing record as its cue', () => {
   it('answers the worst-game slide when it ran immediately before', () => {
     /*
-      The default cut runs best game, worst game, most played. The plain line —
-      "One game more than any other…" — said nothing about either verdict, and
-      landed a bar after a slide about losing as if it had not happened.
+      A custom cut can still run best game, worst game, most played. The plain
+      line said nothing about either verdict, and landed a bar after a slide
+      about losing as if it had not happened.
     */
     const paired = leadInFor('topGame', 'worstGame')!;
     expect(paired).not.toBe(LEAD_INS.topGame);
@@ -603,6 +614,9 @@ describe('the most-played slide takes the losing record as its cue', () => {
 
   it('is the line the default cut actually reaches', () => {
     const cut = DEFAULT_CUT;
-    expect(cut[cut.indexOf('topGame') - 1]).toBe('worstGame');
+    expect(cut[cut.indexOf('topGame') - 1]).toBe('topFiveByTime');
+    expect(leadInFor('topGame', 'topFiveByTime')).toBe(
+      'That was time. By plays, one game led the table…',
+    );
   });
 });

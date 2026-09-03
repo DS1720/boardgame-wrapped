@@ -16,42 +16,40 @@ export const MODULES: Array<{ id: SlideId; run: StatModule; core: boolean }> = [
   // Straight after it, because the two are one thought: how long in total, and
   // then where it went. `LINKED_PAIRS` keeps them adjacent in the cut.
   { id: 'topFiveByTime', run: optional.topFiveByTime, core: true },
-  // How it went, before which games it went on: the run of verdicts about the
-  // player comes first, then the countdown of games.
+  { id: 'topGame', run: core.topGame, core: true },
+  { id: 'topFive', run: core.topFive, core: true },
+  // The BGG credit slides in their catalogue positions. Top theme is part of
+  // the default story when data exists; the list and people-shaped credit
+  // slides stay opt-in so enabling them does not add a long list block by
+  // default.
+  // Each hero sits directly in front of its list: the claim, then the ranking
+  // it came from. `LINKED_PAIRS` keeps them adjacent however they are dragged.
+  { id: 'topTheme', run: optional.topTheme, core: true },
+  { id: 'topThemes', run: optional.topThemes, core: false },
   { id: 'winRate', run: core.winRate, core: true },
   { id: 'longestWinStreak', run: optional.longestWinStreak, core: true },
   { id: 'bestGame', run: optional.bestGame, core: true },
   { id: 'worstGame', run: optional.worstGame, core: true },
-  { id: 'topGame', run: core.topGame, core: true },
-  { id: 'topFive', run: core.topFive, core: true },
-  // The five BGG credit slides, as a block. Same family as the two countdowns
-  // above them — what you played, seen through who made it and what it was —
-  // and all five off by default: they need a prefetch the other modules do
-  // not, and enabling every one would be seven list slides in a row.
-  // Each hero sits directly in front of its list: the claim, then the ranking
-  // it came from. `LINKED_PAIRS` keeps them adjacent however they are dragged.
-  { id: 'topTheme', run: optional.topTheme, core: false },
-  { id: 'topThemes', run: optional.topThemes, core: false },
   { id: 'topMechanic', run: optional.topMechanic, core: false },
   { id: 'topMechanics', run: optional.topMechanics, core: false },
-  { id: 'topDesigners', run: optional.topDesigners, core: false },
-  { id: 'topArtists', run: optional.topArtists, core: false },
-  { id: 'topPublishers', run: optional.topPublishers, core: false },
-  { id: 'highestScore', run: optional.highestScore, core: true },
   { id: 'coPlayerCount', run: optional.coPlayerCount, core: true },
   // Counts the people, then names one of them. `LINKED_PAIRS` keeps the two
   // adjacent so the bridging line always has its setup in front of it.
   { id: 'topCoPlayer', run: core.topCoPlayer, core: true },
-  { id: 'gameRecord', run: optional.gameRecord, core: true },
   { id: 'nemesis', run: core.nemesis, core: true },
   { id: 'gamesLearned', run: core.gamesLearned, core: true },
+  { id: 'highestScore', run: optional.highestScore, core: false },
+  { id: 'gameRecord', run: optional.gameRecord, core: true },
+  { id: 'topDesigners', run: optional.topDesigners, core: false },
+  { id: 'topArtists', run: optional.topArtists, core: false },
   { id: 'busiestDay', run: optional.busiestDay, core: true },
   { id: 'nightOwl', run: optional.nightOwl, core: true },
-  { id: 'firstAndLastPlay', run: optional.firstAndLastPlay, core: true },
   { id: 'topLocation', run: core.topLocation, core: true },
-  // The one module still off by default: the plays slide already draws a count
-  // of nights, and a second slide counting them is the same fact twice.
+  { id: 'topPublishers', run: optional.topPublishers, core: false },
+  // The plays slide already draws a count of nights, and a second slide
+  // counting them is opt-in.
   { id: 'groupShare', run: optional.groupShare, core: false },
+  { id: 'firstAndLastPlay', run: optional.firstAndLastPlay, core: true },
 ];
 
 export const CORE_SLIDES: SlideId[] = MODULES.filter((m) => m.core).map((m) => m.id);

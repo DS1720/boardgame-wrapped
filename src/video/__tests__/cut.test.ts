@@ -268,6 +268,13 @@ describe('insertSlide', () => {
     expect(insertSlide(order, 'topGame')).toEqual(['totalPlays', 'topGame', 'topFive']);
   });
 
+  it('adds the optional theme list beside top theme after the top five games', () => {
+    const withThemes = insertSlide(DEFAULT_SLIDE_IDS, 'topThemes');
+    expect(withThemes[withThemes.indexOf('topTheme') - 1]).toBe('topFive');
+    expect(withThemes[withThemes.indexOf('topThemes') - 1]).toBe('topTheme');
+    expect(withThemes[withThemes.indexOf('topThemes') + 1]).toBe('winRate');
+  });
+
   it('appends when nothing after it is enabled', () => {
     expect(insertSlide(['totalPlays'], 'topLocation')).toEqual(['totalPlays', 'topLocation']);
   });

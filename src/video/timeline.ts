@@ -21,35 +21,34 @@ export const DEFAULT_BPM = 120;
 export type TimelineSlideId = 'intro' | 'outro' | SlideId;
 
 /**
- * The default cut, in order, from step 7 of the plan.
+ * The default cut, in order.
  *
- * This list is also the filter: a stat with no entry here gets no slide. The
- * stats engine emits twenty-five modules and nineteen of them are in the default
- * video; `groupShare` is the one left out, because the plays slide already
- * counts nights. Adding a stat to the cut means adding it here and writing its
- * component — nothing else.
+ * This list is also the filter: a stat with no entry here gets no slide.
+ * Optional slides stay out of a fresh cut, but `ALL_SLIDES` keeps their
+ * catalogue positions so enabling one drops it into the narrative spot it
+ * belongs to.
  */
 export const DEFAULT_CUT: TimelineSlideId[] = [
   'intro',
   'totalPlays',
   'timePlayed',
   'topFiveByTime',
+  'topGame',
+  'topFive',
+  'topTheme',
   'winRate',
   'longestWinStreak',
   'bestGame',
   'worstGame',
-  'topGame',
-  'topFive',
-  'highestScore',
   'coPlayerCount',
   'topCoPlayer',
-  'gameRecord',
   'nemesis',
   'gamesLearned',
+  'gameRecord',
   'busiestDay',
   'nightOwl',
-  'firstAndLastPlay',
   'topLocation',
+  'firstAndLastPlay',
   'outro',
 ];
 
@@ -95,7 +94,7 @@ export const SLIDE_LABELS: Record<TimelineSlideId, string> = {
   topPublishers: 'Top 5 publishers',
 };
 
-/** The stat slides on by default: the plan's ten-slide cut, minus the bookends. */
+/** The stat slides on by default, minus the bookends. */
 export const DEFAULT_SLIDE_IDS: SlideId[] = DEFAULT_CUT.filter(
   (id): id is SlideId => id !== 'intro' && id !== 'outro',
 );
@@ -332,21 +331,9 @@ export const PAIRED_LEAD_INS: Partial<
     after: 'timePlayed',
     line: 'And this is where it went…',
   },
-  /*
-    The most-played slide follows the two verdicts — the game you win at and
-    the game you do not — and its own line said nothing about either. "Win or
-    lose" answers both of them at once and then hands over to the count, which
-    is the turn the video is actually making here: from how it went to how much
-    of it there was.
-
-    Paired rather than plain, because it can only be said while the losing
-    record is still the thing behind it. `LEAD_INS.topGame` is what runs when
-    the worst-game slide is switched off or returns null, so the slide is never
-    left without an introduction.
-  */
   topGame: {
-    after: 'worstGame',
-    line: 'Win or lose, one game more than any other…',
+    after: 'topFiveByTime',
+    line: 'That was time. By plays, one game led the table…',
   },
 };
 
@@ -369,6 +356,14 @@ export const leadInFor = (
   id: TimelineSlideId,
   previous: TimelineSlideId | null = null,
 ): string | null => {
+  /*
+    A custom cut can still put the most-played slide after the two verdicts.
+    This bridge only makes sense when the losing record actually ran before it,
+    so it lives here instead of replacing the default top-game line.
+  */
+  if (id === 'topGame' && previous === 'worstGame') {
+    return 'Win or lose, one game more than any other…';
+  }
   const paired = PAIRED_LEAD_INS[id];
   if (paired && previous === paired.after) return paired.line;
   /*
@@ -402,9 +397,8 @@ export const SLIDE_BARS: Record<TimelineSlideId, number> = {
   intro: 2,
   totalPlays: 2,
   timePlayed: 2,
-  // Three, like the other countdown: long enough to count five down one at
-  // a time and still hold the finished list for a moment.
-  topFiveByTime: 3,
+  // Two, matching the other countdown while keeping the time section brisk.
+  topFiveByTime: 2,
   // Two. At one it had a lead-in line ahead of it and the top five right
   // behind, which was argument enough that landing a cover and a number was
   // all it had to do — but one bar is two seconds, and the cover is the

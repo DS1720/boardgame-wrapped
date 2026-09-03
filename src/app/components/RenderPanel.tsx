@@ -209,7 +209,12 @@ export const RenderPanel: React.FC<Props> = ({
   }, []);
 
   const browseFolder = useCallback(async () => {
-    const chosen = await shell()?.chooseFolder?.(output?.outDir ?? '');
+    const picker = shell()?.chooseFolder;
+    if (!picker) {
+      setFolderError('The folder picker is available in the Windows desktop app.');
+      return;
+    }
+    const chosen = await picker(output?.outDir ?? '');
     // Null is a cancelled dialog, not a request to reset.
     if (chosen) void applyFolder(chosen);
   }, [applyFolder, output?.outDir]);
@@ -241,10 +246,11 @@ export const RenderPanel: React.FC<Props> = ({
 
       <div className="render-folder">
         <label htmlFor="out-dir">Save videos to</label>
-        <div className="row">
+        <div className="render-folder-field">
           <input
             id="out-dir"
             type="text"
+            className="has-picker"
             value={draft}
             spellCheck={false}
             placeholder={output?.defaultOutDir ?? ''}
@@ -263,11 +269,18 @@ export const RenderPanel: React.FC<Props> = ({
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
             }}
           />
-          {shell()?.chooseFolder && (
-            <button className="secondary" onClick={() => void browseFolder()}>
-              Choose…
-            </button>
-          )}
+          <button
+            type="button"
+            className="render-folder-picker"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => void browseFolder()}
+            aria-label="Choose output folder"
+            title="Choose output folder"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+              <path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H9l2 2h7.5A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" />
+            </svg>
+          </button>
         </div>
         {output?.custom && (
           <button className="link" onClick={() => void applyFolder(null)} type="button">

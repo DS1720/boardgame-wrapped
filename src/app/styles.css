@@ -330,16 +330,67 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
   margin-bottom: 14px;
 }
 
-.render-folder .row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.render-folder label {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.render-folder-field {
+  position: relative;
 }
 
 .render-folder input {
-  flex: 1;
+  width: 100%;
   min-width: 0;
-  font-size: 13px;
+  background: var(--surface-lift);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.render-folder input.has-picker {
+  padding-right: 48px;
+}
+
+.render-folder input::placeholder {
+  color: var(--ink-muted);
+  opacity: 0.7;
+}
+
+.render-folder-picker {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  width: 36px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  transform: translateY(-50%);
+  border-radius: 6px;
+  border-color: var(--surface);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.render-folder-picker svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.render-folder-picker:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--surface);
 }
 
 .render-folder .link {
@@ -351,10 +402,27 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
   flex-direction: column;
   gap: 6px;
   margin-top: 12px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
 }
 
 .range-name input {
   width: 100%;
+  background: var(--surface-lift);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink);
+  padding: 8px 10px;
+  font: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.range-name input::placeholder {
+  color: var(--ink-muted);
+  opacity: 0.7;
 }
 
 /* Theme picker */

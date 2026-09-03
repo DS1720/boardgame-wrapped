@@ -339,5 +339,5 @@ export const TopThemeSlide: React.FC<SlideProps> = ({ stat }) => {
 
 export const TopMechanicSlide: React.FC<SlideProps> = ({ stat }) => {
   if (stat?.id !== 'topMechanic') return null;
-  return <LeadCreditSlide stat={stat} eyebrow="How you played" unit="games" />;
+  return <LeadCreditSlide stat={stat} eyebrow="Top game mechanic" unit="games" />;
 };
