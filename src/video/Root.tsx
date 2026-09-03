@@ -28,6 +28,7 @@ export const RemotionRoot: React.FC = () => (
           bpm: DEFAULT_BPM,
           cut: null,
           bars: null,
+          lengthMultiplier: null,
         } as WrappedProps
       }
       calculateMetadata={({ props }) => ({
@@ -39,6 +40,9 @@ export const RemotionRoot: React.FC = () => (
           // composition whose declared length disagreed with the timeline the
           // component lays out would cut the last slide short.
           ...((props as WrappedProps).bars ? { bars: (props as WrappedProps).bars! } : {}),
+          ...((props as WrappedProps).lengthMultiplier
+            ? { lengthMultiplier: (props as WrappedProps).lengthMultiplier! }
+            : {}),
         }).durationInFrames,
       })}
     />

@@ -31,6 +31,8 @@ interface Props {
   cut: TimelineSlideId[];
   /** Per-slide lengths chosen in the picker. */
   bars: SlideBarOverrides;
+  /** Global multiplier applied in the timeline only. */
+  lengthMultiplier: number;
   playerName: string | null;
   /**
    * Called when the slide under the playhead changes.
@@ -49,6 +51,7 @@ export const Preview: React.FC<Props> = ({
   boxArtMode,
   cut,
   bars,
+  lengthMultiplier,
   playerName,
   onSlideChange,
 }) => {
@@ -56,13 +59,13 @@ export const Preview: React.FC<Props> = ({
   // A fresh object identity on every render restarts the Player, which would
   // throw away the scrub position on every keystroke elsewhere in the UI.
   const inputProps = useMemo(
-    () => ({ stats, theme, track, boxArtMode, cut, bars }),
-    [stats, theme, track, boxArtMode, cut, bars],
+    () => ({ stats, theme, track, boxArtMode, cut, bars, lengthMultiplier }),
+    [stats, theme, track, boxArtMode, cut, bars, lengthMultiplier],
   );
 
   const timeline = useMemo(
-    () => planTimeline(stats, { bpm: track?.bpm, cut, bars }),
-    [stats, track?.bpm, cut, bars],
+    () => planTimeline(stats, { bpm: track?.bpm, cut, bars, lengthMultiplier }),
+    [stats, track?.bpm, cut, bars, lengthMultiplier],
   );
 
   const seconds = timeline.durationInFrames / VIDEO.fps;

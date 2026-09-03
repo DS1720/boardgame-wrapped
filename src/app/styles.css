@@ -633,6 +633,7 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
   margin-bottom: 14px;
 }
 
@@ -715,6 +716,7 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
   color: var(--ink-muted);
 }
 
+.audio-length input,
 .audio-facts input,
 .audio-credit input {
   background: var(--surface-lift);
@@ -723,6 +725,26 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
   border-radius: 6px;
   padding: 6px 8px;
   font-size: 14px;
+}
+
+.audio-length {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.audio-length input {
+  width: 72px;
+  font-variant-numeric: tabular-nums;
+}
+
+.audio-length-unit {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .audio-facts input { width: 92px; font-variant-numeric: tabular-nums; }

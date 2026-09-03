@@ -22,6 +22,7 @@ describe('the default session', () => {
     const session = defaultSession();
     expect(session.playerId).toBeNull();
     expect(session.trackId).toBeNull();
+    expect(session.lengthMultiplier).toBe(1);
     expect(session.slides).toEqual(DEFAULT_SLIDE_IDS);
   });
 
@@ -43,6 +44,7 @@ describe('round trip', () => {
         rangeLabel: '2026',
         slides: ['winRate', 'totalPlays'],
         trackId: 'my-song-abc',
+        lengthMultiplier: 1.5,
         boxArtMode: true,
       },
       storage,
@@ -52,6 +54,7 @@ describe('round trip', () => {
     expect(restored.playerId).toBe(4);
     expect(restored.rangeLabel).toBe('2026');
     expect(restored.trackId).toBe('my-song-abc');
+    expect(restored.lengthMultiplier).toBe(1.5);
     expect(restored.boxArtMode).toBe(true);
   });
 
@@ -128,6 +131,13 @@ describe('validation', () => {
 
   it('keeps an empty selection, which is a real choice', () => {
     expect(parseSession({ ...defaultSession(), slides: [] }).slides).toEqual([]);
+  });
+
+  it('keeps the length multiplier inside the supported range', () => {
+    expect(parseSession({ ...defaultSession(), lengthMultiplier: 1.25 }).lengthMultiplier).toBe(1.25);
+    expect(parseSession({ ...defaultSession(), lengthMultiplier: 0 }).lengthMultiplier).toBe(0.25);
+    expect(parseSession({ ...defaultSession(), lengthMultiplier: 100 }).lengthMultiplier).toBe(4);
+    expect(parseSession({ ...defaultSession(), lengthMultiplier: 'big' }).lengthMultiplier).toBe(1);
   });
 
   it('falls back to the default cut when slides are missing entirely', () => {

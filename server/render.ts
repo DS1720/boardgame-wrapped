@@ -81,6 +81,8 @@ export interface RenderInput {
    * different length from the preview it was started from.
    */
   bars?: SlideBarOverrides | null;
+  /** Global multiplier for planned slide lengths. */
+  lengthMultiplier?: number | null;
 }
 
 export interface RenderProgress {
@@ -203,6 +205,7 @@ export const startRender = (input: RenderInput): RenderJob => {
     track: input.track,
     cut: input.slides,
     bars: input.bars ?? null,
+    lengthMultiplier: input.lengthMultiplier ?? null,
   };
 
   /**

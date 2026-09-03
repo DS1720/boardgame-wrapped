@@ -65,6 +65,7 @@ interface Props {
   track: Track | null;
   cut: TimelineSlideId[];
   bars: SlideBarOverrides;
+  lengthMultiplier: number;
   /** Names typed by hand in the player picker. Sparse. */
   names: PlayerNameOverrides;
   /**
@@ -82,6 +83,7 @@ export const BatchPanel: React.FC<Props> = ({
   track,
   cut,
   bars,
+  lengthMultiplier,
   names,
   bgg,
 }) => {
@@ -144,6 +146,7 @@ export const BatchPanel: React.FC<Props> = ({
         // Lengths are a choice about the video, not about the player, so every
         // item in a batch gets the same ones the preview is running.
         bars,
+        lengthMultiplier,
       }));
 
       const res = await fetch(`${API}/batch`, {

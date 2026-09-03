@@ -42,6 +42,8 @@ export interface WrappedProps {
   cut?: TimelineSlideId[] | null;
   /** Per-slide lengths chosen in the UI. Absent ids keep their default. */
   bars?: SlideBarOverrides | null;
+  /** Global multiplier applied after each slide's bar value is resolved. */
+  lengthMultiplier?: number | null;
 }
 
 /**
@@ -221,6 +223,7 @@ export const Wrapped: React.FC<WrappedProps> = ({
   bpm = DEFAULT_BPM,
   cut = null,
   bars = null,
+  lengthMultiplier = null,
 }) => {
   const base = theme ?? DEFAULT_THEME;
   const manifest = useBoxArtManifest();
@@ -237,6 +240,7 @@ export const Wrapped: React.FC<WrappedProps> = ({
     bpm: track?.bpm ?? bpm,
     ...(cut ? { cut } : {}),
     ...(bars ? { bars } : {}),
+    ...(lengthMultiplier ? { lengthMultiplier } : {}),
   });
 
   return (

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SlideId } from '@/stats/types';
 import {
   ALL_SLIDES,
+  DEFAULT_LENGTH_MULTIPLIER,
   DEFAULT_SLIDE_IDS,
+  parseLengthMultiplier,
   parseBarOverrides,
   type SlideBarOverrides,
 } from '@/video/timeline';
@@ -58,6 +60,8 @@ export interface Session {
    * reach nobody who had ever opened the app.
    */
   bars: SlideBarOverrides;
+  /** Multiplies all planned slide lengths without changing per-slide values. */
+  lengthMultiplier: number;
   /**
    * Names typed by hand, replacing the ones in the export.
    *
@@ -78,6 +82,7 @@ export const defaultSession = (): Session => ({
   rangeName: null,
   slides: [...DEFAULT_SLIDE_IDS],
   bars: {},
+  lengthMultiplier: DEFAULT_LENGTH_MULTIPLIER,
   playerNames: {},
   trackId: null,
   boxArtMode: false,
@@ -122,6 +127,7 @@ export const parseSession = (raw: unknown): Session => {
     // Shared with the render route, so a length is validated the same way
     // whether it came from storage or from an HTTP body.
     bars: parseBarOverrides(value.bars),
+    lengthMultiplier: parseLengthMultiplier(value.lengthMultiplier),
     playerNames: parsePlayerNames(value.playerNames),
     trackId: typeof value.trackId === 'string' ? value.trackId : null,
     boxArtMode: typeof value.boxArtMode === 'boolean' ? value.boxArtMode : false,

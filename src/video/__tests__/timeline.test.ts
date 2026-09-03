@@ -16,13 +16,16 @@ import {
   planTimeline,
   barsFor,
   clampBars,
+  clampLengthMultiplier,
   MAX_SLIDE_BARS,
   MIN_SLIDE_BARS,
+  parseLengthMultiplier,
   parseBarOverrides,
   slideAt,
   slideIndexAt,
   slideBars,
   slideFrames,
+  multipliedSlideBars,
   SLIDE_BARS,
   SLIDE_LABELS,
   type TimelineSlideId,
@@ -537,6 +540,17 @@ describe('slide lengths chosen by hand', () => {
     expect(Number.isInteger(plan.bars)).toBe(true);
     expect(total).toBeGreaterThan(0);
   });
+
+  it('multiplies planned slide lengths without changing the picker values', () => {
+    expect(barsFor('topFiveByTime')).toBe(SLIDE_BARS.topFiveByTime);
+    expect(multipliedSlideBars('topFiveByTime', 'timePlayed', {}, 1.5)).toBe(4);
+    expect(multipliedSlideBars('topFiveByTime', 'timePlayed', {}, 0.5)).toBe(2);
+
+    const base = planTimeline(statsWith(ALL_CORE));
+    const longer = planTimeline(statsWith(ALL_CORE), { lengthMultiplier: 1.5 });
+    expect(longer.bars).toBeGreaterThan(base.bars);
+    for (const slide of longer.slides) expect(slide.durationInFrames).toBeGreaterThan(0);
+  });
 });
 
 describe('a chosen length, made safe', () => {
@@ -561,6 +575,13 @@ describe('a chosen length, made safe', () => {
     expect(parseBarOverrides(null)).toEqual({});
     expect(parseBarOverrides('bars')).toEqual({});
     expect(parseBarOverrides(undefined)).toEqual({});
+  });
+
+  it('normalizes the global length multiplier', () => {
+    expect(clampLengthMultiplier(1.25)).toBe(1.25);
+    expect(clampLengthMultiplier(0)).toBe(0.25);
+    expect(clampLengthMultiplier(99)).toBe(4);
+    expect(parseLengthMultiplier('fast')).toBe(1);
   });
 });
 

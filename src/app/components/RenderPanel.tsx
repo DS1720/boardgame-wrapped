@@ -65,6 +65,7 @@ interface Props {
   track: Track | null;
   cut: TimelineSlideId[];
   bars: SlideBarOverrides;
+  lengthMultiplier: number;
   durationInFrames: number;
 }
 
@@ -74,6 +75,7 @@ export const RenderPanel: React.FC<Props> = ({
   track,
   cut,
   bars,
+  lengthMultiplier,
   durationInFrames,
 }) => {
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -127,7 +129,7 @@ export const RenderPanel: React.FC<Props> = ({
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         // Exactly what the preview is running.
-        body: JSON.stringify({ stats, theme, track, slides: cut, bars }),
+        body: JSON.stringify({ stats, theme, track, slides: cut, bars, lengthMultiplier }),
       });
       if (!res.ok) {
         throw new Error(((await res.json()) as { error?: string }).error ?? `HTTP ${res.status}`);

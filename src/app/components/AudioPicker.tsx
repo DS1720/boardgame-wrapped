@@ -7,6 +7,10 @@ import {
   type AudioManifest,
   type Track,
 } from '@/shared/audio';
+import {
+  MAX_LENGTH_MULTIPLIER,
+  MIN_LENGTH_MULTIPLIER,
+} from '@/video/timeline';
 
 /**
  * Soundtrack picker: upload, crop, and tempo.
@@ -28,10 +32,19 @@ interface Props {
   videoDurationInFrames: number;
   fps: number;
   selectedId: string | null;
+  lengthMultiplier: number;
+  onLengthMultiplier: (value: number) => void;
   onSelect: (track: Track | null) => void;
 }
 
-export const AudioPicker: React.FC<Props> = ({ videoDurationInFrames, fps, selectedId, onSelect }) => {
+export const AudioPicker: React.FC<Props> = ({
+  videoDurationInFrames,
+  fps,
+  selectedId,
+  lengthMultiplier,
+  onLengthMultiplier,
+  onSelect,
+}) => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [offline, setOffline] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -197,6 +210,19 @@ export const AudioPicker: React.FC<Props> = ({ videoDurationInFrames, fps, selec
             Remove
           </button>
         )}
+        <label className="audio-length">
+          <span>Slide length</span>
+          <input
+            type="number"
+            min={MIN_LENGTH_MULTIPLIER}
+            max={MAX_LENGTH_MULTIPLIER}
+            step={0.25}
+            value={lengthMultiplier}
+            title="Multiplies slide lengths in the timeline. Individual slide bar values stay unchanged."
+            onChange={(e) => onLengthMultiplier(Number(e.target.value))}
+          />
+          <span className="audio-length-unit">x</span>
+        </label>
       </div>
 
       {error && <p className="error">{error}</p>}

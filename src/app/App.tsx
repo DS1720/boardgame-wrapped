@@ -26,6 +26,7 @@ import {
   arrangementOf,
   buildCut,
   clampBars,
+  clampLengthMultiplier,
   type TimelineSlideId,
   insertSlide,
   moveSlide,
@@ -61,6 +62,7 @@ export const App: React.FC = () => {
   const playerId = session.playerId;
   const slides = session.slides;
   const bars = session.bars;
+  const lengthMultiplier = session.lengthMultiplier;
   const playerNames = session.playerNames;
 
   // The stored range is two ISO days; a DateRange needs real Dates.
@@ -137,8 +139,8 @@ export const App: React.FC = () => {
 
   // The audio picker needs the video's length to work out looping.
   const timeline = useMemo(
-    () => planTimeline(stats, { bpm: track?.bpm, cut, bars }),
-    [stats, track?.bpm, cut, bars],
+    () => planTimeline(stats, { bpm: track?.bpm, cut, bars, lengthMultiplier }),
+    [stats, track?.bpm, cut, bars, lengthMultiplier],
   );
 
   // Every edit is made against the arrangement as it will play, not against
@@ -291,6 +293,8 @@ export const App: React.FC = () => {
             videoDurationInFrames={timeline.durationInFrames}
             fps={VIDEO.fps}
             selectedId={track?.id ?? session.trackId}
+            lengthMultiplier={lengthMultiplier}
+            onLengthMultiplier={(value) => patch({ lengthMultiplier: clampLengthMultiplier(value) })}
             onSelect={(next) => {
               setTrack(next);
               patch({ trackId: next?.id ?? null });
@@ -314,6 +318,7 @@ export const App: React.FC = () => {
             track={track}
             cut={cut}
             bars={bars}
+            lengthMultiplier={lengthMultiplier}
             durationInFrames={timeline.durationInFrames}
           />
 
@@ -326,6 +331,7 @@ export const App: React.FC = () => {
             track={track}
             cut={cut}
             bars={bars}
+            lengthMultiplier={lengthMultiplier}
             bgg={bgg}
           />
 
@@ -342,6 +348,7 @@ export const App: React.FC = () => {
           boxArtMode={themeSelection.boxArtMode}
           cut={cut}
           bars={bars}
+          lengthMultiplier={lengthMultiplier}
           playerName={playerName}
           onSlideChange={setPlaying}
         />

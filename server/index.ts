@@ -45,7 +45,7 @@ import {
   type BggProgress,
   type BggSummary,
 } from './bgg';
-import { parseBarOverrides } from '../src/video/timeline';
+import { parseBarOverrides, parseLengthMultiplier } from '../src/video/timeline';
 import { defaultOutDir, getOutDir, isCustomOutDir, setOutDir, SettingsError } from './settings';
 import type { RawGame } from '../src/shared/types';
 
@@ -403,6 +403,7 @@ app.post('/render', (req, res) => {
     // Validated here rather than trusted: a fractional or negative length would
     // put every cut after it off the beat, and this arrives over HTTP.
     bars: parseBarOverrides(body.bars),
+    lengthMultiplier: parseLengthMultiplier(body.lengthMultiplier),
   };
 
   job = startRender(input);
@@ -451,7 +452,14 @@ app.post('/batch', (req, res) => {
     return;
   }
 
-  batch = startBatch({ items, minPlays: Number(req.body?.minPlays ?? 0) || 0 });
+  batch = startBatch({
+    items: items.map((item) => ({
+      ...item,
+      bars: parseBarOverrides(item.bars),
+      lengthMultiplier: parseLengthMultiplier(item.lengthMultiplier),
+    })),
+    minPlays: Number(req.body?.minPlays ?? 0) || 0,
+  });
   void batch.done;
   res.status(202).json({ started: true, total: items.length });
 });

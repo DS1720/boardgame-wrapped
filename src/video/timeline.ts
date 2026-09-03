@@ -520,6 +520,20 @@ export const MIN_SLIDE_BARS = 1;
  */
 export const MAX_SLIDE_BARS = 8;
 
+/** The neutral video length multiplier. */
+export const DEFAULT_LENGTH_MULTIPLIER = 1;
+
+/** Smallest multiplier that still leaves one-bar slides meaningful. */
+export const MIN_LENGTH_MULTIPLIER = 0.25;
+
+/**
+ * Longest multiplier exposed by the UI.
+ *
+ * Four times a long cut is already several minutes; beyond that the setting is
+ * more likely a typo than an edit.
+ */
+export const MAX_LENGTH_MULTIPLIER = 4;
+
 /**
  * A chosen bar count, made safe.
  *
@@ -530,6 +544,19 @@ export const MAX_SLIDE_BARS = 8;
  */
 export const clampBars = (bars: number): number =>
   Math.min(MAX_SLIDE_BARS, Math.max(MIN_SLIDE_BARS, Math.round(bars)));
+
+export const clampLengthMultiplier = (value: number): number => {
+  if (!Number.isFinite(value)) return DEFAULT_LENGTH_MULTIPLIER;
+  const rounded = Math.round(value * 100) / 100;
+  return Math.min(MAX_LENGTH_MULTIPLIER, Math.max(MIN_LENGTH_MULTIPLIER, rounded));
+};
+
+/** Whole bars after applying the global multiplier. */
+const multiplyBars = (bars: number, multiplier: number): number =>
+  Math.max(MIN_SLIDE_BARS, Math.round(bars * clampLengthMultiplier(multiplier)));
+
+export const parseLengthMultiplier = (raw: unknown): number =>
+  typeof raw === 'number' ? clampLengthMultiplier(raw) : DEFAULT_LENGTH_MULTIPLIER;
 
 /** Whole bars only, and only ids that exist. Used on stored and posted values. */
 export const parseBarOverrides = (raw: unknown): SlideBarOverrides => {
@@ -550,6 +577,11 @@ export interface PlanOptions {
   cut?: TimelineSlideId[];
   /** Per-slide lengths chosen in the UI. Absent ids keep their default. */
   bars?: SlideBarOverrides;
+  /**
+   * Global multiplier applied after per-slide lengths are resolved. It never
+   * changes the picker values; it only changes the planned timeline.
+   */
+  lengthMultiplier?: number;
 }
 
 /** A composition still needs a positive duration when there is nothing to show. */
@@ -571,6 +603,15 @@ export const slideBars = (
   // same amount of content time wherever the slide happens to sit.
   clampBars(overrides[id] ?? SLIDE_BARS[id] ?? 2) + (leadInFor(id, previous) ? LEAD_IN_BARS : 0);
 
+export const multipliedSlideBars = (
+  id: TimelineSlideId,
+  previous: TimelineSlideId | null = null,
+  overrides: SlideBarOverrides = {},
+  lengthMultiplier: number = DEFAULT_LENGTH_MULTIPLIER,
+): number =>
+  multiplyBars(clampBars(overrides[id] ?? SLIDE_BARS[id] ?? 2), lengthMultiplier) +
+  (leadInFor(id, previous) ? LEAD_IN_BARS : 0);
+
 export const slideFrames = (id: TimelineSlideId, bpm = DEFAULT_BPM, fps: number = VIDEO.fps): number =>
   Math.round(slideBars(id) * framesPerBar(bpm, fps));
 
@@ -588,7 +629,13 @@ export const barsFor = (id: TimelineSlideId, overrides: SlideBarOverrides = {}):
  */
 export const planTimeline = (
   stats: WrappedStats | null,
-  { bpm = DEFAULT_BPM, fps = VIDEO.fps as number, cut = DEFAULT_CUT, bars = {} }: PlanOptions = {},
+  {
+    bpm = DEFAULT_BPM,
+    fps = VIDEO.fps as number,
+    cut = DEFAULT_CUT,
+    bars = {},
+    lengthMultiplier = DEFAULT_LENGTH_MULTIPLIER,
+  }: PlanOptions = {},
 ): Timeline => {
   if (!stats) {
     return { slides: [], durationInFrames: EMPTY_DURATION_FRAMES, bars: 0, bpm };
@@ -610,7 +657,7 @@ export const planTimeline = (
     if (!isBookend && !stat) continue;
 
     const leadIn = leadInFor(id, previous);
-    barCursor += slideBars(id, previous, bars);
+    barCursor += multipliedSlideBars(id, previous, bars, lengthMultiplier);
     // Each boundary is rounded from its absolute bar position, never
     // accumulated from rounded durations. At 128 BPM a bar is 56.25 frames;
     // rounding every slide to 56 would lose a quarter frame per slide and put
