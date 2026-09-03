@@ -703,6 +703,44 @@ export const StreakChain: React.FC<{
 const RESULT_FRAMES = 4;
 
 /**
+ * The two glyphs a result marker can carry, in the 32x32 box `ResultRow` draws
+ * into.
+ *
+ * The tick is `StreakChain`'s, scaled from its r=20 ring to this r=13 one, so
+ * a win is drawn the same way wherever it appears in the video. Filled ring
+ * plus a tick knocked out of it for a win; empty ring plus a cross for a loss.
+ *
+ * Before this the two were a filled circle and an empty one, which is a
+ * distinction you have to be told about. A tick and a cross are the marks
+ * anybody already reads as won and lost, and they are what the streak slide
+ * had been using all along.
+ */
+const RESULT_TICK = 'M 10.8 16 l 3.2 3.9 l 7.2 -7.8';
+const RESULT_CROSS = 'M 10.8 10.8 L 21.2 21.2 M 21.2 10.8 L 10.8 21.2';
+
+/**
+ * Which markers in a row of `shown` results are wins.
+ *
+ * *Which* plays were won is not in the stat — only how many — so the wins are
+ * spread evenly through the row rather than bunched at the front. Putting them
+ * all at one end would invent a run that may never have happened.
+ *
+ * Pure and exported because the row now draws a tick or a cross rather than a
+ * filled or hollow dot, which makes a miscount something a viewer can read off
+ * the slide: nine ticks under "80% in 10 plays" is a visible contradiction
+ * where nine filled dots was only a slightly wrong texture.
+ */
+export const winMarkers = (shown: number, wins: number): boolean[] => {
+  if (shown <= 0) return [];
+  const every = wins > 0 ? shown / wins : 0;
+  return Array.from({ length: shown }, (_, i) => {
+    if (every <= 0) return false;
+    if (i === 0) return true;
+    return Math.floor(i / every) !== Math.floor((i - 1) / every);
+  });
+};
+
+/**
  * Every play of the game, as a won or lost marker.
  *
  * "0% in 10 plays" is a fact you read; ten hollow rings in a row is the same
@@ -724,8 +762,7 @@ export const ResultRow: React.FC<{
   const wins = Math.round(ratio * shown);
   const step = markStep(shown, windowFrames, RESULT_FRAMES);
   const size = 40;
-  // Every nth marker is a win, spaced across the whole row.
-  const every = wins > 0 ? shown / wins : 0;
+  const markers = winMarkers(shown, wins);
 
   return (
     // Ten to a row: a ten-play record is the common case and 9 + 1 left an
@@ -738,9 +775,7 @@ export const ResultRow: React.FC<{
         });
         if (turned <= 0) return null;
 
-        const won = every > 0 && Math.floor(i / every) !== Math.floor((i - 1) / every) && i > 0
-          ? true
-          : every > 0 && i === 0;
+        const won = markers[i];
 
         return (
           <svg
@@ -749,7 +784,8 @@ export const ResultRow: React.FC<{
             height={size}
             viewBox="0 0 32 32"
             aria-hidden
-            // Turns over as it arrives, like a card being flipped face up.
+            // Turns over as it arrives, like a card being flipped face up. The
+            // glyph rides the same flip, so the mark lands face up already read.
             style={{ transform: `scaleX(${Math.abs(Math.cos((1 - turned) * Math.PI))})` }}
           >
             <circle
@@ -759,6 +795,18 @@ export const ResultRow: React.FC<{
               fill={won ? color.accent : 'none'}
               stroke={won ? color.accent : withAlpha(color.ink, 0.4)}
               strokeWidth={3}
+            />
+            <path
+              d={won ? RESULT_TICK : RESULT_CROSS}
+              fill="none"
+              /* A win's tick is knocked out of the accent it sits on, exactly
+                 as on the streak chain. A loss keeps the ring's own muted ink:
+                 two weights of the same colour, so the row reads as a run of
+                 results rather than as two competing marks. */
+              stroke={won ? color.bg : withAlpha(color.ink, 0.45)}
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
           </svg>
         );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chipScale } from '../slides/details';
+import { chipScale, winMarkers } from '../slides/details';
 
 /**
  * The chip stacks are the one detail animation that turns a number into a
@@ -60,5 +60,49 @@ describe('chipScale', () => {
     expect(unit).toBe(1);
     expect(winChips).toBe(4);
     expect(lossChips).toBe(5);
+  });
+});
+
+describe('winMarkers', () => {
+  const wins = (row: boolean[]) => row.filter(Boolean).length;
+
+  it('draws exactly as many ticks as there were wins', () => {
+    /*
+      The row used to be filled and hollow dots, where a miscount read as a
+      slightly wrong texture. It draws ticks and crosses now, so nine ticks
+      under "80% in 10 plays" is a contradiction a viewer can read off the
+      slide.
+    */
+    for (let shown = 1; shown <= 18; shown += 1) {
+      for (let won = 0; won <= shown; won += 1) {
+        expect(wins(winMarkers(shown, won))).toBe(won);
+      }
+    }
+  });
+
+  it('marks the right number in the cases the real export produces', () => {
+    // Tina 2026: 67% of 3 at Codenames: Pictures, 0% of 10 at Castle Combo.
+    expect(winMarkers(3, 2)).toEqual([true, false, true]);
+    expect(winMarkers(10, 0)).toEqual(Array(10).fill(false));
+    expect(winMarkers(4, 4)).toEqual([true, true, true, true]);
+  });
+
+  it('spreads the wins rather than bunching them at the front', () => {
+    /*
+      Which plays were won is not in the stat. Putting them all at one end
+      would invent a run that may never have happened — and with ticks on the
+      markers that invented run is now legible as a streak.
+    */
+    const row = winMarkers(12, 4);
+    const at = row.flatMap((won, i) => (won ? [i] : []));
+    expect(at).toHaveLength(4);
+    // Evenly spaced: no two wins adjacent, and the last is in the back half.
+    for (let i = 1; i < at.length; i += 1) expect(at[i] - at[i - 1]).toBeGreaterThan(1);
+    expect(at[at.length - 1]).toBeGreaterThan(6);
+  });
+
+  it('draws nothing for a row with no plays', () => {
+    expect(winMarkers(0, 0)).toEqual([]);
+    expect(winMarkers(-1, 3)).toEqual([]);
   });
 });

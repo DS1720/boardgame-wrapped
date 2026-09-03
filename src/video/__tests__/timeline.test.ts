@@ -575,3 +575,34 @@ describe('slide labels', () => {
     expect(SLIDE_LABELS.topMechanic).not.toBe(SLIDE_LABELS.topMechanics);
   });
 });
+
+describe('the most-played slide takes the losing record as its cue', () => {
+  it('answers the worst-game slide when it ran immediately before', () => {
+    /*
+      The default cut runs best game, worst game, most played. The plain line —
+      "One game more than any other…" — said nothing about either verdict, and
+      landed a bar after a slide about losing as if it had not happened.
+    */
+    const paired = leadInFor('topGame', 'worstGame')!;
+    expect(paired).not.toBe(LEAD_INS.topGame);
+    expect(paired).toContain('Win or lose');
+  });
+
+  it('falls back to its own line when the worst game is not there', () => {
+    // The slide is optional and the module returns null for a coop-only year,
+    // so the connective can never point back at a slide nobody was shown.
+    expect(leadInFor('topGame', 'bestGame')).toBe(LEAD_INS.topGame);
+    expect(leadInFor('topGame')).toBe(LEAD_INS.topGame);
+  });
+
+  it('costs the same bar either way', () => {
+    // Both branches return a line, so the slide's length cannot depend on
+    // which one it got.
+    expect(slideBars('topGame', 'worstGame')).toBe(slideBars('topGame', 'bestGame'));
+  });
+
+  it('is the line the default cut actually reaches', () => {
+    const cut = DEFAULT_CUT;
+    expect(cut[cut.indexOf('topGame') - 1]).toBe('worstGame');
+  });
+});

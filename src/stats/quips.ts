@@ -371,10 +371,24 @@ export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | 
 
     case 'topPublishers': {
       const pubs = find(stats, 'topPublishers');
-      if (!pubs || pubs.entries.length < 3) return null;
+      if (!pubs || pubs.entries.length < 2) return null;
       const [first, second] = pubs.entries;
+      /*
+        Two tiers, because one left this slide bare.
+
+        It used to need three entries *and* a leader twice the runner-up, which
+        measured on the real export is 1 player in 9 — the other eight ended
+        the slide on a list with nothing under it. The three-entry guard was
+        the worse half: a two-name list is still a contest, and one player was
+        losing the line on a 12-to-2 lead purely for being short.
+
+        Neither tier states a number. The rows already carry the plays and the
+        games, and the second telling is what reads as filler — so the wide
+        lead is described and the narrow one is named. "Just ahead of" is only
+        ever said below 2x, where it is true.
+      */
       if (first.plays >= second.plays * 2) return `${first.name} had a very good year at your table.`;
-      return null;
+      return `${first.name}, just ahead of ${second.name}.`;
     }
 
     default:

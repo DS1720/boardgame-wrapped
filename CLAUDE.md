@@ -23,7 +23,7 @@ or every command below except the `npx tsx` one will fail.
 npm install
 npm run dev          # UI on http://localhost:5173
 npm run server       # render service on http://localhost:4000 (stub until step 10)
-npm test             # vitest, 691 tests
+npm test             # vitest, 704 tests
 npm run typecheck    # tsc --noEmit
 npm run video:studio # Remotion Studio
 npm run video:render # renders out/test.mp4
@@ -243,6 +243,17 @@ have real separation (124 / 80 / 47 against a designer list's 11 / 6 / 5).
   is per-row information the hero can only give for the winner. On the mechanics
   list it is the most interesting column on the slide - 24, 18, 14, 13, 9 games
   behind play counts of 69, 69, 62, 61, 44.
+- **The publishers slide always has a line, and `coPlayerCount` is no longer
+  the only one.** Its quip needed three entries *and* a leader twice the
+  runner-up, which measured on the real export is **1 player in 9** — the other
+  eight ended the slide on a list with nothing under it. The three-entry guard
+  was the worse half: a two-name list is still a contest, and one player was
+  losing the line on a 12-to-2 lead purely for being short. Two tiers now: a
+  wide lead is described (*"Catch Up Games had a very good year at your
+  table."*) and a narrow one names the runner-up (*"Catch Up Games, just ahead
+  of The Op Games."*), which is a fact the ranking implies but 32-against-27
+  does not make obvious. **9 of 9 get a line.** "Just ahead of" is only ever
+  said below 2x, where it is true.
 - **The quips never restate that count.** The row already carries it, and a line
   under the list repeating row one's number is the same fact told twice. This
   is why the mechanics quip is *"Hand Management, over and over"* rather than
@@ -620,7 +631,7 @@ and decoration is what makes a video look assembled rather than made.
 | Intro | `DealtHand` | every one of these evenings starts by dealing |
 | Win rate | `ChipStacks` | two stacks, same scale — the slide's subject is a comparison |
 | Longest win streak | `StreakChain` | the link between two wins is what makes it a streak rather than a total |
-| Best / worst game | `ResultRow` | a percentage read, versus won and lost markers you can count |
+| Best / worst game | `ResultRow` | a percentage read, versus ticks and crosses you can count |
 | People played with | `Crowd` | people drawn as people |
 | Nemesis | `HeadToHead` | one track filled from both ends; where they meet is the record |
 | Busiest day | `DayStack` | every other count is spread over a year — this one piles up |
@@ -645,9 +656,23 @@ Several are worth knowing in detail:
 - **`CalendarTear` tears the real span.** January to March is three pages, not
   twelve, and months are absolute indices (`year * 12 + month`) so a range that
   crosses New Year still counts forwards.
+- **`ResultRow` marks a win with a tick and a loss with a cross**, in the same
+  ring `StreakChain` uses — filled and knocked out for a win, hollow and muted
+  for a loss. It was a filled dot against a hollow one, which is a distinction
+  you have to be told about; a tick and a cross are the marks anybody already
+  reads as won and lost, and the streak slide had been using them all along.
+  The tick is that one's path scaled from its r=20 ring to this r=13 one, so
+  the two are the same glyph rather than two drawings of the same idea.
 - **`ResultRow` spreads the wins through the row** rather than bunching them at
   the front. *Which* plays were won is not in the stat, and putting them all at
-  one end would invent a run that may never have happened.
+  one end would invent a run that may never have happened — and with ticks on
+  the markers, that invented run would now be legible as a streak.
+
+  `winMarkers` is that arithmetic, pure and exported. It became worth testing
+  when the dots became glyphs: nine filled dots under "80% in 10 plays" is a
+  slightly wrong texture, nine *ticks* is a contradiction a viewer can read off
+  the slide. A sweep checks the tick count equals the win count for every
+  combination the row can show.
 - **`DayClock` hangs in the frame's top corner, not beside the number.** In the
   row it first shared with the stat block it took width off the caption and
   broke it across more lines than it should. A decoration that costs the text
@@ -1644,9 +1669,23 @@ two places to disagree, and they would disagree by exactly one bar.
 ### Linked slides
 
 `PAIRED_LEAD_INS` holds lines that only appear when one particular slide runs
-directly before. There is one: "Played with" counts the people, "Played most
-with" names one of them, and between them goes *"But one of them was at the table
-more than anyone…"*. Back to back they are two halves of one thought.
+directly before. "Played with" counts the people, "Played most with" names one
+of them, and between them goes *"But one of them was at the table more than
+anyone…"*. Back to back they are two halves of one thought.
+
+**The most-played slide takes the losing record as its cue.** The default cut
+runs best game, worst game, most played, and `topGame`'s plain line — *"One game
+more than any other…"* — said nothing about either verdict: it landed a bar
+after a slide about losing as if that had not happened. After `worstGame` it now
+reads *"Win or lose, one game more than any other…"*, which answers both slides
+at once and hands over to the count. That is the turn the video is making there,
+from how it went to how much of it there was.
+
+Paired rather than plain, for the usual reason: the worst-game slide is optional
+and its module returns null for a coop-only year, so the connective would
+otherwise point back at a slide nobody was shown. `LEAD_INS.topGame` still runs
+in that case, and both branches return a line, so the slide's length cannot
+depend on which one it got.
 
 `LINKED_PAIRS` is what keeps them back to back — `buildCut` pulls the leading
 slide up against its partner whenever both are in. Three consequences worth
@@ -1759,7 +1798,7 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 691 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 27-module stats
+**All twelve steps are done.** 704 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 27-module stats
 engine, box art, four theme modes, twenty-five slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.

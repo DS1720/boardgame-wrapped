@@ -332,6 +332,22 @@ export const PAIRED_LEAD_INS: Partial<
     after: 'timePlayed',
     line: 'And this is where it went…',
   },
+  /*
+    The most-played slide follows the two verdicts — the game you win at and
+    the game you do not — and its own line said nothing about either. "Win or
+    lose" answers both of them at once and then hands over to the count, which
+    is the turn the video is actually making here: from how it went to how much
+    of it there was.
+
+    Paired rather than plain, because it can only be said while the losing
+    record is still the thing behind it. `LEAD_INS.topGame` is what runs when
+    the worst-game slide is switched off or returns null, so the slide is never
+    left without an introduction.
+  */
+  topGame: {
+    after: 'worstGame',
+    line: 'Win or lose, one game more than any other…',
+  },
 };
 
 /**

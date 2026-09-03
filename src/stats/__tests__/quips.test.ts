@@ -319,3 +319,67 @@ describe('the record slide', () => {
     expect(quipFor('gameRecord', recordStats({}))).toBe('The number to beat.');
   });
 });
+
+describe('the publishers slide always has a line', () => {
+  const pubStats = (entries: Array<{ name: string; plays: number; games: number }>): WrappedStats => ({
+    ...stats,
+    stats: [
+      {
+        id: 'topPublishers',
+        core: false,
+        coverage: 1,
+        entries: entries.map((e) => ({
+          ...e,
+          topGame: { gameId: 1, name: 'Faraway', boxArt: null, bggId: 1 },
+        })),
+      },
+    ],
+  });
+
+  it('speaks for a two-name list, which used to be silent', () => {
+    /*
+      The old guard needed three entries and a leader twice the runner-up: one
+      player in nine on the real export. One was losing the line on a 12-to-2
+      lead purely for having a short list.
+    */
+    const line = quipFor('topPublishers', pubStats([
+      { name: 'KOSMOS', plays: 12, games: 3 },
+      { name: 'AMIGO', plays: 2, games: 2 },
+    ]))!;
+    expect(line).toContain('KOSMOS');
+  });
+
+  it('names the runner-up when the lead is narrow', () => {
+    const line = quipFor('topPublishers', pubStats([
+      { name: 'Catch Up Games', plays: 32, games: 2 },
+      { name: 'The Op Games', plays: 27, games: 3 },
+      { name: 'AMIGO', plays: 20, games: 2 },
+    ]))!;
+    expect(line).toBe('Catch Up Games, just ahead of The Op Games.');
+  });
+
+  it('only says "just ahead" when that is true', () => {
+    // Below 2x, and never above it — a 12-to-2 lead is not a nose.
+    const runaway = quipFor('topPublishers', pubStats([
+      { name: 'KOSMOS', plays: 20, games: 4 },
+      { name: 'AMIGO', plays: 5, games: 2 },
+    ]))!;
+    expect(runaway).not.toContain('just ahead');
+  });
+
+  it('states no number the rows already carry', () => {
+    const entries = [
+      { name: 'Catch Up Games', plays: 32, games: 2 },
+      { name: 'The Op Games', plays: 27, games: 3 },
+    ];
+    const line = quipFor('topPublishers', pubStats(entries))!;
+    for (const e of entries) {
+      expect(line).not.toContain(String(e.plays));
+      expect(line).not.toContain(`${e.games} game`);
+    }
+  });
+
+  it('still says nothing without a list', () => {
+    expect(quipFor('topPublishers', { ...stats, stats: [] })).toBeNull();
+  });
+});
