@@ -2,9 +2,13 @@ import type { Dataset, DateRange, NormalizedPlay, Participant } from '@/shared/t
 import { playsInRange } from '@/ingest/select';
 import type { BggIndex } from '@/shared/bgg';
 
+export type PlayerNameResolver = (playerId: number, actual: string) => string;
+
 export interface StatContext {
   playerId: number;
   playerName: string;
+  /** The display name for any player, after user-entered aliases are applied. */
+  displayNameOf: PlayerNameResolver;
   range: DateRange;
   /** Plays in range that this player took part in, oldest first. */
   playerPlays: NormalizedPlay[];
@@ -29,6 +33,7 @@ export const buildContext = (
   playerId: number,
   range: DateRange,
   bgg: BggIndex = new Map(),
+  displayNameOf: PlayerNameResolver = (_id, actual) => actual,
 ): StatContext => {
   const allPlays = playsInRange(dataset.plays, range);
   const playerPlays = allPlays.filter((p) =>
@@ -38,7 +43,16 @@ export const buildContext = (
     playerPlays[0]?.participants.find((x) => x.playerId === playerId)?.name ??
     dataset.playersById.get(playerId)?.name ??
     'Unknown player';
-  return { playerId, playerName: name, range, playerPlays, allPlays, dataset, bgg };
+  return {
+    playerId,
+    playerName: displayNameOf(playerId, name),
+    displayNameOf,
+    range,
+    playerPlays,
+    allPlays,
+    dataset,
+    bgg,
+  };
 };
 
 /**

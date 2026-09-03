@@ -134,7 +134,7 @@ export const topCoPlayer = (ctx: StatContext): Stat | null => {
         acc.firstSeen = Math.min(acc.firstSeen, play.date.getTime());
       } else {
         counts.set(part.playerId, {
-          name: part.name,
+          name: ctx.displayNameOf(part.playerId, part.name),
           count: 1,
           firstSeen: play.date.getTime(),
         });
@@ -183,7 +183,7 @@ export const nemesis = (ctx: StatContext): Stat | null => {
       const acc =
         tallies.get(part.playerId) ??
         {
-          name: part.name,
+          name: ctx.displayNameOf(part.playerId, part.name),
           lossesTo: 0,
           headToHead: 0,
           firstSeen: play.date.getTime(),

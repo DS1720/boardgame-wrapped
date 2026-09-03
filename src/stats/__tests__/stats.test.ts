@@ -49,6 +49,19 @@ describe('core stats on a hand-checked fixture', () => {
     expect(s.shared).toBe(4);
   });
 
+  it('uses display names for the owner and named co-players', () => {
+    const named = buildWrappedStats(ds, 1, range2026, ALL, {
+      displayNameOf: (id, actual) => (id === 1 ? 'Annie' : id === 2 ? 'Benny' : actual),
+    });
+
+    expect(named.playerName).toBe('Annie');
+    const s = named.stats.find((x) => x.id === 'topCoPlayer');
+    expect(s?.id).toBe('topCoPlayer');
+    if (s?.id !== 'topCoPlayer') return;
+    expect(s.name).toBe('Benny');
+    expect(s.others.find((other) => other.playerId === 2)?.name).toBe('Benny');
+  });
+
   it('counts games learned from newPlayer flags', () => {
     const s = pick(1, 'gamesLearned')!;
     expect(s.count).toBe(1);
@@ -89,12 +102,12 @@ describe('guard rails', () => {
       play('2026-04-06 20:00:00', 12, [score(1, { winner: true }), score(3)]),
     ];
 
-    const nem = buildWrappedStats(buildDataset(raw), 1, range2026, ALL).stats.find(
-      (x) => x.id === 'nemesis',
-    );
+    const nem = buildWrappedStats(buildDataset(raw), 1, range2026, ALL, {
+      displayNameOf: (id, actual) => (id === 3 ? 'Captain Cid' : actual),
+    }).stats.find((x) => x.id === 'nemesis');
     expect(nem?.id).toBe('nemesis');
     if (nem?.id !== 'nemesis') return;
-    expect(nem.name).toBe('Cid');
+    expect(nem.name).toBe('Captain Cid');
     expect(nem.lossesTo).toBe(5);
     expect(nem.headToHead).toBe(6);
     expect(nem.lossRate).toBeCloseTo(5 / 6);

@@ -1,11 +1,29 @@
 import type { Dataset, DateRange } from '@/shared/types';
 import type { BggIndex } from '@/shared/bgg';
-import { buildContext, type StatContext } from './context';
+import { buildContext, type PlayerNameResolver, type StatContext } from './context';
 import type { SlideId, Stat, WrappedStats } from './types';
 import * as core from './modules/core';
 import * as optional from './modules/optional';
 
 export type StatModule = (ctx: StatContext) => Stat | null;
+
+export interface BuildWrappedStatsOptions {
+  /**
+   * Compatibility hook for the selected player's display name. Prefer
+   * `displayNameOf` when aliases may apply to other players in the video too.
+   */
+  displayName?: string | null;
+  /**
+   * The display name for any player in the export.
+   *
+   * The player picker lets every row be renamed, and stats such as top
+   * co-player and nemesis name people other than the video's owner. Keeping the
+   * resolver in the context means those stats cannot quietly fall back to the
+   * raw export name.
+   */
+  displayNameOf?: PlayerNameResolver | null;
+  bgg?: BggIndex | null;
+}
 
 /** Slide order. Core modules run by default; optional ones are opt-in. */
 export const MODULES: Array<{ id: SlideId; run: StatModule; core: boolean }> = [
@@ -65,28 +83,27 @@ export const buildWrappedStats = (
   range: DateRange,
   enabled: SlideId[] = CORE_SLIDES,
   /**
-   * A name to use instead of the export's, when somebody has typed one.
-   *
-   * Applied here rather than at each call site because `playerName` is the
-   * single value the intro, the square and the output filename all read — two
-   * callers remembering to override it separately is two places to forget.
-   * Blank and undefined both mean "use the export's name".
+   * Options for names and BGG credits. The previous
+   * `buildWrappedStats(..., displayName, bgg)` call shape is still accepted.
    */
-  displayName?: string | null,
-  /**
-   * BGG credits, keyed by bggId, from the prefetch manifest.
-   *
-   * Optional and last, so every existing caller compiles unchanged — the same
-   * shape `displayName` was added in. Six positionals is the ceiling: the next
-   * addition here should turn the tail into an options object.
-   *
-   * Omitted means an empty index, which means the five credit modules return
-   * `null` and their slides do not appear. That is the correct behaviour for a
-   * machine where nobody has run the prefetch.
-   */
-  bgg?: BggIndex | null,
+  optionsOrDisplayName?: BuildWrappedStatsOptions | string | null,
+  legacyBgg?: BggIndex | null,
 ): WrappedStats => {
-  const ctx = buildContext(dataset, playerId, range, bgg ?? new Map());
+  const options =
+    typeof optionsOrDisplayName === 'object' && optionsOrDisplayName !== null
+      ? optionsOrDisplayName
+      : null;
+  const displayName =
+    typeof optionsOrDisplayName === 'string'
+      ? optionsOrDisplayName
+      : options?.displayName;
+  const bgg = options ? options.bgg : legacyBgg;
+  const resolveName = options?.displayNameOf ?? ((_id: number, actual: string) => actual);
+  const selectedName = displayName?.trim();
+  const displayNameOf: PlayerNameResolver = (id, actual) =>
+    id === playerId && selectedName ? selectedName : resolveName(id, actual);
+
+  const ctx = buildContext(dataset, playerId, range, bgg ?? new Map(), displayNameOf);
   const on = new Set(enabled);
 
   const stats: Stat[] = [];
@@ -99,7 +116,7 @@ export const buildWrappedStats = (
 
   return {
     playerId,
-    playerName: displayName?.trim() || ctx.playerName,
+    playerName: ctx.playerName,
     rangeLabel: range.label,
     rangeFrom: isoDay(range.from),
     rangeTo: isoDay(range.to),
@@ -109,4 +126,4 @@ export const buildWrappedStats = (
 };
 
 export { buildContext };
-export type { StatContext };
+export type { PlayerNameResolver, StatContext };

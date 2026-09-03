@@ -14,7 +14,7 @@ import { ThemePicker } from './components/ThemePicker';
 import { useDataset } from './state/useDataset';
 import { useBggIndex } from './state/useBggIndex';
 import { useSession } from './state/useSession';
-import { displayNameFor, overrideFor, setPlayerName } from './state/playerNames';
+import { displayNameFor, setPlayerName } from './state/playerNames';
 import { useAppFonts, useThemeSelection } from './state/useThemeSelection';
 import { allTimeRange, playersInPlays, playsInRange } from '@/ingest/select';
 import { buildWrappedStats, MODULES } from '@/stats/index';
@@ -127,11 +127,14 @@ export const App: React.FC = () => {
       playerId,
       namedRange,
       MODULES.map((m) => m.id),
-      // `overrideFor` rather than a raw lookup: it is the one place the
-      // trimming happens, so a name still being typed cannot reach the video
-      // or the filename with a trailing space on it.
-      overrideFor(playerNames, playerId),
-      bgg,
+      {
+        // `displayNameFor` rather than a raw lookup: it is the one place the
+        // trimming happens, so a name still being typed cannot reach the video
+        // or the filename with a trailing space on it. Passing the resolver
+        // lets slides that name other players use their aliases too.
+        displayNameOf: (id, actual) => displayNameFor(playerNames, id, actual),
+        bgg,
+      },
     );
   }, [dataset, namedRange, playerId, playerNames, bgg]);
 
