@@ -253,8 +253,10 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
 }
 
 .boxart-progress .bar {
-  height: 6px;
-  border-radius: 3px;
+  /* Was 6px, which is a hairline next to a panel of 14px type and easy to miss
+     entirely on a job that runs for a minute. */
+  height: 10px;
+  border-radius: 5px;
   background: var(--surface-lift);
   overflow: hidden;
 }
@@ -262,12 +264,36 @@ button:focus-visible, .dropzone:focus-visible, input:focus-visible {
 .boxart-progress .bar span {
   display: block;
   height: 100%;
+  border-radius: 5px;
   background: var(--accent);
-  transition: width 120ms linear;
+  /* Matched to POLL_MS (400) so the fill glides between ticks rather than
+     stepping four times a second. */
+  transition: width 400ms linear;
+}
+
+/* The percentage and the estimate. Set above the breakdown, and at body size
+   rather than the counts' 13px, because this is the line somebody watching a
+   two-minute job is actually reading. */
+.boxart-eta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.boxart-eta strong {
+  color: var(--ink);
+}
+
+.boxart-eta-time {
+  color: var(--ink-muted);
 }
 
 .boxart-counts {
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   font-size: 13px;
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;

@@ -14,6 +14,7 @@
     "video:studio": "remotion studio src/video/index.ts",
     "video:render": "remotion render src/video/index.ts Wrapped out/test.mp4",
     "prefetch:boxart": "tsx scripts/prefetch-boxart.ts",
+    "prefetch:bgg": "tsx scripts/prefetch-bgg.ts",
     "prefetch:fonts": "tsx scripts/prefetch-fonts.ts",
     "build": "vite build",
     "build:server": "tsx scripts/build-server.ts",

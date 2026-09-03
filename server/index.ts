@@ -38,6 +38,13 @@ import {
   type RenderJob,
 } from './render';
 import { startBatch, type BatchJob, type BatchRequestItem } from './batch';
+import {
+  fetchableGames,
+  prefetchBgg,
+  readBggManifest,
+  type BggProgress,
+  type BggSummary,
+} from './bgg';
 import { parseBarOverrides } from '../src/video/timeline';
 import { defaultOutDir, getOutDir, isCustomOutDir, setOutDir, SettingsError } from './settings';
 import type { RawGame } from '../src/shared/types';
@@ -182,6 +189,93 @@ app.post('/boxart/cancel', (_req, res) => {
     return;
   }
   run.controller.abort();
+  res.json({ cancelled: true });
+});
+
+/* -------------------------------------------------------------------------- */
+/* BGG credits                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The same four routes as box art, for the credit manifest.
+ *
+ * A separate slot rather than sharing `run`: the two prefetches touch nothing
+ * in common and there is no reason downloading covers should refuse to start
+ * because credits are being fetched. Each still allows only one of its own kind.
+ */
+interface BggRunState {
+  progress: BggProgress;
+  summary: BggSummary | null;
+  error: string | null;
+  controller: AbortController;
+}
+
+let bggRun: BggRunState | null = null;
+
+app.get('/bgg/manifest', async (_req, res) => {
+  res.json(await readBggManifest());
+});
+
+app.get('/bgg/progress', (_req, res) => {
+  if (!bggRun) {
+    res.json({ running: false, progress: null, summary: null, error: null });
+    return;
+  }
+  res.json({
+    running: bggRun.summary === null && bggRun.error === null,
+    progress: bggRun.progress,
+    summary: bggRun.summary,
+    error: bggRun.error,
+  });
+});
+
+app.post('/bgg/prefetch', (req, res) => {
+  if (bggRun && bggRun.summary === null && bggRun.error === null) {
+    res.status(409).json({ error: 'A credit fetch is already running.' });
+    return;
+  }
+
+  const games = (req.body?.games ?? []) as RawGame[];
+  if (!Array.isArray(games) || games.length === 0) {
+    res.status(400).json({ error: 'Send { games: RawGame[] } from the loaded export.' });
+    return;
+  }
+
+  const controller = new AbortController();
+  const state: BggRunState = {
+    // The engine's own total, not `games.length`: two of the real library's 229
+    // games have no BGG id, so a bar opened against the raw count would jump
+    // backwards on the first tick.
+    progress: { done: 0, total: fetchableGames(games).length, fetched: 0, skipped: 0, failed: 0, current: null },
+    summary: null,
+    error: null,
+    controller,
+  };
+  bggRun = state;
+
+  void prefetchBgg({
+    games,
+    signal: controller.signal,
+    onProgress: (p) => {
+      state.progress = p;
+    },
+  })
+    .then((summary) => {
+      state.summary = summary;
+    })
+    .catch((err: unknown) => {
+      state.error = err instanceof Error ? err.message : String(err);
+    });
+
+  res.status(202).json({ started: true, total: state.progress.total });
+});
+
+app.post('/bgg/cancel', (_req, res) => {
+  if (!bggRun || bggRun.summary !== null || bggRun.error !== null) {
+    res.status(409).json({ error: 'Nothing to cancel.' });
+    return;
+  }
+  bggRun.controller.abort();
   res.json({ cancelled: true });
 });
 

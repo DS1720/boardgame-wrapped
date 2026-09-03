@@ -24,7 +24,7 @@ export type TimelineSlideId = 'intro' | 'outro' | SlideId;
  * The default cut, in order, from step 7 of the plan.
  *
  * This list is also the filter: a stat with no entry here gets no slide. The
- * stats engine emits twenty modules and nineteen of them are in the default
+ * stats engine emits twenty-five modules and nineteen of them are in the default
  * video; `groupShare` is the one left out, because the plays slide already
  * counts nights. Adding a stat to the cut means adding it here and writing its
  * component — nothing else.
@@ -67,9 +67,9 @@ export const SLIDE_LABELS: Record<TimelineSlideId, string> = {
   intro: 'Intro',
   totalPlays: 'Total plays',
   timePlayed: 'Time played',
-  topFiveByTime: 'Top five by time',
-  topGame: 'Top game',
-  topFive: 'Top five',
+  topFiveByTime: 'Top 5 by time',
+  topGame: 'Top game (by plays)',
+  topFive: 'Top 5 games (by plays)',
   winRate: 'Win rate',
   topCoPlayer: 'Top co-player',
   nemesis: 'Nemesis',
@@ -80,12 +80,19 @@ export const SLIDE_LABELS: Record<TimelineSlideId, string> = {
   bestGame: 'Best game',
   worstGame: 'Worst game',
   highestScore: 'Highest score',
-  gameRecord: 'Record holder',
+  gameRecord: 'Highscore Records',
   coPlayerCount: 'People played with',
   busiestDay: 'Busiest day',
   nightOwl: 'Night owl',
   firstAndLastPlay: 'First and last play',
   groupShare: 'Nights attended',
+  topTheme: 'Top theme',
+  topThemes: 'Top 5 themes',
+  topMechanic: 'Top mechanic',
+  topMechanics: 'Top 5 mechanics',
+  topDesigners: 'Top 5 designers',
+  topArtists: 'Top 5 artists',
+  topPublishers: 'Top 5 publishers',
 };
 
 /** The stat slides on by default: the plan's ten-slide cut, minus the bookends. */
@@ -284,6 +291,23 @@ export const LEAD_INS: Partial<Record<TimelineSlideId, string>> = {
   nemesis: 'Someone had your number…',
   gamesLearned: 'You did not just replay old favourites…',
   highestScore: 'Your best night at the table…',
+  /*
+    The credit block's one lead-in, and it belongs to the designers slide
+    specifically: it is the line that turns the video from games to the people
+    who made them, and the four slides around it do not each need announcing.
+    A line costs a bar, and five of them would cost five.
+  */
+  topDesigners: 'Somebody made all of this…',
+  /*
+    The two hero credit slides introduce their own section, and their lists
+    inherit the introduction by sitting directly behind them — see `leadInFor`.
+    The lists keep a line of their own for when the hero is switched off, so a
+    section can never start cold.
+  */
+  topTheme: 'One thing your year kept coming back to…',
+  topThemes: 'One thing your year kept coming back to…',
+  topMechanic: 'And one way of playing above all others…',
+  topMechanics: 'And one way of playing above all others…',
 };
 
 /**
@@ -319,6 +343,10 @@ export const PAIRED_LEAD_INS: Partial<
 export const LINKED_PAIRS: ReadonlyArray<readonly [TimelineSlideId, TimelineSlideId]> = [
   ['coPlayerCount', 'topCoPlayer'],
   ['timePlayed', 'topFiveByTime'],
+  // The claim, then the ranking it came from. Apart, the hero is a slide with
+  // no context and the list is a slide with no answer.
+  ['topTheme', 'topThemes'],
+  ['topMechanic', 'topMechanics'],
 ];
 
 export const leadInFor = (
@@ -327,6 +355,18 @@ export const leadInFor = (
 ): string | null => {
   const paired = PAIRED_LEAD_INS[id];
   if (paired && previous === paired.after) return paired.line;
+  /*
+    A linked pair gets one introduction, not two.
+
+    Both halves of the theme and mechanic pairs carry the same line, so that
+    either can open its section when the other is switched off. Run together —
+    which is what `LINKED_PAIRS` guarantees — the second would say it again, a
+    bar after the first said it. A pair with a *paired* line is unaffected: that
+    line exists precisely to be said on the join, and it is returned above.
+  */
+  if (previous && LINKED_PAIRS.some(([first, second]) => first === previous && second === id)) {
+    return null;
+  }
   return LEAD_INS[id] ?? null;
 };
 
@@ -377,6 +417,17 @@ export const SLIDE_BARS: Record<TimelineSlideId, number> = {
   // is a one-line change.
   groupShare: 2,
   highestScore: 2,
+  // The five credit lists, each the same length as the other countdowns.
+  topThemes: 2,
+  topMechanics: 2,
+  // The two hero credit slides. Two, like the most-played slide they are built
+  // from — the covers stagger in over the first second and a half, so the extra
+  // bar was spent holding a finished card rather than filling it.
+  topTheme: 2,
+  topMechanic: 2,
+  topDesigners: 2,
+  topArtists: 2,
+  topPublishers: 2,
 };
 
 export interface PlannedSlide {

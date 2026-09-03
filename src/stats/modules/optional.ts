@@ -2,6 +2,7 @@ import type { NormalizedPlay } from '@/shared/types';
 import { rank, selfOf, type StatContext } from '../context';
 import type { Stat } from '../types';
 import { gameRefOf } from './core';
+import { creditStat, leadingCredit, MIN_CREDIT_GAMES } from './credits';
 
 const MIN_PLAYS_FOR_RATE = 3;
 const MIN_PLAYS_FOR_HOURS = 10;
@@ -440,3 +441,47 @@ export const topFiveByTime = (ctx: StatContext): Stat | null => {
     }),
   };
 };
+
+/* -------------------------------------------------------------------------- */
+/* BGG credits                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/*
+  Five slides, one rule, written once in `credits.ts`.
+
+  Mechanics and themes take no distinct-games filter: at 5.2 and 3.0 tags per
+  game they already aggregate across a whole year. The three people-shaped ones
+  take `MIN_CREDIT_GAMES`, because without it they are a restatement of the
+  most-played slide's credits — see the note at the top of `credits.ts`.
+*/
+
+export const topMechanics = (ctx: StatContext): Stat | null =>
+  creditStat(ctx, { id: 'topMechanics', field: 'mechanics', minGames: 1 });
+
+export const topThemes = (ctx: StatContext): Stat | null =>
+  creditStat(ctx, { id: 'topThemes', field: 'themes', minGames: 1 });
+
+export const topPublishers = (ctx: StatContext): Stat | null =>
+  creditStat(ctx, { id: 'topPublishers', field: 'publishers', minGames: MIN_CREDIT_GAMES });
+
+export const topDesigners = (ctx: StatContext): Stat | null =>
+  creditStat(ctx, { id: 'topDesigners', field: 'designers', minGames: MIN_CREDIT_GAMES });
+
+export const topArtists = (ctx: StatContext): Stat | null =>
+  creditStat(ctx, { id: 'topArtists', field: 'artists', minGames: MIN_CREDIT_GAMES });
+
+/*
+  The two hero slides. Same shape as the most-played slide — a claim and the
+  evidence for it — and each is the top of the list its neighbour draws, so the
+  two can never disagree about who won.
+
+  Only themes and mechanics get one. A hero designer or publisher would be a
+  person's name over a grid of two covers, which is what the list row already
+  is; themes and mechanics span enough games for the grid to say something.
+*/
+
+export const topTheme = (ctx: StatContext): Stat | null =>
+  leadingCredit(ctx, { id: 'topTheme', field: 'themes' });
+
+export const topMechanic = (ctx: StatContext): Stat | null =>
+  leadingCredit(ctx, { id: 'topMechanic', field: 'mechanics' });

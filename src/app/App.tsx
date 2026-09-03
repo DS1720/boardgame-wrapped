@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { AudioPicker } from './components/AudioPicker';
 import { BatchPanel } from './components/BatchPanel';
+import { BggPrefetch } from './components/BggPrefetch';
 import { BoxArtPrefetch } from './components/BoxArtPrefetch';
 import { DropZone } from './components/DropZone';
 import { PlayerPicker } from './components/PlayerPicker';
@@ -11,6 +12,7 @@ import { SlidePicker, defaultSlideSelection } from './components/SlidePicker';
 import { StatsInspector } from './components/StatsInspector';
 import { ThemePicker } from './components/ThemePicker';
 import { useDataset } from './state/useDataset';
+import { useBggIndex } from './state/useBggIndex';
 import { useSession } from './state/useSession';
 import { displayNameFor, overrideFor, setPlayerName } from './state/playerNames';
 import { useAppFonts, useThemeSelection } from './state/useThemeSelection';
@@ -50,6 +52,9 @@ export const App: React.FC = () => {
   useAppFonts();
 
   const { session, patch, restored } = useSession();
+  // Feeds the five credit modules. Empty until the credit prefetch has run,
+  // which is what keeps those slides from appearing on a machine without it.
+  const bgg = useBggIndex();
   const [rangeError, setRangeError] = useState<string | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
 
@@ -124,8 +129,9 @@ export const App: React.FC = () => {
       // trimming happens, so a name still being typed cannot reach the video
       // or the filename with a trailing space on it.
       overrideFor(playerNames, playerId),
+      bgg,
     );
-  }, [dataset, namedRange, playerId, playerNames]);
+  }, [dataset, namedRange, playerId, playerNames, bgg]);
 
   const cut = useMemo(() => buildCut(slides), [slides]);
 
@@ -320,9 +326,11 @@ export const App: React.FC = () => {
             track={track}
             cut={cut}
             bars={bars}
+            bgg={bgg}
           />
 
           <BoxArtPrefetch dataset={dataset} />
+          <BggPrefetch dataset={dataset} />
 
           {stats && <StatsInspector stats={stats} />}
         </div>

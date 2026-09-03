@@ -4,6 +4,9 @@ public/boxart/*
 !public/boxart/.gitkeep
 public/audio/*
 !public/audio/.gitkeep
+# Fetched BGG credits. Derived data, re-buildable in under a minute.
+public/bgg/*
+!public/bgg/.gitkeep
 .DS_Store
 # Written by the app when you choose an output folder.
 settings.json

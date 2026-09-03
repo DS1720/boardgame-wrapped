@@ -8,6 +8,7 @@ import type {
   RawPlayer,
 } from '@/shared/types';
 import { parseLocalDate, toDayKey } from '@/shared/format';
+import { parseDesignerField } from '@/shared/bgg';
 
 export class IngestError extends Error {}
 
@@ -104,6 +105,7 @@ export const buildDataset = (input: unknown): Dataset => {
       usesTeams: Boolean(game?.usesTeams),
       boxArt: game?.urlImage ? game.urlImage : null,
       bggId: game?.bggId ?? 0,
+      designers: parseDesignerField(game?.designers),
       locationId: location?.id ?? null,
       locationName: location?.name ?? null,
       participants,

@@ -1,4 +1,5 @@
 import type { RawExport, RawGame, RawPlay, RawPlayerScore } from '@/shared/types';
+import type { BggEntry, BggIndex } from '@/shared/bgg';
 
 let uuidCounter = 0;
 const uuid = () => `fixture-${(uuidCounter += 1)}`;
@@ -88,3 +89,65 @@ export const smallExport = (): RawExport => ({
   ],
   userInfo: { meRefId: 1, exportDate: '2026-08-26 18:16:46' },
 });
+
+/**
+ * A BGG index for the small export's three games.
+ *
+ * Keyed by `bggId`, which `game()` sets to `1000 + id` — so Azul is 1010,
+ * Cascadia 1011 and Pandemic 1012.
+ *
+ * The credits are chosen to exercise the rules rather than to be accurate:
+ * "Azul Only" and "Solo Only" appear on one game each so the distinct-games
+ * filter has something to drop, the two "Shared"/"Second" names span two games
+ * each so it has something to keep — and two of them, so the list clears
+ * `MIN_CREDIT_ENTRIES` — and `(Uncredited)` is there so the placeholder filter
+ * has something to remove. Publishers deliberately have only one eligible name,
+ * so the "fewer than two entries" path is covered too.
+ */
+export const bggFixture = (over: Partial<Record<number, Partial<BggEntry>>> = {}): BggIndex => {
+  const entry = (bggId: number, name: string, fields: Partial<BggEntry>): BggEntry => ({
+    bggId,
+    name,
+    mechanics: [],
+    categories: [],
+    designers: [],
+    artists: [],
+    publisher: null,
+    fetchedAt: '2026-01-01T00:00:00.000Z',
+    ...fields,
+    ...(over[bggId] ?? {}),
+  });
+
+  return new Map([
+    [
+      1010,
+      entry(1010, 'Azul', {
+        mechanics: ['Tile Placement', 'Set Collection'],
+        categories: ['Abstract Strategy', 'Fantasy'],
+        designers: ['Shared Designer', 'Azul Only'],
+        artists: ['Shared Artist', 'Second Artist'],
+        publisher: 'Shared Publisher',
+      }),
+    ],
+    [
+      1011,
+      entry(1011, 'Cascadia', {
+        mechanics: ['Tile Placement', 'Solo Only'],
+        categories: ['Animals', 'Card Game'],
+        designers: ['Shared Designer', 'Second Designer'],
+        artists: ['Shared Artist', '(Uncredited)'],
+        publisher: 'Shared Publisher',
+      }),
+    ],
+    [
+      1012,
+      entry(1012, 'Pandemic', {
+        mechanics: ['Cooperative Game'],
+        categories: ['Medical'],
+        designers: ['Second Designer', 'Pandemic Only'],
+        artists: ['Second Artist', '(Uncredited)'],
+        publisher: 'Lonely Publisher',
+      }),
+    ],
+  ]);
+};

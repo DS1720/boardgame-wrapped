@@ -23,7 +23,7 @@ or every command below except the `npx tsx` one will fail.
 npm install
 npm run dev          # UI on http://localhost:5173
 npm run server       # render service on http://localhost:4000 (stub until step 10)
-npm test             # vitest, 619 tests
+npm test             # vitest, 691 tests
 npm run typecheck    # tsc --noEmit
 npm run video:studio # Remotion Studio
 npm run video:render # renders out/test.mp4
@@ -57,6 +57,18 @@ Downloads every cover into `public/boxart/` and writes `manifest.json`. Safe to
 re-run and safe to interrupt. Baseline on the real export: 229 games, 228 covers
 (110 MB) in ~46s, 1 fallback; a second run downloads nothing in under a second.
 
+### BGG credit prefetch
+
+```bash
+npm run prefetch:bgg          # or: npx tsx scripts/prefetch-bgg.ts <export.json> [--force]
+```
+
+Fetches mechanics, categories, designers, artists and the original publisher for
+every game and writes `public/bgg/manifest.json`. Measured on the real export:
+**227 games, 227 fetched, 0 failures, 24.8s.** Safe to re-run — a cached success
+is skipped, a cached failure is retried. The five credit slides do not appear
+without it.
+
 ### Font mirror
 
 ```bash
@@ -81,11 +93,13 @@ Four layers, and the boundaries between them are the point:
 | Path | Role | Rule |
 |---|---|---|
 | [src/ingest/](src/ingest/) | Parse + normalize the raw export, select player/range | Raw shapes stay here; nothing downstream sees `RawPlay` |
+| [src/shared/bgg.ts](src/shared/bgg.ts) | BGG credit types, placeholder and format blocklists | Pure; the prefetch and the stats layer share one shape |
+| [server/bgg.ts](server/bgg.ts) | BGG credit fetch + manifest | Node-only; one request per game, cached |
 | [src/stats/](src/stats/) | Pure stat modules → `WrappedStats` JSON | No React, no rendering, no I/O — fully unit-testable |
 | [src/video/](src/video/) | Remotion composition, consumes `WrappedStats` | Reads stats; never computes them |
 | [src/theme/](src/theme/) | Tokens, starters, generators, contrast math | Pure except `ThemeContext.tsx`; no slide imports a starter directly |
 | [src/video/timeline.ts](src/video/timeline.ts) | What appears, in what order, for how long | Pure and React-free, so gaps and duration are testable |
-| [src/video/slides/](src/video/slides/) | All 19 slides and their layout primitives | Content only ever inside `<SafeArea>` |
+| [src/video/slides/](src/video/slides/) | All 26 slides and their layout primitives | Content only ever inside `<SafeArea>` |
 | [src/app/components/Preview.tsx](src/app/components/Preview.tsx) | The one `<Player>` | Same props object the renderer will get; never a second code path |
 | [src/video/motion/](src/video/motion/) | `Reveal`, `CountUp`, `Stagger` | All three read `theme.motion`; nothing animates outside them |
 | [src/audio/analyze.ts](src/audio/analyze.ts) | Tempo and downbeat detection | Pure DSP on PCM; tested against synthetic click tracks |
@@ -123,10 +137,13 @@ runs ingest → stats straight to stdout.
   plays, win-rate-per-game needs 3+ plays, night owl needs 10+ plays, win rate
   excludes cooperative games unless every play in range is cooperative, and a
   streak of one is not a streak.
-- **Local-first.** Nothing leaves the machine. Box art is downloaded once to
-  `public/boxart/`; at render time every asset resolves through Remotion's
-  `staticFile()`, so a render makes no external request. The manifest's `source`
-  URLs are data, never fetched during a render.
+- **Local-first.** Nothing leaves the machine. Two one-time prefetches reach the
+  network and nothing else does: box art into `public/boxart/`, and BGG credits
+  into `public/bgg/`. At render time every asset resolves through Remotion's
+  `staticFile()`, so a render makes no external request. The manifests' `source`
+  URLs are data, never fetched during a render. **The credit manifest is not
+  even a render-time asset** — it is consumed by the stats layer in the browser,
+  and what reaches the renderer is the finished `WrappedStats`.
 - **Magic bytes decide an image's format, never the `content-type` header.** The
   image host serves mislabelled files, and serves HTML error pages under
   `image/png`. Anything whose bytes are not an image is rejected rather than
@@ -140,6 +157,235 @@ runs ingest → stats straight to stdout.
 - **Generated themes are guaranteed legible, never assumed to be.** Every
   derived color goes through `ensureContrast`. The plan's raw formulas fail its
   own floor for 425 of 720 hue/mode combinations — see below.
+
+## The seven credit slides
+
+Five lists - themes, mechanics, designers, artists and publishers - and two
+heroes, one for the leading theme and one for the leading mechanic. All seven
+are **off by default** and all seven need `npm run prefetch:bgg` to have been
+run.
+
+**The export has one of the five and not the other four.** Grepping both real
+exports for `mechanic|publisher|artist|categor|theme|family` returns nothing;
+`RawGame.designers` is the only credit BG Stats writes, and it covers 98.1% of
+plays. So the other four are joined from BGG on `bggId`, which is on 99.0% of
+plays.
+
+**BGG's XML API is not the source, because it now answers `401`.** They moved to
+requiring registered applications and bearer tokens. A token embedded in a
+public repo and a 169 MB installer is not a secret - the same reasoning that
+rules out shipping a GitHub token for the updater. `api.geekdo.com/api/geekitems`
+is what the website itself calls, needs no authorization, and returns the same
+links. It is undocumented and could be gated the same way; that is survivable,
+because the manifest is cached and every module returns `null` without it.
+
+### Ranked by plays, filtered by games
+
+This is the one decision the whole feature turns on, and both halves were
+measured before either was chosen.
+
+- **Ranking by distinct games does not work at this dataset size.** Across the
+  26 players with 20+ plays, the top designer reaches three distinct games for
+  **2 of them**, and on average **19 names share fifth place** (22 for artists,
+  12 for publishers). A top five picked from nineteen identical scores is
+  ordered by the alphabetical tie-break, not by anything the player did - the
+  same failure the old alphabetical `gamesLearned` had. It also draws as
+  `2 - 2 - 2 - 2 - 2`, which is a list rather than a countdown.
+- **Ranking by plays alone echoes the most-played slide.** At 1.5 designers per
+  game, Tina's top two were Goupy and Lebrat tied at 21 - which is Faraway,
+  which her most-played slide had already shown.
+- **So distinct games is the eligibility filter and plays is the ranking.** A
+  name must appear in `MIN_CREDIT_GAMES` (2) different games to be listed;
+  survivors order by plays. Tina's designers become Chvatil 11, Flynn 6,
+  Vogelmann 5 - none of them a Faraway name.
+
+The filter costs coverage and that is the accepted trade: a full five exists for
+4 of 26 players on designers, 5 on publishers, 6 on artists. Below
+`MIN_CREDIT_ENTRIES` (2) the module returns `null`.
+
+**Mechanics and themes take no games filter.** At 5.2 and 3.0 tags per game they
+already aggregate across a year rather than echoing one game, and their counts
+have real separation (124 / 80 / 47 against a designer list's 11 / 6 / 5).
+
+### Four narrowings, each of which the slide is wrong without
+
+- **A publisher is `boardgamepublisher[0]`, taken at fetch time.** BGG lists
+  every localization partner - 13.7 per game - so a raw tally ranks whoever
+  translates the most games. Measured, the top four were MINDOK, Kaissa, MIPL
+  and Gemklub: Czech, Greek, Polish and Hungarian localizers. The first entry is
+  the original publisher (Faraway -> Catch Up Games, Flip 7 -> The Op, The Gang
+  -> KOSMOS, Brass -> Roxley), and the long list never reaches the stats at all.
+- **A theme is a category minus the formats.** `FORMAT_CATEGORIES` drops 21 of
+  the 63 categories in the real library. Unfiltered, "Card Game" wins for
+  everybody - it is on 106 of 229 games and takes a fifth of all category mass.
+  The line is **subject versus not-subject**: "Movies / TV / Radio theme",
+  "Novel-based", "Video Game Theme" and "Humor" stay because they say what a
+  game is *about*; "Puzzle", "Word Game" and "Action / Dexterity" go because
+  they say what you *do*. Genres between the two - Deduction, Bluffing,
+  Negotiation - are kept, and Deduction is what Tina's filtered list leads with.
+- **`PLACEHOLDER_CREDITS` are not people.** `(Unknown)` is the one that proves
+  it: as a primary publisher it is on four of the real library's games, enough
+  to rank it **first** on a game-weighted list.
+- **A row's cover is de-duplicated.** Each row shows the player's most-played
+  game carrying that name, *unless a row above already took it*. Without that,
+  four of Tina's five top mechanics show the Faraway cover - true, and it
+  renders as a slide that looks broken. A lower row takes its next-best game and
+  falls back to its own top game only when every candidate is spoken for.
+
+### Two smaller rules, both found by rendering
+
+- **The "N games" line is on every credit row.** It was briefly gated on the
+  counts *varying* across the list, on the argument that five rows reading
+  "2 GAMES" is a column of one word rather than a second axis - and then left
+  off themes and mechanics, on the argument that their hero slide had already
+  said how far the leader reached. Both were wrong the same way: how many games
+  a credit is spread over is the one axis the play count does not carry, and it
+  is per-row information the hero can only give for the winner. On the mechanics
+  list it is the most interesting column on the slide - 24, 18, 14, 13, 9 games
+  behind play counts of 69, 69, 62, 61, 44.
+- **The quips never restate that count.** The row already carries it, and a line
+  under the list repeating row one's number is the same fact told twice. This
+  is why the mechanics quip is *"Hand Management, over and over"* rather than
+  *"Hand Management in 24 of your games"* - the row under it already says 24.
+  The name is fair game; the number is not. A test sweeps all five.
+
+### The picker's names say what a slide ranks by
+
+Nine labels were renamed once there were three countdowns of games and five of
+credits: `Top 5 games (by plays)` against `Top 5 by time`, and `Top game (by
+plays)` against the hero `Top theme` and `Top mechanic`. A picker is a list of
+names and nothing else, so two rows that read alike are two rows nobody can tell
+apart — a test asserts every label is present and no two are equal.
+
+**`SLIDE_LABELS` is a fixed catalogue name; the headline on the slide is not.**
+The label has to read the same before anyone's stats are loaded, so it says
+"Top 5 designers" unconditionally. The headline counts the rows it actually has
+— `topNHeadline` — because the eligibility filter means a full five exists for
+only 4 of 26 players on designers, and a slide claiming five over three rows
+would be wrong more often than right. Themes and mechanics take no filter and
+are effectively always five.
+
+### Two of them are heroes, and they answer the list's own question
+
+`topTheme` and `topMechanic` are built like the most-played slide - a claim,
+centred, with the evidence under it - because they are making the same kind of
+statement. The list says Deduction came up 39 times; the hero says *which games
+those were*, which is the question a list of bare names invites and cannot
+answer on its own.
+
+- **The hero and its list share one tally.** `tallyCredits` walks the plays
+  once and both `creditStat` and `leadingCredit` read it, so two adjacent
+  slides can never disagree about who won - which would be the worst bug
+  available here.
+- **`MIN_LEAD_CREDIT_GAMES` is 2**, applied to the winner alone. The slide's
+  whole job is "and here are the games", so a theme carried by a single game
+  has nothing to show and is that game again under another name.
+- **Two bars, like the most-played slide they are built from.** They were
+  briefly three, on the argument that six covers is more to look at than one -
+  but the covers stagger in over the first second and a half and the extra bar
+  went on holding a finished card. The lead-in still buys a bar of anticipation
+  in front of that.
+- **The `+N more` line waits for the last cover, and the wait is computed.** It
+  was a flat 22 frames after the grid began, which is right on a fast theme and
+  13 frames early on Table Light, where the sixth cover does not land until 55.
+  The stagger step is a theme's to set - 3 frames on Neon Night, 7 on Table
+  Light - so a constant cannot be right for all nine. `moreDelay` is pure and
+  tested against every starter, because the failure is invisible in eight of
+  them.
+- **Six examples, in a 3x2 grid, and a `+N more` line under it.** Six fills the
+  grid without a ragged bottom row - the same reason the outro takes six from a
+  top five - but the credit usually spans many more: Hand Management is on 24 of
+  Tina's games. Without the overflow line the six read as the whole set, which
+  is a quieter kind of wrong than a number being off. The caption says "across
+  24 games", the grid shows six, and nothing on the slide connected the two.
+  The line arrives after the last cover has landed, because it counts them.
+- **The titles are set under the covers, not left implied.** Half the point is
+  recognising the games, and a cover at 248px is a thumbnail: legible if you
+  already know the box, not if you are being told about it. Two lines, then an
+  ellipsis.
+- **The covers sit on a shelf, not centred in their cells.** `fit="contain"`
+  gives an element the cover's own aspect ratio up to the box - deliberately,
+  so there is no letterbox bar and the shadow follows the art - which makes a
+  wide box like Phantom Ink shorter than a tall one like Codenames. Left alone
+  the titles then sat at three different heights across a row. A fixed cell
+  with `align-items: flex-end` puts every title on the same line.
+- **`Stagger` sits inside the grid**, not around it, so each cover is its own
+  cell and they land one at a time. Wrapping the whole grid in one `Reveal`
+  drops all six together, which is a picture rather than a list being counted.
+- **Only themes and mechanics get one.** A hero designer or publisher would be
+  a person's name over a grid of two covers, which is what the list row already
+  is. Themes and mechanics span enough games for the grid to say something.
+
+### A linked pair is introduced once
+
+Both halves of the theme and mechanic pairs carry the *same* `LEAD_INS` line, so
+either can open its section when the other is switched off. `LINKED_PAIRS` then
+keeps them adjacent, at which point the second would repeat the line one bar
+after the first said it.
+
+So `leadInFor` suppresses a plain lead-in when the previous slide is this one's
+linked partner. A pair with a **paired** line is unaffected - that line exists
+precisely to be said on the join, and it is returned before the check. Nothing
+existing changed: `topFiveByTime` and `topCoPlayer` both take the paired route.
+
+### The progress bar estimates from fetches, not from items
+
+The panel says how much longer it will take, and the arithmetic is
+`estimateRemainingSeconds` in [src/shared/bgg.ts](src/shared/bgg.ts) — pure, so
+it is tested rather than eyeballed.
+
+**A cached game and a fetched game are not the same cost**, and the obvious
+`elapsed / done` is badly wrong because of it. A re-run with 200 games already
+in the manifest flies through them in under a second, so the rate measured over
+all items says "one second left" — and then the run spends the rest of its time
+on the fetches with the estimate climbing the whole way. An estimate that rises
+is worse than none.
+
+So the rate is measured per **fetch**, and the fetches still to come are
+projected by assuming the cached/fetched mix seen so far continues. That is
+right for a fresh run (everything is a fetch), for a fully cached one (no
+fetches, so nothing to wait for), and self-correcting for a mixed one.
+
+Three details, all measured on the real library:
+
+- **`ETA_WARMUP_FETCHES` is 8, and it was 4.** The four workers start together,
+  so `done` jumps straight to four in whatever the first request took — and that
+  request pays for DNS and the TLS handshake, which none of the 226 after it do.
+  At four fetches a real 21.0s run opened with *"about 50 seconds left"*; at
+  eight it opens with 35s and has converged by 6s in. Nothing is shown before
+  that: two seconds of silence beats two seconds of a wrong number.
+- **The wording rounds coarsely** — five-second steps, then "about a minute",
+  "about a minute and a half", then whole minutes. A figure ticking down second
+  by second invites checking against a clock, and this is a projection from an
+  average rate rather than a measurement.
+- **It cuts to minutes at 55 seconds, not 60**, or rounding to the nearest five
+  produces "about 60 seconds left" one tick before "about a minute left". And
+  past 105s it goes straight to whole minutes: rounding to half minutes first
+  and then to whole ones double-rounds, and 140 seconds came out as three.
+
+The route's opening progress counts `fetchableGames(games)` rather than
+`games.length`, because two of the real library's 229 games have no BGG id and a
+bar opened against the raw count jumps backwards on the first tick.
+
+### Everything else about them
+
+- **`CountdownList` is shared, not copied.** It is the same component the two
+  game lists use; the credit slides pass a heading, a unit and rows. Its
+  ordering counts off `games.length` rather than the constant `ROWS`, or a
+  three-row list would sit empty for two steps before its bottom row arrived.
+- **The block has one lead-in**, on `topDesigners` - the line that turns the
+  video from games to the people who made them. A line costs a bar and five of
+  them would cost five.
+- **Coverage is guarded at 60%**, the same floor and the same reasoning as
+  `timePlayed`. It is also what makes all five vanish cleanly with no manifest,
+  where coverage is 0. Measured with one: mechanics 97.4%, themes 99.1%,
+  publishers 99.1%, designers 97.0%, artists 87.6%.
+- **The designer slide has an offline fallback.** `NormalizedPlay.designers`
+  comes from the export, so that one slide works with no prefetch and no
+  network. The other four have no second source and simply do not appear.
+- **A failed fetch is recorded, not dropped.** An entry with `error` is retried
+  on the next run and excluded by `indexOf`, because "fetched, no artists" and
+  "never fetched" mean different things to the coverage guard.
 
 ## What the BG Stats data can and cannot tell you
 
@@ -484,7 +730,7 @@ first.
 `planTimeline(stats)` in [src/video/timeline.ts](src/video/timeline.ts) decides
 what appears; `SLIDE_COMPONENTS` in [src/video/slides/](src/video/slides/index.tsx)
 decides what draws it. **A stat id absent from `DEFAULT_CUT` gets no slide** —
-the engine emits all 20 modules and the default video is nineteen of them.
+the engine emits all 27 modules and the default video is nineteen of them.
 Adding one to the cut
 means adding its id there and writing its component; nothing else.
 
@@ -663,6 +909,31 @@ than one in a game played twice. Ties break by `rank`'s rule.
 Measured on the real export: **19 of 93 players** hold one, so it is a real
 distinction rather than a participation prize. Before the co-op and team rails
 it was 24, and three of those were the same Poetry for Neanderthals team score.
+All 19 show their most-played record, checked against a re-derivation of the
+boards rather than trusted from the ranking code.
+
+#### The slide carries one caption, and it is the other records
+
+It used to carry two: *"the highest of 12 players - over 21 plays"* under the
+number, and *"and the best score in 3 other games"* in the accent a beat below
+that. The first is gone and the second took its slot and its muted style - a
+footnote to a footnote is not where the interesting line belongs.
+
+Two things followed from that removal, and neither is optional:
+
+- **The quip stopped counting the other records.** With that line promoted to
+  the caption, `And 3 more where that came from.` was the same figure twice.
+  The `>= 5` branch keeps the flourish without the number and the `>= 1` branch
+  is gone.
+- **`highestWins` had to resurface somewhere.** Eight of the 229 games are
+  lowest-wins, and the caption was the only thing on the slide saying so - a
+  low number reads as a bad one without it. It is now the quip's first branch,
+  ahead of everything else, because a misread number is a failed slide where a
+  missing flourish is not. `contenders` moved up with it for the same reason:
+  the quip is the only place either can still be said.
+
+Both are still on the stat and in the StatsInspector; only the slide stopped
+showing them.
 
 ### `highestScore` prefers a score you actually won with
 
@@ -737,7 +1008,7 @@ storage, the Player's `inputProps`, `POST /render`, and every item in a batch.
 
 ### Slides are selectable **and orderable**
 
-All 20 stat modules have slide components. The UI holds an **ordered
+All 27 stat modules have slide components. The UI holds an **ordered
 `SlideId[]`** — the arrangement, not just the selection — and `buildCut` turns
 it into a cut.
 
@@ -982,7 +1253,7 @@ Things that keep the frame moving:
   foot of the frame 46 frames — about a second and a half — after its slide's
   content. It rises into place once and then holds. It is rendered by `Wrapped`
   for every slide rather than by each slide, so a stat component never has to
-  think about it and one change covers all twenty.
+  think about it and one change covers every one of them.
 
   It sits `QUIP_LIFT` (190px) **above** the safe margin, at full body size in
   `ink` rather than 78% in `inkMuted`. Hard against the bottom edge and half
@@ -995,7 +1266,7 @@ Things that keep the frame moving:
   without the reservation the two share the same space and collide — on the
   most-played slide the line landed on top of the play count, and the taller the
   game's title the worse it got. `SafeArea` reads the band from `QuipSpace`, a
-  context `Wrapped` provides, rather than every one of the twenty slides having
+  context `Wrapped` provides, rather than every one of the slides having
   to pass a flag down. It is reserved rather than measured: measuring text needs
   two passes, and Remotion renders each frame once.
 
@@ -1488,8 +1759,8 @@ Three details worth keeping:
 
 ## Status and next step
 
-**All twelve steps are done.** 619 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 20-module stats
-engine, box art, four theme modes, twenty slides, a soundtrack the video is cut
+**All twelve steps are done.** 691 passing tests, and it packages as a Windows app. The plan is complete: ingest, a 27-module stats
+engine, box art, four theme modes, twenty-five slides, a soundtrack the video is cut
 to, a single-screen control surface, single and batch rendering, and the polish
 pass.
 
@@ -1499,10 +1770,12 @@ engine server-side so a batch does not need a browser tab open.
 
 Known gaps left deliberately:
 
-- **One module is off by default.** `groupShare` (nights attended) is computed
+- **Eight modules are off by default.** `groupShare` (nights attended) is computed
   and shown in the StatsInspector but is not in `DEFAULT_CUT`, because the plays
   slide already counts nights. It has a real slide and a length in `SLIDE_BARS`;
-  adding it is a one-line change.
+  adding it is a one-line change. The seven credit slides are the others - they
+  need a prefetch the rest of the engine does not, and switching every list on
+  would put seven countdowns in a row.
 - **Only one render at a time**, single or batch, enforced with a 409. Remotion
   opens a browser per render and saturates the CPU; two at once take longer than
   two in sequence and are likelier to run out of memory.
@@ -1809,8 +2082,9 @@ extension now 404s.
 - This **is** a git repository now (`origin` is `DS1720/boardgame-wrapped`), so
   there is history to fall back on. It was not one for most of the build; older
   notes that say otherwise are out of date.
-- `out/`, `public/boxart/*`, `public/audio/*` and `data/` are gitignored —
-  generated output and personal data respectively.
+- `out/`, `public/boxart/*`, `public/audio/*`, `public/bgg/*` and `data/` are
+  gitignored — generated output and personal data respectively. The credit
+  manifest is derived data and rebuilds in under a minute.
 - **Remotion bundles with its own webpack**, so the `@` alias is configured in
   three places: `tsconfig.json`, `vite.config.ts`/`vitest.config.ts`, and
   `Config.overrideWebpackConfig` in [remotion.config.ts](remotion.config.ts).

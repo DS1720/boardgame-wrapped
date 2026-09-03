@@ -71,6 +71,26 @@ const describe = (stat: WrappedStats['stats'][number]): string => {
 
     case 'highestScore':
       return `${formatNumber(stat.score)} in ${stat.game.name}${stat.won ? ' (won)' : ' (best of any result)'}`;
+
+    // The five credit slides share one shape, so they share one line. Coverage
+    // is shown because it is the guard that decides whether they appear at all.
+    case 'topThemes':
+    case 'topMechanics':
+    case 'topDesigners':
+    case 'topArtists':
+    case 'topPublishers':
+      return (
+        stat.entries.map((e) => `${e.name} ${e.plays}× / ${e.games}g`).join(' · ') +
+        ` — ${formatPercent(stat.coverage)} of plays matched`
+      );
+
+    // The two hero credit slides: the leader, and the games it is shown with.
+    case 'topTheme':
+    case 'topMechanic':
+      return (
+        `${stat.name} — ${stat.plays}× across ${stat.games} games: ` +
+        stat.examples.map((g) => `${g.name} (${g.plays})`).join(', ')
+      );
     default:
       return '';
   }

@@ -28,6 +28,15 @@ import {
   WorstGameSlide,
 } from './OptionalSlides';
 import { TopFiveByTimeSlide, TopFiveSlide } from './TopFive';
+import {
+  TopArtistsSlide,
+  TopDesignersSlide,
+  TopMechanicSlide,
+  TopMechanicsSlide,
+  TopPublishersSlide,
+  TopThemeSlide,
+  TopThemesSlide,
+} from './CreditSlides';
 
 /**
  * The slide registry.
@@ -61,6 +70,16 @@ export const SLIDE_COMPONENTS: Record<TimelineSlideId, React.FC<SlideProps>> = {
   nightOwl: NightOwlSlide,
   firstAndLastPlay: FirstAndLastPlaySlide,
   groupShare: GroupShareSlide,
+
+  // The BGG credit block. Off by default like the rest of this group, and
+  // additionally dependent on the credit prefetch having been run.
+  topTheme: TopThemeSlide,
+  topThemes: TopThemesSlide,
+  topMechanic: TopMechanicSlide,
+  topMechanics: TopMechanicsSlide,
+  topDesigners: TopDesignersSlide,
+  topArtists: TopArtistsSlide,
+  topPublishers: TopPublishersSlide,
 };
 
 /** Frames a slide spends leaving. Short — the exit is punctuation, not an event. */
@@ -122,4 +141,5 @@ export const SlideShell: React.FC<{ durationInFrames: number; children: React.Re
 export * from './Slides';
 export * from './OptionalSlides';
 export * from './TopFive';
+export * from './CreditSlides';
 export * from './layout';

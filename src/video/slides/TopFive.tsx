@@ -42,12 +42,38 @@ const ROWS = 5;
 const FIRST_PLACE = 0.48;
 const OTHER_PLACES = 1.15;
 
-/** One row of the countdown: a game, and whatever is being counted. */
-interface CountdownRow {
-  gameId: number;
+/** One row of the countdown: a name, a cover, and whatever is being counted. */
+export interface CountdownRow {
+  /**
+   * Row identity.
+   *
+   * The two game lists key on the game; the credit lists key on a person or a
+   * mechanic, which has no id of its own and can perfectly well share a cover
+   * with the row above it.
+   */
+  key: string;
+  /**
+   * Whose cover to draw, or null for no cover.
+   *
+   * The credit slides pass the player's most-played game carrying that name —
+   * the reason the name is on the list, rather than an image chosen to fill the
+   * space. Nothing on screen has to explain the choice, but nothing on screen
+   * contradicts it either.
+   */
+  gameId: number | null;
+  /** The game's title, or the credit's name. */
   name: string;
   /** Already formatted — the list does not know what unit it is showing. */
   value: string;
+  /**
+   * A smaller second line under the name.
+   *
+   * Used by the three people-shaped credit slides to say across how many games
+   * the count is spread: "31 plays" across two games and across eight are
+   * different claims, and the eligibility filter is the reason the number is
+   * worth showing at all.
+   */
+  detail?: string;
 }
 
 /**
@@ -59,7 +85,7 @@ interface CountdownRow {
  * time either was touched. What differs between the two is the heading and the
  * number on the right, so that is all either one passes in.
  */
-const CountdownList: React.FC<{
+export const CountdownList: React.FC<{
   eyebrow: string;
   headline: string;
   rows: CountdownRow[];
@@ -95,8 +121,15 @@ const CountdownList: React.FC<{
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
           {games.map((game, index) => {
             const place = index + 1;
-            // Last place first: place 5 is revealed at step 0, place 1 last.
-            const order = ROWS - place;
+            /*
+              Last place first: the bottom row is revealed at step 0 and first
+              place lands last.
+
+              Counted off `games.length` rather than `ROWS`, because a credit
+              list can be shorter than five. Against the constant, a three-row
+              list would sit empty for two steps before its bottom row arrived.
+            */
+            const order = games.length - place;
             const delay = START + order * STEP;
 
             const enter = spring({
@@ -121,7 +154,7 @@ const CountdownList: React.FC<{
 
             return (
               <div
-                key={game.gameId}
+                key={game.key}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -150,27 +183,51 @@ const CountdownList: React.FC<{
                   {place}
                 </span>
 
-                <BoxArt
-                  entry={boxArtFor(manifest, game.gameId)}
-                  name={game.name}
-                  width={isFirst ? 148 : 120}
-                  height={isFirst ? 148 : 120}
-                />
+                {game.gameId !== null && (
+                  <BoxArt
+                    entry={boxArtFor(manifest, game.gameId)}
+                    name={game.name}
+                    width={isFirst ? 148 : 120}
+                    height={isFirst ? 148 : 120}
+                  />
+                )}
 
                 <span
                   style={{
-                    ...bodyFont,
-                    fontSize: isFirst ? body * 1.1 : body * 0.92,
-                    color: color.ink,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
                     flex: 1,
                     minWidth: 0,
-                    // Five rows of wrapped titles would overflow the frame.
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
                   }}
                 >
-                  {game.name}
+                  <span
+                    style={{
+                      ...bodyFont,
+                      fontSize: isFirst ? body * 1.1 : body * 0.92,
+                      color: color.ink,
+                      // Five rows of wrapped titles would overflow the frame.
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {game.name}
+                  </span>
+                  {game.detail && (
+                    <span
+                      style={{
+                        ...utilityFont,
+                        fontSize: caption * 0.92,
+                        color: color.inkMuted,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {game.detail}
+                    </span>
+                  )}
                 </span>
 
                 <span
@@ -201,6 +258,7 @@ export const TopFiveSlide: React.FC<SlideProps> = ({ stat }) => {
       headline="Most played"
       // The stat carries six for the outro grid; this slide is a top five.
       rows={stat.games.map((game) => ({
+        key: String(game.gameId),
         gameId: game.gameId,
         name: game.name,
         value: formatNumber(game.plays),
@@ -226,6 +284,7 @@ export const TopFiveByTimeSlide: React.FC<SlideProps> = ({ stat }) => {
       headline="Most time"
       justify="center"
       rows={stat.games.map((game) => ({
+        key: String(game.gameId),
         gameId: game.gameId,
         name: game.name,
         value: formatDuration(game.minutes),

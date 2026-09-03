@@ -292,16 +292,21 @@ export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | 
     case 'gameRecord': {
       const record = find(stats, 'gameRecord');
       if (!record) return null;
-      // Every branch is a remark about this record specifically — how many
-      // others they hold, or how many people they beat to it.
-      if (record.otherRecords >= 5) {
-        return `${record.otherRecords + 1} records. Somebody check the score sheets.`;
-      }
-      if (record.otherRecords >= 1) {
-        return `And ${record.otherRecords} more where that came from.`;
-      }
+      /*
+        Reordered when the "the highest of 12 players · over 21 plays" caption
+        came off this slide.
+
+        Two consequences. The other-records count is now the caption under the
+        number, so a quip counting it again is the same fact twice — the `>= 5`
+        branch keeps the flourish and drops the figure, and the `>= 1` branch is
+        gone entirely. And the contenders count and the highest/lowest rule left
+        the slide with that caption, so the branches carrying them come first:
+        this is the only place either can still be said.
+      */
+      if (!record.highestWins) return 'Lower is better in this one. Nobody went lower.';
       if (record.shared) return 'Somebody matched it exactly. Nobody has beaten it.';
       if (record.contenders >= 5) return `${record.contenders} people tried. One succeeded.`;
+      if (record.otherRecords >= 5) return 'Somebody check the score sheets.';
       return 'The number to beat.';
     }
 
@@ -309,6 +314,66 @@ export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | 
       const share = find(stats, 'groupShare');
       if (!share) return null;
       if (share.ratio >= 0.6) return 'Barely missed a night.';
+      return null;
+    }
+
+    /*
+      The credit slides.
+
+      Each line is about the shape of its own list — how far the leader is
+      ahead, or how far it reaches — because the five names and five numbers
+      already say everything a restatement could. Where the list is flat there
+      is nothing to remark on, and these return null rather than reaching.
+    */
+
+    case 'topThemes': {
+      const themes = find(stats, 'topThemes');
+      if (!themes || themes.entries.length < 3) return null;
+      const [first, second] = themes.entries;
+      // A leader well clear of second place is a taste; a photo finish is not.
+      if (first.plays >= second.plays * 2) return 'You have a type.';
+      if (first.games >= 8) return `${first.name} kept turning up. You did not go looking for it.`;
+      return null;
+    }
+
+    case 'topMechanics': {
+      const mech = find(stats, 'topMechanics');
+      if (!mech || mech.entries.length < 3) return null;
+      const first = mech.entries[0];
+      if (first.games < 6) return null;
+      return `${first.name}, over and over. You did not pick that by accident.`;
+    }
+
+    /*
+      None of the five restate the games count. Every credit row carries it
+      under the name now, so a line beneath the list repeating row one's number
+      is the same fact told twice — and the second telling is what reads as
+      filler. The name is fair game; the number is not.
+    */
+
+    case 'topDesigners': {
+      const people = find(stats, 'topDesigners');
+      if (!people) return null;
+      const first = people.entries[0];
+      // The whole point of the games filter: this is somebody they came back
+      // to across different boxes, not the credits of their most-played game.
+      if (first.games >= 3) return 'You keep picking the same designer. Probably not by accident.';
+      if (people.entries.length >= 5) return 'None of them know you exist.';
+      return null;
+    }
+
+    case 'topArtists': {
+      const artists = find(stats, 'topArtists');
+      if (!artists) return null;
+      if (artists.entries[0].games < 4) return null;
+      return 'You have been looking at one person’s work all year.';
+    }
+
+    case 'topPublishers': {
+      const pubs = find(stats, 'topPublishers');
+      if (!pubs || pubs.entries.length < 3) return null;
+      const [first, second] = pubs.entries;
+      if (first.plays >= second.plays * 2) return `${first.name} had a very good year at your table.`;
       return null;
     }
 

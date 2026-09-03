@@ -18,7 +18,37 @@ export type SlideId =
   | 'nightOwl'
   | 'groupShare'
   | 'highestScore'
-  | 'gameRecord';
+  | 'gameRecord'
+  | 'topMechanics'
+  | 'topThemes'
+  | 'topPublishers'
+  | 'topDesigners'
+  | 'topArtists'
+  | 'topTheme'
+  | 'topMechanic';
+
+/**
+ * The five slides built from BGG credits.
+ *
+ * One shape, five fields. They are listed separately in `SlideId` because the
+ * cut, the picker and the component registry all key on it, but everything
+ * downstream of `creditStat` treats them identically.
+ */
+export type CreditStatId =
+  | 'topMechanics'
+  | 'topThemes'
+  | 'topPublishers'
+  | 'topDesigners'
+  | 'topArtists';
+
+/**
+ * The two hero credit slides: one theme, one mechanic, each with the games that
+ * earned it.
+ *
+ * The list slides say a theme came up 39 times. These answer the question that
+ * invites and the list cannot: *which games were those?*
+ */
+export type LeadCreditStatId = 'topTheme' | 'topMechanic';
 
 export interface GameRef {
   gameId: number;
@@ -31,6 +61,66 @@ export interface StatBase {
   id: SlideId;
   core: boolean;
 }
+
+/** One row of a credit slide: a name, what it is worth, and why it earned a cover. */
+export interface CreditEntry {
+  /** As BGG spells it. */
+  name: string;
+  /** Plays in range whose game carries this name. This is the ranking value. */
+  plays: number;
+  /**
+   * Distinct games in range carrying it.
+   *
+   * Not the ranking — the eligibility filter reads it, and the slide shows it
+   * beside the play count on the people-shaped slides, where "31 plays across
+   * 2 games" is a different claim from "31 plays across 8".
+   */
+  games: number;
+  /**
+   * A game of the player's carrying this name — the most-played one, unless a
+   * higher row already took that cover.
+   *
+   * The slide draws its cover on the row, so it is the reason the name is on
+   * the list rather than an illustration chosen to fill the space. See
+   * `coverFor` for why the de-duplication is there: four of Tina's five top
+   * mechanics are led by the same game, and five copies of one cover reads as
+   * a bug rather than as a fact.
+   */
+  topGame: GameRef;
+}
+
+/** The shared shape of the two hero credit stats. */
+export type LeadCreditStat<Id extends LeadCreditStatId> = StatBase & {
+  id: Id;
+  /** The credit itself — "Deduction", "Hand Management". */
+  name: string;
+  /** Plays in range whose game carried it. */
+  plays: number;
+  /** Distinct games that carried it. Usually more than `examples` holds. */
+  games: number;
+  /**
+   * The games that earned it, most-played first, capped at six.
+   *
+   * Six fills a 3x2 grid without a ragged bottom row, the same reason the outro
+   * takes six from a top five. `games` is the honest total, so a slide showing
+   * six of thirteen can say so.
+   */
+  examples: Array<GameRef & { plays: number }>;
+  coverage: number;
+};
+
+/** The shared shape of all five credit stats. */
+export type CreditStat<Id extends CreditStatId> = StatBase & {
+  id: Id;
+  entries: CreditEntry[];
+  /**
+   * Share of the player's plays that resolved to a BGG entry.
+   *
+   * Kept on the stat so the inspector can show how much of the year the list
+   * actually saw, the way `timePlayed` reports `playsMissing`.
+   */
+  coverage: number;
+};
 
 export type Stat =
   | (StatBase & { id: 'totalPlays'; plays: number; nights: number; distinctGames: number })
@@ -128,7 +218,14 @@ export type Stat =
        * worth boasting about.
        */
       won: boolean;
-    });
+    })
+  | CreditStat<'topMechanics'>
+  | CreditStat<'topThemes'>
+  | CreditStat<'topPublishers'>
+  | CreditStat<'topDesigners'>
+  | CreditStat<'topArtists'>
+  | LeadCreditStat<'topTheme'>
+  | LeadCreditStat<'topMechanic'>;
 
 export interface WrappedStats {
   playerId: number;

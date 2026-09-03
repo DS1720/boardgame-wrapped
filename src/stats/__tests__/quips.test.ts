@@ -3,8 +3,8 @@ import { buildDataset } from '@/ingest/parse';
 import { yearRange } from '@/ingest/select';
 import { buildWrappedStats, MODULES } from '../index';
 import { quipFor } from '../quips';
-import type { SlideId, WrappedStats } from '../types';
-import { smallExport } from './fixtures';
+import type { CreditStatId, SlideId, Stat, WrappedStats } from '../types';
+import { bggFixture, smallExport } from './fixtures';
 
 /**
  * The quips are the one part of the video that talks rather than reports, so
@@ -219,5 +219,103 @@ describe('the co-player count always has a line', () => {
       stats: stats.stats.filter((s) => s.id !== 'coPlayerCount'),
     };
     expect(quipFor('coPlayerCount', without)).toBeNull();
+  });
+});
+
+describe('the credit quips', () => {
+  const withBgg = buildWrappedStats(ds, 1, yearRange(2026), ALL, null, bggFixture());
+
+  it('says nothing when the module produced no stat', () => {
+    // The fixture's publishers never clear the two-entry floor.
+    expect(quipFor('topPublishers', withBgg)).toBeNull();
+  });
+
+  it('never restates the games count the rows already carry', () => {
+    /*
+      Every credit row prints "N games" under the name. A line under the list
+      repeating row one's number is the same fact twice, and the second telling
+      is what reads as filler.
+    */
+    for (const id of [
+      'topDesigners',
+      'topArtists',
+      'topPublishers',
+      'topThemes',
+      'topMechanics',
+    ] as const) {
+      // `find` over the union cannot narrow on a variable id, and every member
+      // carries `entries` — so the cast asserts what the loop already
+      // guarantees.
+      const stat = withBgg.stats.find((s) => s.id === id) as
+        | Extract<Stat, { id: CreditStatId }>
+        | undefined;
+      const line = quipFor(id, withBgg);
+      if (!stat || !line) continue;
+      expect(line).not.toContain(`${stat.entries[0].games} game`);
+    }
+  });
+
+  it('holds back on a list too flat to remark on', () => {
+    // Two mechanics on one game each says nothing about a year.
+    const thin = buildWrappedStats(ds, 3, yearRange(2026), ALL, null, bggFixture());
+    expect(quipFor('topMechanics', thin)).toBeNull();
+  });
+
+  it('is derived from the leader, not from a template', () => {
+    const line = quipFor('topMechanics', withBgg);
+    if (line) {
+      const stat = withBgg.stats.find((s) => s.id === 'topMechanics') as Extract<
+        Stat,
+        { id: 'topMechanics' }
+      >;
+      expect(line).toContain(stat.entries[0].name);
+    }
+  });
+});
+
+describe('the record slide', () => {
+  const recordStats = (over: Partial<Extract<Stat, { id: 'gameRecord' }>>): WrappedStats => ({
+    ...stats,
+    stats: [
+      {
+        id: 'gameRecord',
+        core: false,
+        game: { gameId: 1, name: 'Cabo', boxArt: null, bggId: 1 },
+        score: 12,
+        plays: 4,
+        otherRecords: 0,
+        contenders: 3,
+        highestWins: true,
+        shared: false,
+        ...over,
+      },
+    ],
+  });
+
+  it('never counts the other records, because the caption already does', () => {
+    /*
+      "and the best score in 3 other games" is the line directly under the
+      number now. A quip repeating that figure is the same fact twice.
+    */
+    for (const otherRecords of [1, 2, 3, 5, 9]) {
+      const line = quipFor('gameRecord', recordStats({ otherRecords }))!;
+      expect(line).not.toContain(String(otherRecords));
+      expect(line).not.toContain(String(otherRecords + 1));
+    }
+  });
+
+  it('says which way the scoring runs when lower is better', () => {
+    // Eight of the real library's games are lowest-wins. With the "the lowest
+    // of N players" caption gone, this is the only thing left on the slide
+    // that stops a low number reading as a bad one.
+    expect(quipFor('gameRecord', recordStats({ highestWins: false }))).toContain('Lower is better');
+  });
+
+  it('still says the contenders count, which is nowhere else on the slide', () => {
+    expect(quipFor('gameRecord', recordStats({ contenders: 12 }))).toContain('12');
+  });
+
+  it('always has something to say', () => {
+    expect(quipFor('gameRecord', recordStats({}))).toBe('The number to beat.');
   });
 });

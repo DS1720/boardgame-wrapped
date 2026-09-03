@@ -64,6 +64,7 @@ const contextWith = (minutes: Array<number | null>, gameIds?: number[]): StatCon
     usesTeams: false,
     boxArt: null,
     bggId: 1,
+    designers: [],
     locationId: null,
     locationName: null,
     estimatedMinutes,

@@ -343,12 +343,6 @@ export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
   // Narrowed once, up here, because the budget below needs the caption text and
   // hooks cannot run after an early return.
   const record = stat?.id === 'gameRecord' ? stat : null;
-  const best = record?.highestWins ? 'highest' : 'lowest';
-  const detail = record
-    ? `the ${best} of ${formatNumber(record.contenders)} players${
-        record.plays > 1 ? ` · over ${formatNumber(record.plays)} plays` : ''
-      }`
-    : '';
   const alsoLine = record
     ? `and the best score in ${formatNumber(record.otherRecords)} other ${
         record.otherRecords === 1 ? 'game' : 'games'
@@ -356,24 +350,27 @@ export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
     : '';
 
   /*
-    The tallest stack in the video: a cover, a label, a title, a display number
-    and up to two captions. It was also the one that broke first on a wide
-    display face — the title grew, everything above it was pushed up, and the
-    cover left the top of the frame.
+    One of the tallest stacks in the video: a cover, a label, a title, a display
+    number and — only when there is one to show — a caption. It is the slide
+    that broke first on a wide display face, the title growing until the cover
+    left the top of the frame.
 
     Every term is counted rather than assumed. The number takes its full step
     rather than its fitted one, so the budget never depends on how many digits
-    this player scored; the captions are measured, because "the highest of 12
-    players · over 21 plays" is two lines in most of the body faces here and one
-    in the narrowest, and Felt Table is one of the ones where it wraps.
+    this player scored; the caption is measured rather than assumed to be one
+    line, because a game's name can be 56 characters and the body faces here
+    differ enough that the same string wraps in some and not others.
+
+    It used to carry a second caption — "the highest of 12 players · over 21
+    plays" — under the number. That went, so the gap count went with it: four
+    children now where there were five, three where there were four.
   */
-  const captionLines =
-    linesFor(detail, body, bodyMeasure) +
-    (record && record.otherRecords > 0 ? linesFor(alsoLine, body, bodyMeasure) : 0);
+  const hasAlso = record !== null && record.otherRecords > 0;
+  const captionLines = hasAlso ? linesFor(alsoLine, body, bodyMeasure) : 0;
 
   const titleBudget = useSpareHeight(
     RECORD_COVER.height +
-      RECORD_GAP * (record && record.otherRecords > 0 ? 4 : 3) +
+      RECORD_GAP * (hasAlso ? 3 : 2) +
       caption * LABEL_SCALE * 1.2 +
       10 +
       display * 0.95 +
@@ -414,16 +411,16 @@ export const GameRecordSlide: React.FC<SlideProps> = ({ stat }) => {
           </DisplayNumber>
         </Reveal>
 
-        <Reveal delay={BEAT.third + 6}>
-          <Caption>
-            the {best} of {formatNumber(record.contenders)} players
-            {record.plays > 1 ? ` · over ${formatNumber(record.plays)} plays` : ''}
-          </Caption>
-        </Reveal>
-
+        {/*
+          The other records take the caption slot under the number, in the
+          muted body style the contenders line used to hold. It was set in the
+          accent a beat later and a gap lower, which read as a footnote to a
+          footnote; there is only one line here now, and it is the one worth
+          reading.
+        */}
         {record.otherRecords > 0 && (
-          <Reveal delay={BEAT.third + 10}>
-            <Caption accent>
+          <Reveal delay={BEAT.third + 6}>
+            <Caption>
               and the best score in {formatNumber(record.otherRecords)} other{' '}
               {record.otherRecords === 1 ? 'game' : 'games'}
             </Caption>

@@ -3,6 +3,7 @@ import type { PlayerSummary } from '@/ingest/select';
 import type { Track } from '@/shared/audio';
 import type { Dataset, DateRange } from '@/shared/types';
 import { buildWrappedStats, MODULES, THIN_PLAY_THRESHOLD } from '@/stats/index';
+import type { BggIndex } from '@/shared/bgg';
 import { themeForPlayer } from '@/theme/generate';
 import type { Theme } from '@/theme/types';
 import type { SlideBarOverrides, TimelineSlideId } from '@/video/timeline';
@@ -66,6 +67,11 @@ interface Props {
   bars: SlideBarOverrides;
   /** Names typed by hand in the player picker. Sparse. */
   names: PlayerNameOverrides;
+  /**
+   * BGG credits. Passed through rather than fetched here so a batch and the
+   * preview cannot disagree about which slides a player has.
+   */
+  bgg: BggIndex;
 }
 
 export const BatchPanel: React.FC<Props> = ({
@@ -77,6 +83,7 @@ export const BatchPanel: React.FC<Props> = ({
   cut,
   bars,
   names,
+  bgg,
 }) => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [randomThemes, setRandomThemes] = useState(false);
@@ -128,6 +135,7 @@ export const BatchPanel: React.FC<Props> = ({
           // square and the output filename all read — a batch that renamed
           // only the video would write the file under the old name.
           overrideFor(names, player.id),
+          bgg,
         ),
         // Seeded by player id, so a re-run produces the same set of videos.
         theme: randomThemes ? themeForPlayer(player.id) : theme,

@@ -10,6 +10,8 @@ import { readFileSync } from 'node:fs';
 import { parseExportText } from '../src/ingest/parse';
 import { allTimeRange, makeRange, playersInPlays, playsInRange, yearRange } from '../src/ingest/select';
 import { buildWrappedStats, MODULES } from '../src/stats/index';
+import { readBggManifest } from '../server/bgg';
+import { indexOf } from '../src/shared/bgg';
 
 const [file, playerName, rangeArg = 'all'] = process.argv.slice(2);
 if (!file || !playerName) {
@@ -36,5 +38,12 @@ if (!player) {
   process.exit(1);
 }
 
-const stats = buildWrappedStats(dataset, player.id, range, MODULES.map((m) => m.id));
+/*
+  The credit manifest, if the prefetch has been run. Read from disk rather than
+  over HTTP so a dry run needs no service — and an absent manifest simply means
+  the five credit modules return null, which is what they should do.
+*/
+const bgg = indexOf(await readBggManifest());
+
+const stats = buildWrappedStats(dataset, player.id, range, MODULES.map((m) => m.id), null, bgg);
 console.log(JSON.stringify(stats, null, 2));

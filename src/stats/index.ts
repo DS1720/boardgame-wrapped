@@ -1,4 +1,5 @@
 import type { Dataset, DateRange } from '@/shared/types';
+import type { BggIndex } from '@/shared/bgg';
 import { buildContext, type StatContext } from './context';
 import type { SlideId, Stat, WrappedStats } from './types';
 import * as core from './modules/core';
@@ -23,6 +24,19 @@ export const MODULES: Array<{ id: SlideId; run: StatModule; core: boolean }> = [
   { id: 'worstGame', run: optional.worstGame, core: true },
   { id: 'topGame', run: core.topGame, core: true },
   { id: 'topFive', run: core.topFive, core: true },
+  // The five BGG credit slides, as a block. Same family as the two countdowns
+  // above them — what you played, seen through who made it and what it was —
+  // and all five off by default: they need a prefetch the other modules do
+  // not, and enabling every one would be seven list slides in a row.
+  // Each hero sits directly in front of its list: the claim, then the ranking
+  // it came from. `LINKED_PAIRS` keeps them adjacent however they are dragged.
+  { id: 'topTheme', run: optional.topTheme, core: false },
+  { id: 'topThemes', run: optional.topThemes, core: false },
+  { id: 'topMechanic', run: optional.topMechanic, core: false },
+  { id: 'topMechanics', run: optional.topMechanics, core: false },
+  { id: 'topDesigners', run: optional.topDesigners, core: false },
+  { id: 'topArtists', run: optional.topArtists, core: false },
+  { id: 'topPublishers', run: optional.topPublishers, core: false },
   { id: 'highestScore', run: optional.highestScore, core: true },
   { id: 'coPlayerCount', run: optional.coPlayerCount, core: true },
   // Counts the people, then names one of them. `LINKED_PAIRS` keeps the two
@@ -61,8 +75,20 @@ export const buildWrappedStats = (
    * Blank and undefined both mean "use the export's name".
    */
   displayName?: string | null,
+  /**
+   * BGG credits, keyed by bggId, from the prefetch manifest.
+   *
+   * Optional and last, so every existing caller compiles unchanged — the same
+   * shape `displayName` was added in. Six positionals is the ceiling: the next
+   * addition here should turn the tail into an options object.
+   *
+   * Omitted means an empty index, which means the five credit modules return
+   * `null` and their slides do not appear. That is the correct behaviour for a
+   * machine where nobody has run the prefetch.
+   */
+  bgg?: BggIndex | null,
 ): WrappedStats => {
-  const ctx = buildContext(dataset, playerId, range);
+  const ctx = buildContext(dataset, playerId, range, bgg ?? new Map());
   const on = new Set(enabled);
 
   const stats: Stat[] = [];

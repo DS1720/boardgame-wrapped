@@ -1,5 +1,6 @@
 import type { Dataset, DateRange, NormalizedPlay, Participant } from '@/shared/types';
 import { playsInRange } from '@/ingest/select';
+import type { BggIndex } from '@/shared/bgg';
 
 export interface StatContext {
   playerId: number;
@@ -10,6 +11,14 @@ export interface StatContext {
   /** Every play in range, regardless of participants. Used for group comparisons. */
   allPlays: NormalizedPlay[];
   dataset: Dataset;
+  /**
+   * BGG credits, keyed by bggId. Empty when nobody has run the prefetch.
+   *
+   * The five credit modules are the only readers, and all of them return `null`
+   * below a coverage floor — so an empty index is not a broken state, it is
+   * five slides that do not appear.
+   */
+  bgg: BggIndex;
 }
 
 export const selfOf = (play: NormalizedPlay, playerId: number): Participant | undefined =>
@@ -19,6 +28,7 @@ export const buildContext = (
   dataset: Dataset,
   playerId: number,
   range: DateRange,
+  bgg: BggIndex = new Map(),
 ): StatContext => {
   const allPlays = playsInRange(dataset.plays, range);
   const playerPlays = allPlays.filter((p) =>
@@ -28,7 +38,7 @@ export const buildContext = (
     playerPlays[0]?.participants.find((x) => x.playerId === playerId)?.name ??
     dataset.playersById.get(playerId)?.name ??
     'Unknown player';
-  return { playerId, playerName: name, range, playerPlays, allPlays, dataset };
+  return { playerId, playerName: name, range, playerPlays, allPlays, dataset, bgg };
 };
 
 /**

@@ -18,6 +18,14 @@ export interface RawGame {
   urlThumb: string;
   bggId: number;
   /**
+   * Comma-separated designer names, e.g. "Michael Kiesling, Reinhard Staupe".
+   *
+   * The only credit BG Stats exports — there is no publisher, artist, mechanic
+   * or category anywhere in the file. It covers 98.1% of plays, which is what
+   * lets the designer slide work with no BGG manifest and no network.
+   */
+  designers?: string;
+  /**
    * BGG's stated play time in minutes. Absent on games never matched to BGG.
    * These are the only duration figures in the export that mean anything —
    * every play's own `durationMin` is 0.
@@ -102,6 +110,13 @@ export interface NormalizedPlay {
   usesTeams: boolean;
   boxArt: string | null;
   bggId: number;
+  /**
+   * Designer names from the export, already split and cleaned.
+   *
+   * The fallback source for `topDesigners` when no BGG manifest has been
+   * fetched. Both come from BGG originally, so they agree.
+   */
+  designers: string[];
   locationId: number | null;
   locationName: string | null;
   /**

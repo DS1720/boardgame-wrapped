@@ -5,6 +5,7 @@ import { framesPerBar } from '@/shared/audio';
 import {
   buildCut,
   DEFAULT_BPM,
+  ALL_SLIDES,
   DEFAULT_CUT,
   EMPTY_DURATION_FRAMES,
   LEAD_IN_BARS,
@@ -23,6 +24,7 @@ import {
   slideBars,
   slideFrames,
   SLIDE_BARS,
+  SLIDE_LABELS,
   type TimelineSlideId,
   topFiveOf,
 } from '../timeline';
@@ -155,6 +157,68 @@ describe('the default cut', () => {
     for (const id of DEFAULT_CUT) {
       expect(SLIDE_BARS[id]).toBeGreaterThan(0);
     }
+  });
+
+  /*
+    The five BGG credit slides. They are opt-in, so nothing in the default cut
+    reaches them — which is exactly why they need asserting: a missing entry in
+    any of these three tables is invisible until somebody switches one on.
+  */
+  const CREDIT_SLIDES = [
+    'topTheme',
+    'topThemes',
+    'topMechanic',
+    'topMechanics',
+    'topDesigners',
+    'topArtists',
+    'topPublishers',
+  ] as const;
+
+  it('registers every credit slide without putting it in the default cut', () => {
+    for (const id of CREDIT_SLIDES) {
+      expect(ALL_SLIDES).toContain(id);
+      expect(SLIDE_COMPONENTS[id]).toBeTypeOf('function');
+      expect(SLIDE_BARS[id]).toBeGreaterThan(0);
+      expect(SLIDE_LABELS[id]).toBeTruthy();
+      // They need a prefetch the other modules do not, and five list slides in
+      // a row is not a default anybody chose.
+      expect(DEFAULT_CUT).not.toContain(id);
+    }
+  });
+
+  it('lets every credit section introduce itself and no more', () => {
+    /*
+      A line costs a bar, so only the head of a section gets one: the two theme
+      and mechanic slides (either of which can open its section, depending on
+      which is switched on) and the designers slide, which is what reframes the
+      video from games to people. Artists and publishers follow it and start
+      cold.
+    */
+    const withLine = CREDIT_SLIDES.filter((id) => leadInFor(id) !== null);
+    expect(withLine).toEqual(['topTheme', 'topThemes', 'topMechanic', 'topMechanics', 'topDesigners']);
+  });
+
+  it('says a linked pair’s introduction once, not twice', () => {
+    /*
+      Both halves of a pair carry the same line so either can open the section
+      alone. Run together — which `LINKED_PAIRS` guarantees whenever both are
+      in — the second would repeat it one bar after the first said it.
+    */
+    for (const [first, second] of [
+      ['topTheme', 'topThemes'],
+      ['topMechanic', 'topMechanics'],
+    ] as const) {
+      expect(leadInFor(first)).not.toBeNull();
+      expect(leadInFor(second)).toBe(leadInFor(first));
+      expect(leadInFor(second, first)).toBeNull();
+    }
+  });
+
+  it('leaves a pair with its own joining line alone', () => {
+    // `topFiveByTime` has a PAIRED_LEAD_IN that exists precisely to be said on
+    // the join, so the suppression above must not swallow it.
+    expect(leadInFor('topFiveByTime', 'timePlayed')).not.toBeNull();
+    expect(leadInFor('topCoPlayer', 'coPlayerCount')).not.toBeNull();
   });
 });
 
@@ -486,5 +550,28 @@ describe('a chosen length, made safe', () => {
     expect(parseBarOverrides(null)).toEqual({});
     expect(parseBarOverrides('bars')).toEqual({});
     expect(parseBarOverrides(undefined)).toEqual({});
+  });
+});
+
+describe('slide labels', () => {
+  it('gives every slide a label', () => {
+    // The picker renders `SLIDE_LABELS[id]`; a missing one is a blank row.
+    for (const id of ALL_SLIDES) expect(SLIDE_LABELS[id]).toBeTruthy();
+  });
+
+  it('never gives two slides the same label', () => {
+    /*
+      The picker is a list of names and nothing else, so two rows reading the
+      same thing are two rows nobody can tell apart. This is why the countdowns
+      say what they rank by: "Top game (by plays)" against "Top 5 by time".
+    */
+    const labels = ALL_SLIDES.map((id) => SLIDE_LABELS[id]);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it('distinguishes a hero slide from the list it leads', () => {
+    // These four are the pairs most easily confused for each other.
+    expect(SLIDE_LABELS.topTheme).not.toBe(SLIDE_LABELS.topThemes);
+    expect(SLIDE_LABELS.topMechanic).not.toBe(SLIDE_LABELS.topMechanics);
   });
 });
