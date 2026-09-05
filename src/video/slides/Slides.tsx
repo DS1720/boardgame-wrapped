@@ -135,9 +135,7 @@ export const TotalPlaysSlide: React.FC<SlideProps> = ({ stat }) => {
             eyebrow="Plays"
             value={<CountUp to={stat.plays} delay={BEAT.second} />}
             fit={formatNumber(stat.plays)}
-            caption={`across ${formatNumber(stat.nights)} game nights · ${formatNumber(
-              stat.distinctGames,
-            )} different games`}
+            caption={`across ${formatNumber(stat.nights)} game nights`}
           />
         </SignaturePlate>
         {/*
@@ -153,6 +151,43 @@ export const TotalPlaysSlide: React.FC<SlideProps> = ({ stat }) => {
         <Reveal delay={BEAT.third} distance={0}>
           <TallyMarks count={stat.plays} delay={BEAT.third} />
         </Reveal>
+      </Stack>
+    </SafeArea>
+  );
+};
+
+export const DistinctGamesSlide: React.FC<SlideProps> = ({ stat }) => {
+  const manifest = useBoxArtManifest();
+  if (stat?.id !== 'distinctGames') return null;
+
+  const shown = stat.games.slice(0, 6);
+
+  return (
+    <SafeArea justify="center">
+      <Stack gap={30}>
+        <SignaturePlate delay={BEAT.first}>
+          <StatBlock
+            eyebrow="Different games"
+            value={<CountUp to={stat.count} delay={BEAT.second} />}
+            fit={formatNumber(stat.count)}
+            caption={stat.count === 1 ? 'game in this range' : 'games in this range'}
+          />
+        </SignaturePlate>
+        {shown.length > 0 ? (
+          <div style={{ display: 'flex', gap: 14, width: '100%', justifyContent: 'space-between' }}>
+            <Stagger delay={BEAT.third} distance={24}>
+              {shown.map((game) => (
+                <BoxArt
+                  key={game.gameId}
+                  entry={boxArtFor(manifest, game.gameId)}
+                  name={game.name}
+                  width={128}
+                  height={128}
+                />
+              ))}
+            </Stagger>
+          </div>
+        ) : null}
       </Stack>
     </SafeArea>
   );

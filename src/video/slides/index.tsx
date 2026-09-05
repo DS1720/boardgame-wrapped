@@ -3,6 +3,7 @@ import { useTheme } from '@/theme/ThemeContext';
 import { CARD_FADE_FRAMES } from '../config';
 import type { TimelineSlideId } from '../timeline';
 import {
+  DistinctGamesSlide,
   GamesLearnedSlide,
   IntroSlide,
   NemesisSlide,
@@ -49,6 +50,7 @@ export const SLIDE_COMPONENTS: Record<TimelineSlideId, React.FC<SlideProps>> = {
   intro: IntroSlide,
   totalPlays: TotalPlaysSlide,
   timePlayed: TimePlayedSlide,
+  distinctGames: DistinctGamesSlide,
   topGame: TopGameSlide,
   topFive: TopFiveSlide,
   topFiveByTime: TopFiveByTimeSlide,

@@ -21,6 +21,41 @@ describe('core stats on a hand-checked fixture', () => {
     expect(s.plays).toBe(5);
     expect(s.nights).toBe(4);
     expect(s.distinctGames).toBe(3);
+
+    const distinct = pick(1, 'distinctGames')!;
+    expect(distinct.count).toBe(3);
+    expect(new Set(distinct.games.map((g) => g.name))).toEqual(
+      new Set(['Azul', 'Cascadia', 'Pandemic']),
+    );
+    expect(distinct.games.map((g) => g.name)).not.toEqual(['Azul', 'Cascadia', 'Pandemic']);
+  });
+
+  it('samples different games without previewing the most-played reveal', () => {
+    const raw = smallExport();
+    raw.games = Array.from({ length: 8 }, (_, i) => game(i + 1, `Game ${i + 1}`));
+    raw.plays = [
+      ...Array.from({ length: 4 }, (_, i) =>
+        play(`2026-01-0${i + 1} 20:00:00`, 1, [score(1)]),
+      ),
+      ...Array.from({ length: 7 }, (_, i) =>
+        play(`2026-02-0${i + 1} 20:00:00`, i + 2, [score(1)]),
+      ),
+    ];
+
+    const stat = buildWrappedStats(buildDataset(raw), 1, range2026, ALL).stats.find(
+      (s) => s.id === 'distinctGames',
+    );
+    expect(stat?.id).toBe('distinctGames');
+    if (stat?.id !== 'distinctGames') return;
+
+    expect(stat.count).toBe(8);
+    expect(stat.games.slice(0, 6).map((g) => g.name)).not.toContain('Game 1');
+    const again = buildWrappedStats(buildDataset(raw), 1, range2026, ALL).stats.find(
+      (s) => s.id === 'distinctGames',
+    );
+    expect(again?.id).toBe('distinctGames');
+    if (again?.id !== 'distinctGames') return;
+    expect(stat.games.map((g) => g.name)).toEqual(again.games.map((g) => g.name));
   });
 
   it('finds the most played game', () => {

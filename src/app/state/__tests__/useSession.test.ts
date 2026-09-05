@@ -133,6 +133,23 @@ describe('validation', () => {
     expect(parseSession({ ...defaultSession(), slides: [] }).slides).toEqual([]);
   });
 
+  it('adds the distinct games slide once to sessions from before it existed', () => {
+    const parsed = parseSession({
+      ...defaultSession(),
+      version: 2,
+      slides: ['timePlayed', 'topFiveByTime', 'topGame'],
+    });
+    expect(parsed.slides).toEqual(['timePlayed', 'topFiveByTime', 'distinctGames', 'topGame']);
+  });
+
+  it('does not re-add distinct games after a current session removes it', () => {
+    const parsed = parseSession({
+      ...defaultSession(),
+      slides: ['timePlayed', 'topFiveByTime', 'topGame'],
+    });
+    expect(parsed.slides).toEqual(['timePlayed', 'topFiveByTime', 'topGame']);
+  });
+
   it('keeps the length multiplier inside the supported range', () => {
     expect(parseSession({ ...defaultSession(), lengthMultiplier: 1.25 }).lengthMultiplier).toBe(1.25);
     expect(parseSession({ ...defaultSession(), lengthMultiplier: 0 }).lengthMultiplier).toBe(0.25);

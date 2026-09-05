@@ -4,6 +4,7 @@ import {
   ALL_SLIDES,
   DEFAULT_LENGTH_MULTIPLIER,
   DEFAULT_SLIDE_IDS,
+  insertSlide,
   parseLengthMultiplier,
   parseBarOverrides,
   type SlideBarOverrides,
@@ -23,15 +24,13 @@ import { parsePlayerNames, type PlayerNameOverrides } from './playerNames';
 
 const KEY = 'bgw:session';
 /*
-  Still 2, deliberately, even though `playerNames` is new.
-
-  A version bump makes `parseSession` fall back to defaults, which would throw
-  away every stored slide arrangement to introduce a field that defaults to
-  `{}` anyway. A purely additive field needs no bump: a session written by an
-  older version simply has no names in it, and `parsePlayerNames(undefined)`
-  answers an empty map. Bump this only when an existing field changes meaning.
+  Bumped to 3 for the distinct-games slide. Unlike `playerNames`, this is an
+  additive default in an existing ordered list: version-2 sessions did not have
+  a chance to include or remove it, so `parseSession` preserves the session and
+  inserts the slide once in its catalogue position.
 */
-const VERSION = 2;
+const VERSION = 3;
+const DISTINCT_GAMES_MIGRATION_VERSION = 2;
 
 export interface Session {
   version: number;
@@ -102,10 +101,10 @@ export const parseSession = (raw: unknown): Session => {
   const base = defaultSession();
   if (!raw || typeof raw !== 'object') return base;
   const value = raw as Partial<Session>;
-  if (value.version !== VERSION) return base;
+  if (value.version !== VERSION && value.version !== DISTINCT_GAMES_MIGRATION_VERSION) return base;
 
   const known = new Set<string>(ALL_SLIDES);
-  const slides = Array.isArray(value.slides)
+  const parsedSlides = Array.isArray(value.slides)
     ? value.slides.filter((id): id is SlideId => {
         if (typeof id !== 'string' || !known.has(id)) return false;
         // The bookends are not part of the selection; one stored by an older
@@ -113,6 +112,13 @@ export const parseSession = (raw: unknown): Session => {
         return id !== ('intro' as string) && id !== ('outro' as string);
       })
     : base.slides;
+  const slides =
+    value.version === DISTINCT_GAMES_MIGRATION_VERSION &&
+    Array.isArray(value.slides) &&
+    parsedSlides.length > 0 &&
+    !parsedSlides.includes('distinctGames')
+      ? insertSlide(parsedSlides, 'distinctGames')
+      : parsedSlides;
 
   return {
     version: VERSION,

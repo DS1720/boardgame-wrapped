@@ -33,6 +33,7 @@ export const DEFAULT_CUT: TimelineSlideId[] = [
   'totalPlays',
   'timePlayed',
   'topFiveByTime',
+  'distinctGames',
   'topGame',
   'topFive',
   'topTheme',
@@ -67,6 +68,7 @@ export const SLIDE_LABELS: Record<TimelineSlideId, string> = {
   totalPlays: 'Total plays',
   timePlayed: 'Time played',
   topFiveByTime: 'Top 5 by time',
+  distinctGames: 'Different games',
   topGame: 'Top game (by plays)',
   topFive: 'Top 5 games (by plays)',
   winRate: 'Win rate',
@@ -284,6 +286,7 @@ export const LEAD_INS: Partial<Record<TimelineSlideId, string>> = {
   // The fallback for when the time slide is not in the cut, so the line never
   // refers back to a number nobody was shown.
   topFiveByTime: 'Some of them took whole evenings…',
+  distinctGames: 'That time covered a lot of ground…',
   topFive: 'The five that defined the year…',
   bestGame: 'You were particularly good at one of them…',
   worstGame: 'And then there was this one…',
@@ -364,6 +367,9 @@ export const leadInFor = (
   if (id === 'topGame' && previous === 'worstGame') {
     return 'Win or lose, one game more than any other…';
   }
+  if (id === 'topGame' && previous === 'distinctGames') {
+    return 'And out of all of them, one came back most…';
+  }
   const paired = PAIRED_LEAD_INS[id];
   if (paired && previous === paired.after) return paired.line;
   /*
@@ -399,6 +405,7 @@ export const SLIDE_BARS: Record<TimelineSlideId, number> = {
   timePlayed: 2,
   // Two, matching the other countdown while keeping the time section brisk.
   topFiveByTime: 2,
+  distinctGames: 2,
   // Two. At one it had a lead-in line ahead of it and the top five right
   // behind, which was argument enough that landing a cover and a number was
   // all it had to do — but one bar is two seconds, and the cover is the

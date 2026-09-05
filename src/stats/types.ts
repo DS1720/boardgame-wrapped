@@ -2,6 +2,7 @@ export type SlideId =
   | 'totalPlays'
   | 'timePlayed'
   | 'topFiveByTime'
+  | 'distinctGames'
   | 'topGame'
   | 'topFive'
   | 'winRate'
@@ -124,6 +125,11 @@ export type CreditStat<Id extends CreditStatId> = StatBase & {
 
 export type Stat =
   | (StatBase & { id: 'totalPlays'; plays: number; nights: number; distinctGames: number })
+  | (StatBase & {
+      id: 'distinctGames';
+      count: number;
+      games: Array<GameRef & { plays: number }>;
+    })
   | (StatBase & {
       id: 'timePlayed';
       /** Estimated total, in minutes. */

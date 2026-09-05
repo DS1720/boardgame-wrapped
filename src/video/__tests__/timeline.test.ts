@@ -58,6 +58,19 @@ const ALL_CORE: Stat[] = [
       { ...game(40, 'Hitster'), minutes: 180, plays: 9 },
     ],
   },
+  {
+    id: 'distinctGames',
+    core: true,
+    count: 71,
+    games: [
+      { ...game(77, 'Faraway'), plays: 21 },
+      { ...game(78, 'Phantom Ink'), plays: 15 },
+      { ...game(23, 'Bluff'), plays: 10 },
+      { ...game(63, 'Castle Combo'), plays: 10 },
+      { ...game(40, 'Hitster'), plays: 9 },
+      { ...game(99, 'Terraforming Mars'), plays: 4 },
+    ],
+  },
   { id: 'topGame', core: true, game: game(77, 'Faraway'), plays: 21, standing: null },
   {
     id: 'topFive',
@@ -132,6 +145,8 @@ describe('the default cut', () => {
       'timePlayed',
       // And immediately after it, where that time went.
       'topFiveByTime',
+      // Then the breadth of the selected range, before naming the single repeat.
+      'distinctGames',
       'topGame',
       'topFive',
       'topTheme',
@@ -635,9 +650,13 @@ describe('the most-played slide takes the losing record as its cue', () => {
 
   it('is the line the default cut actually reaches', () => {
     const cut = DEFAULT_CUT;
-    expect(cut[cut.indexOf('topGame') - 1]).toBe('topFiveByTime');
-    expect(leadInFor('topGame', 'topFiveByTime')).toBe(
-      'That was time. By plays, one game led the table…',
+    expect(cut[cut.indexOf('distinctGames') - 1]).toBe('topFiveByTime');
+    expect(cut[cut.indexOf('topGame') - 1]).toBe('distinctGames');
+    expect(leadInFor('distinctGames', 'topFiveByTime')).toBe(
+      'That time covered a lot of ground…',
+    );
+    expect(leadInFor('topGame', 'distinctGames')).toBe(
+      'And out of all of them, one came back most…',
     );
   });
 });

@@ -21,6 +21,8 @@ const describe = (stat: WrappedStats['stats'][number]): string => {
       return stat.games
         .map((g) => `${g.name} ${formatDuration(g.minutes)}`)
         .join(' · ');
+    case 'distinctGames':
+      return `${formatNumber(stat.count)} games: ${stat.games.map((g) => g.name).join(', ')}`;
     case 'topGame':
       return (
         `${stat.game.name} — ${stat.plays}×` +

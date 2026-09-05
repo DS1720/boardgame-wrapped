@@ -15,6 +15,27 @@ const gameKey = (p: NormalizedPlay) => ({
   at: p.date.getTime(),
 });
 
+const sampleKey = (seed: string, game: GameRef): number => {
+  let hash = 2166136261;
+  const text = `${seed}:${game.gameId}:${game.name}`;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const randomizeDistinctGames = <T extends GameRef & { plays: number }>(
+  games: T[],
+  seed: string,
+): T[] => {
+  const [top, ...rest] = games;
+  const shuffled = [...rest].sort((a, b) => sampleKey(seed, a) - sampleKey(seed, b));
+  // Keep the most-played game out of the visible shelf when there are enough
+  // alternatives; this slide should say breadth, not preview the reveal after it.
+  return games.length > 6 && top ? [...shuffled, top] : [...shuffled, ...(top ? [top] : [])];
+};
+
 export const totalPlays = (ctx: StatContext): Stat | null => {
   const plays = ctx.playerPlays;
   if (plays.length === 0) return null;
@@ -24,6 +45,26 @@ export const totalPlays = (ctx: StatContext): Stat | null => {
     plays: plays.length,
     nights: new Set(plays.map((p) => p.day)).size,
     distinctGames: new Set(plays.map((p) => p.gameId)).size,
+  };
+};
+
+export const distinctGames = (ctx: StatContext): Stat | null => {
+  const ranked = tally(ctx.playerPlays, gameKey);
+  if (ranked.length === 0) return null;
+
+  const games = ranked.map((entry) => {
+    const play = ctx.playerPlays.find((p) => p.gameId === entry.key)!;
+    return { ...gameRefOf(play), plays: entry.count };
+  });
+
+  return {
+    id: 'distinctGames',
+    core: true,
+    count: games.length,
+    games: randomizeDistinctGames(
+      games,
+      `${ctx.playerId}:${ctx.range.from.toISOString()}:${ctx.range.to.toISOString()}`,
+    ),
   };
 };
 

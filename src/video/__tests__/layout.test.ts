@@ -170,6 +170,7 @@ const LABELS = [
   'Most games start at',
   'Longest win streak',
   'Learned this year',
+  'Different games',
   'The year in five',
   'Played most with',
   'Best winning score',

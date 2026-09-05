@@ -34,6 +34,7 @@ export const MODULES: Array<{ id: SlideId; run: StatModule; core: boolean }> = [
   // Straight after it, because the two are one thought: how long in total, and
   // then where it went. `LINKED_PAIRS` keeps them adjacent in the cut.
   { id: 'topFiveByTime', run: optional.topFiveByTime, core: true },
+  { id: 'distinctGames', run: core.distinctGames, core: true },
   { id: 'topGame', run: core.topGame, core: true },
   { id: 'topFive', run: core.topFive, core: true },
   // The BGG credit slides in their catalogue positions. Top theme is part of
