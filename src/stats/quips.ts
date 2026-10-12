@@ -172,9 +172,10 @@ export const quipFor = (slideId: SlideId, stats: WrappedStats | null): string | 
     case 'topCoPlayer': {
       const co = find(stats, 'topCoPlayer');
       if (!co || !total) return null;
-      const share = Math.round((co.shared / total.plays) * 100);
-      if (share >= 80) return `${share}% of your games. At this point it is a duo.`;
-      return `That is ${share}% of everything you played.`;
+      return `At this point, you know each other's moves.`;
+      // const share = Math.round((co.shared / total.plays) * 100);
+      // if (share >= 80) return `${share}% of your games. At this point it is a duo.`;
+      // return `That is ${share}% of everything you played.`;
     }
 
     case 'nemesis': {

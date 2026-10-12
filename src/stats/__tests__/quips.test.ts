@@ -91,7 +91,7 @@ describe('quipFor', () => {
         s.id === 'topCoPlayer' ? { ...s, shared: 5 } : s,
       ) as WrappedStats['stats'],
     };
-    expect(quipFor('topCoPlayer', duo)).toBe('100% of your games. At this point it is a duo.');
+    expect(quipFor('topCoPlayer', duo)).toBe('At this point, you know each other's moves.');
   });
 });
 
